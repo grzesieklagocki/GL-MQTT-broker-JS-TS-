@@ -1,0 +1,23 @@
+{
+  "name": "gl-mqtt-broker",
+  "version": "1.0.0",
+  "description": "This project is a custom implementation of an MQTT broker, developed as part of my final thesis. See the MQTT specification for details: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-.git"
+  },
+  "keywords": [
+    "MQTT",
+    "broker"
+  ],
+  "author": "Grzegorz Łagocki",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-/issues"
+  },
+  "homepage": "https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-#readme"
+}
