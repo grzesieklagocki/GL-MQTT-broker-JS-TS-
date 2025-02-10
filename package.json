@@ -19,5 +19,11 @@
   "bugs": {
     "url": "https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-/issues"
   },
-  "homepage": "https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-#readme"
+  "homepage": "https://github.com/grzesieklagocki/GL-MQTT-broker-JS-TS-#readme",
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
 }
