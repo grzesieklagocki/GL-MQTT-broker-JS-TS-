@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import { VariableByteIntegerDecoder } from "./VariableByteIntegerDecoder";
+
+const cases: [number[], number][] = [
+  [[0x00], 0x00],
+  [[0x50], 0x50],
+  [[0x7f], 127],
+  [[0x80, 0x01], 128],
+  [[0xff, 0x01], 255],
+  [[0x80, 0x02], 256],
+  [[0xff, 0x7f], 16383],
+  [[0x80, 0x80, 0x01], 16384],
+  [[0xff, 0xff, 0x7f], 2097151],
+  [[0x80, 0x80, 0x80, 0x01], 2097152],
+  [[0xff, 0xff, 0xff, 0x7f], 268435455],
+];
+
+describe("Test `BytesDecoder.takeNextByte(bytes)`", () => {
+  cases.forEach(([input, expected]) => {
+    it(createDescription(input, expected), () => {
+      const decoder = new VariableByteIntegerDecoder();
+
+      for (let i = 0; i < input.length - 1; i++)
+        expect(decoder.takeNextByte(input[i])).toBe(false);
+
+      expect(decoder.takeNextByte(input[input.length - 1])).toBe(expected);
+      expect(() => decoder.takeNextByte(0xf0)).toThrowError(/decoded/);
+    });
+  });
+});
+
+function createDescription(input: number[], expected: number): string {
+  return `decodes ${input.length} byte(s): [${input
+    .map((x) => toHex(x, 2))
+    .join(", ")}] => ${toHex(expected, 2 * input.length)}`;
+}
+
+function toHex(value: number, pad: number): string {
+  return "0x" + value.toString(16).padStart(pad, "0");
+}
