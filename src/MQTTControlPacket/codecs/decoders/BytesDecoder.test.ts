@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BytesDecoder } from "./BytesDecoder";
+import { createDescription } from "./TestHelpers";
 
 const cases: [number[], number][] = [
   [[0x00], 0x00],
@@ -38,13 +39,3 @@ describe("Test `BytesDecoder.takeNextByte(bytes)`", () => {
     });
   });
 });
-
-function createDescription(input: number[], expected: number): string {
-  return `decodes ${input.length} byte(s): [${input
-    .map((x) => toHex(x, 2))
-    .join(", ")}] => ${toHex(expected, 2 * input.length)}`;
-}
-
-function toHex(value: number, pad: number): string {
-  return "0x" + value.toString(16).padStart(pad, "0");
-}
