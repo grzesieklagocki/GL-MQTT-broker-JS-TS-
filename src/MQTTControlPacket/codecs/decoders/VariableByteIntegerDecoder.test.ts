@@ -28,4 +28,12 @@ describe("Test `BytesDecoder.takeNextByte(bytes)`", () => {
       expect(() => decoder.takeNextByte(0xf0)).toThrowError(/decoded/);
     });
   });
+
+  it("Should throw an Error when value > 268435455", () => {
+    const decoder = new VariableByteIntegerDecoder();
+    expect(decoder.takeNextByte(0xff)).toBe(false);
+    expect(decoder.takeNextByte(0xff)).toBe(false);
+    expect(decoder.takeNextByte(0xff)).toBe(false);
+    expect(() => decoder.takeNextByte(0x80)).toThrowError(/Malformed/);
+  });
 });
