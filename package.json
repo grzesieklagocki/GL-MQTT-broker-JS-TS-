@@ -25,5 +25,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
+  },
+  "dependencies": {
+    "@vitest/coverage-v8": "^3.2.2"
   }
 }
