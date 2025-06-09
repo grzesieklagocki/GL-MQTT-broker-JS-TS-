@@ -22,7 +22,7 @@ export class BytesDecoder implements Decoder<number> {
   }
 
   /**
-   * Creates new instance of BytesDecoder
+   * Creates a new instance of BytesDecoder
    * @param bytesCount number of bytes to decode
    */
   constructor(bytesCount: number) {
