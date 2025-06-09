@@ -9,11 +9,29 @@ export class VariableByteIntegerDecoder implements Decoder<number> {
     return this._isDecoded;
   }
 
-  /**
-   * Takes next byte of encoded value and tries to decode it
-   * @param byte - next byte of decoded value (e.g. from stream)
-   * @returns decoded value from MQTT Control Packet as `number` (if available), `false` otherwise
-   */
+  public get decodedBytesCount() {
+    if (this.value >= 0x200000) return 4;
+    
+    let count = 0;
+
+    switch (this.multiplier) {
+      case 0x80:
+        count = 1;
+        break;
+      case 0x4000:
+        count = 2;
+        break;
+      case 0x200000:
+        count = 3;
+        break;
+      default:
+        count = 0;
+        break;
+    }
+
+    return this.isDecoded ? count + 1 : count;
+  }
+
   public takeNextByte(byte: number): number | false {
     if (this.isDecoded) throw new Error("Already decoded");
 

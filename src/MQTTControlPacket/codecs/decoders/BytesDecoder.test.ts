@@ -34,13 +34,13 @@ describe("Test `BytesDecoder.takeNextByte(bytes)`", () => {
       for (let i = 0; i < input.length - 1; i++) {
         expect(decoder.takeNextByte(input[i])).toBe(false);
         expect(decoder.isDecoded).toBe(false);
-        expect(decoder.remainingBytes).toBe(input.length - i - 1);
+        expect(decoder.decodedBytesCount).toBe(i + 1);
       }
 
       expect(decoder.takeNextByte(input[input.length - 1])).toBe(expected);
       expect(decoder.isDecoded).toBe(true);
-      expect(decoder.remainingBytes).toBe(0);
-      
+      expect(decoder.decodedBytesCount).toBe(input.length);
+
       expect(() => decoder.takeNextByte(0xf0)).toThrowError(/decoded/);
     });
   });
@@ -53,7 +53,6 @@ describe("Test `BytesDecoder` constructor", () => {
   [1, 2, 3, 4].forEach((x) => {
     it(`creates instance of BytesDecoder if bytesCount = ${x}`, () => {
       const decoder = new BytesDecoder(x);
-      expect(decoder.remainingBytes).toBe(x);
       expect(decoder.isDecoded).toBe(false);
     });
   });

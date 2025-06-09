@@ -5,13 +5,11 @@ import { BytesDecoder } from "./BytesDecoder";
 describe("Test DecoderFactory.Create(type)", () => {
   it("returns instance of BytesDecoder with remainingBytes = 2 when type=`TwoByteInteger`", () => {
     const decoder = DecoderFactory.Create(DecoderType.TwoByteInteger);
-    expect((decoder as BytesDecoder).remainingBytes).toBe(2);
     expect(decoder.takeNextByte(0xab)).toBe(false);
     expect(decoder.takeNextByte(0xbc)).toBe(0xabbc);
   });
   it("returns instance of BytesDecoder with remainingBytes = 4 when type=`FourByteInteger`", () => {
     const decoder = DecoderFactory.Create(DecoderType.FourByteInteger);
-    expect((decoder as BytesDecoder).remainingBytes).toBe(4);
     expect(decoder.takeNextByte(0xab)).toBe(false);
     expect(decoder.takeNextByte(0xbc)).toBe(false);
     expect(decoder.takeNextByte(0xcd)).toBe(false);

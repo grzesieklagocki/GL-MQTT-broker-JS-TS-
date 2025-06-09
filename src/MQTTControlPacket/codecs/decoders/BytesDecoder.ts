@@ -9,13 +9,16 @@ export class BytesDecoder implements Decoder<number> {
     return (this.remainingBytes - 1) * 8;
   }
 
+  private get remainingBytes(): number {
+    return this.totalCount - this.decodedCount;
+  }
+
   public get isDecoded(): boolean {
     return this.decodedCount == this.totalCount;
   }
 
-  // Number of bytes needed to complete decoding
-  public get remainingBytes(): number {
-    return this.totalCount - this.decodedCount;
+  public get decodedBytesCount() {
+    return this.decodedCount;
   }
 
   /**
@@ -29,11 +32,6 @@ export class BytesDecoder implements Decoder<number> {
     this.totalCount = bytesCount;
   }
 
-  /**
-   * Takes next byte of encoded value and tries to decode it
-   * @param byte - next byte of decoded value (e.g. from stream)
-   * @returns decoded value from MQTT Control Packet as `number` (if available), `false` otherwise
-   */
   public takeNextByte(byte: number): number | false {
     if (this.isDecoded) throw Error("Already decoded");
 
