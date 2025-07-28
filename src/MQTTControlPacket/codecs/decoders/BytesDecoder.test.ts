@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BytesDecoder } from "./BytesDecoder";
-import { createDescription } from "./TestHelpers";
+import { createDecodesDescription } from "./TestHelpers";
 
 const cases: [number[], number][] = [
   [[0x00], 0x00],
@@ -28,7 +28,7 @@ const cases: [number[], number][] = [
 
 describe("Test `BytesDecoder.takeNextByte(bytes)`", () => {
   cases.forEach(([input, expected]) => {
-    it(createDescription(input, expected), () => {
+    it(createDecodesDescription(input, expected), () => {
       const decoder = new BytesDecoder(input.length);
 
       for (let i = 0; i < input.length - 1; i++) {
