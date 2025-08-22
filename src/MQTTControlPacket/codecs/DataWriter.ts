@@ -49,7 +49,7 @@ export class DataWriter {
   public toArrayBuffer(): ArrayBuffer {
     this.isExported = true;
 
-    return this.array.buffer;
+    return this.array.buffer as ArrayBuffer;
   }
 
   /**
