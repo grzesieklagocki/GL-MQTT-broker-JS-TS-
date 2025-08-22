@@ -43,13 +43,11 @@ function isValidMqttUtf8(str: string): boolean {
   return true;
 }
 
-function isValidMqttUtf8CodePoint(codePoint: number) {
-  return (
-    !isNullCharacter(codePoint) &&
-    !isUnicodeControlCharacter(codePoint) &&
-    !isUnicodeNonCharacter(codePoint)
-  );
-}
+const isValidMqttUtf8CodePoint = (codePoint: number) =>
+  !isNullCharacter(codePoint) &&
+  !isUnicodeControlCharacter(codePoint) &&
+  !isUnicodeNonCharacter(codePoint);
+
 
 const isNullCharacter = (codePoint: number) => codePoint === 0x0000;
 
