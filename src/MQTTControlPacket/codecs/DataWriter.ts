@@ -1,44 +1,31 @@
-export class DataWriter {
-  private array: Uint8Array;
-  private index = 0;
-  private isExported = false;
+import { Uint8ArrayCollectionBase } from "./Uint8ArrayCollectionBase";
 
-  public get capacity() {
-    return this.array.length;
-  }
+export class DataWriter extends Uint8ArrayCollectionBase {
+  protected isExported = false;
 
-  public get length() {
+  public get length(): number {
     return this.index;
   }
 
-  public get remaining() {
-    return this.capacity - this.length;
-  }
-
-  public get isEmpty() {
-    return this.length == 0;
-  }
-
-  public get isFinalized() {
+  public get isFinalized(): boolean {
     return this.isExported;
   }
 
   constructor(capacity: number) {
     if (capacity < 1) throw Error("Capacity must be at least 1");
 
-    this.array = new Uint8Array(capacity);
+    const array = new Uint8Array(capacity);
+    super(array);
   }
 
   /**
    * Returns whether the writer can write the specified number of bytes
-   * @param length Number of bytes (default 1)
+   * @param bytesCount Number of bytes (default 1)
    * @returns `true` when specified number of bytes can be written, `false` otherwise
    * @throws If length is less than 1
    */
-  public canWrite(length: number = 1) {
-    if (length < 1) throw Error("Length must be at least 1");
-
-    return length <= this.remaining && !this.isFinalized;
+  public canWrite(bytesCount: number = 1): boolean {
+    return this.canProcess(bytesCount) && !this.isFinalized;
   }
 
   /**
@@ -75,13 +62,19 @@ export class DataWriter {
     else this.writeBytes(data);
   }
 
-  private writeByte(byte: number) {
+  private writeByte(byte: number): void {
     if (!this.canWrite()) throw Error("Buffer overflow");
 
-    this.array[this.index++] = byte;
+    this.array[this.index] = byte;
+
+    this.moveIndex(1);
   }
 
-  private writeBytes(bytes: Uint8Array) {
-    bytes.forEach((byte) => this.writeByte(byte));
+  private writeBytes(bytes: Uint8Array): void {
+    if (!this.canWrite(bytes.length)) throw Error("Buffer overflow");
+
+    this.array.set(bytes, this.index);
+
+    this.moveIndex(bytes.length);
   }
 }
