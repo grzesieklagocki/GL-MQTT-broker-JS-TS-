@@ -9,10 +9,6 @@ export abstract class Uint8ArrayCollectionBase {
     return this.capacity - this.index;
   }
 
-  public get isEmpty(): boolean {
-    return this.index === 0;
-  }
-
   protected get index(): number {
     return this._index;
   }
