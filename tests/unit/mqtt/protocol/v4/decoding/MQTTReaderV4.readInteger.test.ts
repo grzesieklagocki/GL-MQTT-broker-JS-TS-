@@ -71,39 +71,6 @@ describe("MQTTReader.readInteger(IntegerType.variableByte)", () => {
     { input: [0x80, 0x80, 0x80], reason: "incomplete sequence" },
     { input: [0xff, 0xff, 0xff, 0x80], reason: "missing 5th byte" },
     { input: [0x80, 0x80, 0x80, 0x80, 0x00], reason: "too many bytes" },
-
-    /**
-     * The encoded value MUST use the minimum number of bytes necessary to represent the value
-     *
-     * [MQTT-1.5.5-1]
-     * https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html
-     */
-    { input: [0x80, 0x00], reason: "overlong encoding for 128" },
-    { input: [0x81, 0x80, 0x00], reason: "overlong encoding for 1" },
-    {
-      input: [0x80, 0x00],
-      reason: "overlong encoding for 0 (should be [0x00])",
-    },
-    {
-      input: [0x81, 0x00],
-      reason: "overlong encoding for 1 (should be [0x01])",
-    },
-    {
-      input: [0xff, 0x00],
-      reason: "overlong encoding for 127 (should be [0x7f])",
-    },
-    {
-      input: [0x81, 0x80, 0x00],
-      reason: "overlong encoding for 1 using 3 bytes (should be [0x01])",
-    },
-    {
-      input: [0x80, 0x81, 0x00],
-      reason: "overlong encoding for 128 (should be [0x80,0x01])",
-    },
-    {
-      input: [0x80, 0x80, 0x80, 0x00],
-      reason: "overlong encoding for 0 using 4 bytes (should be [0x00])",
-    },
   ].forEach(({ input, reason }) => {
     it(`throws when ${reason}: ${arrayToHexString(input)}`, () => {
       const array = new Uint8Array(input);

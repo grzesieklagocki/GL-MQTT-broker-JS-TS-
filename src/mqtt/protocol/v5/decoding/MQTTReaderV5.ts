@@ -38,6 +38,40 @@ export class MQTTReaderV5 extends MQTTReaderBase {
     }
   }
 
+  // Reads a Variable Byte Integer from the MQTT packet.
+  public readVariableByteInteger(): number {
+    let multiplier = 1;
+    let value = 0;
+    let encodedByte: number;
+    let encodedBytesCount = 0;
+
+    do {
+      try {
+        encodedByte = this.readOneByteInteger();
+      } catch {
+        throw Error("Malformed Variable Byte Integer: incomplete sequence");
+      }
+
+      encodedBytesCount++;
+
+      value += (encodedByte & 0x7f) * multiplier;
+
+      multiplier *= 0x80;
+    } while ((encodedByte & 0x80) != 0);
+
+    const minimumBytesCountToEncode = (value: number) => {
+      if (value <= 0x7f) return 1;
+      if (value <= 0x3fff) return 2;
+      if (value <= 0x1fffff) return 3;
+      return 4;
+    };
+
+    if (encodedBytesCount > minimumBytesCountToEncode(value))
+      throw Error("Malformed Variable Byte Integer: overlong encoding");
+
+    return value;
+  }
+
   /**
    * Reads a pair of UTF-8 encoded strings from the MQTT packet.
    *

@@ -26,34 +26,26 @@ export abstract class MQTTReaderBase extends DataReader {
   public readVariableByteInteger(): number {
     let multiplier = 1;
     let value = 0;
-    let encodedByte: number;
-    let encodedBytesCount = 0;
 
-    do {
+    for (let i = 0; i < 4; i++) {
+      let encodedByte: number;
+
       try {
         encodedByte = this.readOneByteInteger();
       } catch {
         throw Error("Malformed Variable Byte Integer: incomplete sequence");
       }
 
-      encodedBytesCount++;
-
       value += (encodedByte & 0x7f) * multiplier;
 
-      multiplier *= 0x80;
-    } while ((encodedByte & 0x80) != 0);
+      if ((encodedByte & 0x80) === 0) {
+        return value;
+      }
 
-    const minimumBytesCountToEncode = (value: number) => {
-      if (value <= 0x7f) return 1;
-      if (value <= 0x3fff) return 2;
-      if (value <= 0x1fffff) return 3;
-      return 4;
-    };
+      multiplier *= 128;
+    }
 
-    if (encodedBytesCount > minimumBytesCountToEncode(value))
-      throw Error("Malformed Variable Byte Integer: overlong encoding");
-
-    return value;
+    throw Error("Malformed Variable Byte Integer: too many bytes");
   }
 
   // Reads binary data from the MQTT packet prefixed with its length (encoded as a two-byte integer).
