@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { MQTTReaderV4 } from "./MQTTReaderV4";
-import { arrayToHexString, uint8ToHexString } from "../../../testHelpers";
+import { describe, expect, it } from "vitest";
+import { MQTTReaderV4 } from "../encoding/MQTTReaderV4";
+import { arrayToHexString, uint8ToHexString } from "../../shared/testHelpers";
 
 describe("MQTTReader.readInteger(IntegerType.oneByte)", () => {
   [
