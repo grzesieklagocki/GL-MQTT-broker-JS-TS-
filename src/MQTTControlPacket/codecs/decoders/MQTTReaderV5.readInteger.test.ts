@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IntegerType, MQTTReader } from "./MQTTReader";
+import { IntegerTypeV5, MQTTReaderV5 } from "./MQTTReaderV5";
 import { arrayToHexString, uint8ToHexString } from "../../../testHelpers";
 
 describe("MQTTReader.readInteger(IntegerType.oneByte)", () => {
@@ -12,9 +12,9 @@ describe("MQTTReader.readInteger(IntegerType.oneByte)", () => {
   ].forEach(({ input, expected }) => {
     it(createDecodesDescription(input, expected, 2), () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
 
-      expect(reader.readInteger(IntegerType.oneByte)).toBe(expected);
+      expect(reader.readInteger(IntegerTypeV5.oneByte)).toBe(expected);
     });
   });
 });
@@ -29,9 +29,9 @@ describe("MQTTReader.readInteger(IntegerType.twoByte)", () => {
   ].forEach(({ input, expected }) => {
     it(createDecodesDescription(input, expected, 4), () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
 
-      expect(reader.readInteger(IntegerType.twoByte)).toBe(expected);
+      expect(reader.readInteger(IntegerTypeV5.twoByte)).toBe(expected);
     });
   });
 });
@@ -52,9 +52,9 @@ describe("MQTTReader.readInteger(IntegerType.fourByte)", () => {
   ].forEach(({ input, expected }) => {
     it(createDecodesDescription(input, expected, 8), () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
 
-      expect(reader.readInteger(IntegerType.fourByte)).toBe(expected);
+      expect(reader.readInteger(IntegerTypeV5.fourByte)).toBe(expected);
     });
   });
 });
@@ -78,9 +78,9 @@ describe("MQTTReader.readInteger(IntegerType.variableByte)", () => {
   ].forEach(({ input, expected }) => {
     it(createDecodesDescription(input, expected, 8), () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
 
-      expect(reader.readInteger(IntegerType.variableByte)).toBe(expected);
+      expect(reader.readInteger(IntegerTypeV5.variableByte)).toBe(expected);
     });
   });
 
@@ -127,9 +127,9 @@ describe("MQTTReader.readInteger(IntegerType.variableByte)", () => {
   ].forEach(({ input, reason }) => {
     it(`throws when ${reason}: ${arrayToHexString(input)}`, () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
 
-      expect(() => reader.readInteger(IntegerType.variableByte)).toThrowError(
+      expect(() => reader.readInteger(IntegerTypeV5.variableByte)).toThrowError(
         /Malformed/
       );
     });

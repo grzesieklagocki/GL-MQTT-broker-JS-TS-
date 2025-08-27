@@ -1,6 +1,6 @@
 import { DataReader } from "./DataReader";
 
-export enum IntegerType {
+export enum IntegerTypeV5 {
   oneByte,
   twoByte,
   fourByte,
@@ -8,10 +8,10 @@ export enum IntegerType {
 }
 
 /**
- * Utility class for reading MQTT packet data from a byte array.
- * Supports reading integers, binary data, and UTF-8 strings.
+ * Utility class for reading MQTT 5.0 packet data from a byte array.
+ * Extends DataReader to support MQTT 5.0 types.
  */
-export class MQTTReader extends DataReader {
+export class MQTTReaderV5 extends DataReader {
   /**
    * Creates an instance of the class using the provided byte array.
    * @param array The Uint8Array containing the data to be read.
@@ -26,22 +26,22 @@ export class MQTTReader extends DataReader {
    * @param type - The type of integer to read.
    * @returns The integer value read from the stream.
    */
-  public readInteger(type: IntegerType): number {
+  public readInteger(type: IntegerTypeV5): number {
     switch (type) {
-      case IntegerType.oneByte:
+      case IntegerTypeV5.oneByte:
         return this.readOneByteInteger();
-      case IntegerType.twoByte:
+      case IntegerTypeV5.twoByte:
         return this.readTwoByteInteger();
-      case IntegerType.fourByte:
+      case IntegerTypeV5.fourByte:
         return this.readFourByteInteger();
-      case IntegerType.variableByte:
+      case IntegerTypeV5.variableByte:
         return this.readVariableByteInteger();
     }
   }
 
   // Reads binary data from the MQTT packet.
   public readBinaryData = () =>
-    this.readData(IntegerType.twoByte, (data) => data);
+    this.readData(IntegerTypeV5.twoByte, (data) => data);
 
   /**
    * Reads a string from the MQTT packet using the provided UTF-8 string converter.
@@ -50,7 +50,7 @@ export class MQTTReader extends DataReader {
    * @returns The decoded string from the packet.
    */
   public readString = (utf8StringConverter: (data: Uint8Array) => string) =>
-    this.readData(IntegerType.twoByte, utf8StringConverter);
+    this.readData(IntegerTypeV5.twoByte, utf8StringConverter);
 
   /**
    * Reads a pair of UTF-8 encoded strings from the MQTT packet.
@@ -68,7 +68,7 @@ export class MQTTReader extends DataReader {
   }
 
   protected readData<T>(
-    bytesCountIntegerType: IntegerType,
+    bytesCountIntegerType: IntegerTypeV5,
     converter: (data: Uint8Array) => T
   ): T {
     try {
