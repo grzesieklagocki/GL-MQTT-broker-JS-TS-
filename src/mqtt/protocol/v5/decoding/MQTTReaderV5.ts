@@ -1,4 +1,4 @@
-import { MQTTReaderBase } from "./MQTTReaderBase";
+import { MQTTReaderBase } from "../../shared/MQTTReaderBase";
 
 export enum IntegerTypeV5 {
   oneByte,

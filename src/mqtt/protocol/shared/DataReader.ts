@@ -1,4 +1,4 @@
-import { Uint8ArrayCollectionBase } from "../Uint8ArrayCollectionBase";
+import { Uint8ArrayCollectionBase } from "./Uint8ArrayCollectionBase";
 
 export class DataReader extends Uint8ArrayCollectionBase {
   constructor(array: Uint8Array) {

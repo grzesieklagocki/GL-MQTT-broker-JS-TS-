@@ -1,4 +1,4 @@
-import { MQTTReaderBase } from "./MQTTReaderBase";
+import { MQTTReaderBase } from "../../shared/MQTTReaderBase"
 
 /**
  * Utility class for reading MQTT 3.1.1 packet data from a byte array.

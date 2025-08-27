@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { MQTTReaderV5 } from "./MQTTReaderV5";
-import { arrayToHexString } from "../../../testHelpers";
+import { MQTTReaderV4 } from "../encoding/MQTTReaderV4";
+import { arrayToHexString } from "../../shared/testHelpers";
 
 describe("MQTTReader.readBinaryData", () => {
   [
@@ -17,7 +17,7 @@ describe("MQTTReader.readBinaryData", () => {
       expected
     )}`, () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReaderV5(array);
+      const reader = new MQTTReaderV4(array);
 
       expect(reader.readBinaryData()).toStrictEqual(new Uint8Array(expected));
     });
@@ -38,7 +38,7 @@ describe("MQTTReader.readBinaryData", () => {
   ].forEach(({ input, reason }) => {
     it(`throws when ${reason}: ${arrayToHexString(input)}`, () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReaderV5(array);
+      const reader = new MQTTReaderV4(array);
 
       expect(() => reader.readBinaryData()).toThrowError(/Malformed/);
     });

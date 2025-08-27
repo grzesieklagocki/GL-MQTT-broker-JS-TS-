@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MQTTReaderV5 } from "./MQTTReaderV5";
-import { arrayToHexString } from "../../../testHelpers";
+import { arrayToHexString } from "../../shared/testHelpers";
 
 describe("MQTTReader.readBinaryData", () => {
   [
