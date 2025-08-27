@@ -7,7 +7,7 @@ export class DataReader extends Uint8ArrayCollectionBase {
 
   /**
    * Returns whether the reader can read the specified number of bytes.
-   * 
+   *
    * @param bytesCount Number of bytes
    * @returns `true` when specified number of bytes can be read, `false` otherwise.
    * @throws If length is less than 1.

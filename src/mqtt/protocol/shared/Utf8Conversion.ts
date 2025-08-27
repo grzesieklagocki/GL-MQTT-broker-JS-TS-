@@ -48,7 +48,6 @@ const isValidMqttUtf8CodePoint = (codePoint: number) =>
   !isUnicodeControlCharacter(codePoint) &&
   !isUnicodeNonCharacter(codePoint);
 
-
 const isNullCharacter = (codePoint: number) => codePoint === 0x0000;
 
 const isUnicodeControlCharacter = (codePoint: number) =>
