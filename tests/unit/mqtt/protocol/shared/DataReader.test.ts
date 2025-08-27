@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DataReader } from "./DataReader";
+import { DataReader } from "../../../../../src/mqtt/protocol/shared/DataReader";
 
 describe("DataReader.constructor", () => {
   it("creates instance of DataReader from from Uint8Array([0x12, 0x23])", () => {

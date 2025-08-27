@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Uint8ArrayToUtf8String } from "./Utf8Conversion";
+import { Uint8ArrayToUtf8String } from "../../../../../src/mqtt/protocol/shared/Utf8Conversion";
 
 describe("Uint8ArrayToUtf8 (valid case)", () => {
   [

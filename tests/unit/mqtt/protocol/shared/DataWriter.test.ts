@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DataWriter } from "./DataWriter";
+import { DataWriter } from "../../../../../src/mqtt/protocol/shared/DataWriter";
 
 describe("DataWriter.constructor", () => {
   it("creates instance of DataWriter when capacity is 1000 ", () => {
