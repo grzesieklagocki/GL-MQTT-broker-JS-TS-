@@ -1,5 +1,5 @@
 import { describe, it, vi, expect } from "vitest";
-import { MQTTReader } from "./MQTTReader";
+import { MQTTReaderV5 } from "./MQTTReaderV5";
 import { arrayToHexString } from "../../../testHelpers";
 
 describe("", () => {
@@ -36,7 +36,7 @@ describe("", () => {
   ].forEach(({ input, expected }) => {
     it(`decodes ${arrayToHexString(input)} to "${expected}"`, () => {
       const array = new Uint8Array(input);
-      const reader = new MQTTReader(array);
+      const reader = new MQTTReaderV5(array);
       const stringConverterMock = vi.fn().mockReturnValue(expected);
       const stringLenth = input[1];
 
@@ -63,7 +63,7 @@ describe("", () => {
     },
   ].forEach(({ input, reason }) => {
     it(`throws when ${reason}: ${arrayToHexString(input)}`, () => {
-      const reader = new MQTTReader(new Uint8Array(input));
+      const reader = new MQTTReaderV5(new Uint8Array(input));
       const converter = vi.fn().mockReturnValue("<ignored>");
 
       expect(() => reader.readString(converter)).toThrow(/Malformed/);

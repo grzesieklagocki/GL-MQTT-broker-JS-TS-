@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { MQTTReader } from "./MQTTReader";
+import { MQTTReaderV5 } from "./MQTTReaderV5";
 import { arrayToHexString } from "../../../testHelpers";
 
 [
@@ -46,7 +46,7 @@ import { arrayToHexString } from "../../../testHelpers";
     expected.value
   }"]`, () => {
     const array = new Uint8Array(input);
-    const reader = new MQTTReader(array);
+    const reader = new MQTTReaderV5(array);
     const stringConverterMock = vi
       .fn()
       .mockReturnValueOnce(expected.key)
