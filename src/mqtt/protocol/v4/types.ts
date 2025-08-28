@@ -1,3 +1,21 @@
+export type AnyPacketV4 =
+  | ConnectPacketV4
+  | ConnackPacketV4
+  | PublishPacketV4
+  | PubackPacketV4
+  | PubrecPacketV4
+  | PubrelPacketV4
+  | PubcompPacketV4
+  | SubscribePacketV4
+  | SubackPacketV4
+  | UnsubscribePacketV4
+  | UnsubackPacketV4
+  | PingreqPacketV4
+  | PingrespPacketV4
+  | DisconnectPacketV4;
+
+export type QoS = 0 | 1 | 2;
+
 import {
   ControlPacket,
   PacketType,
@@ -21,7 +39,7 @@ export type ConnectionFlagsV4 = {
   userName: boolean;
   password: boolean;
   willRetain: boolean;
-  willQoS: 0 | 1 | 2;
+  willQoS: QoS;
   willFlag: boolean;
   cleanSession: boolean;
 };
@@ -50,7 +68,7 @@ export type PublishPacketV4 = PacketWithIdentifier<PacketType.PUBLISH> & {
 
 export type PublishFlagsV4 = {
   dup: boolean;
-  qosLevel: 0 | 1 | 2;
+  qosLevel: QoS;
   retain: boolean;
 };
 
@@ -68,18 +86,19 @@ export type PubcompPacketV4 = PacketWithIdentifier<PacketType.PUBCOMP>;
 
 // 8. SUBSCRIBE
 export type SubscribePacketV4 = PacketWithIdentifier<PacketType.SUBSCRIBE> & {
-  subscriptionList: [topicFilter: string, qos: 0 | 1 | 2][];
+  subscriptionList: [topicFilter: string, qos: QoS][];
 };
 
 // 9. SUBACK
 export type SubackPacketV4 = PacketWithIdentifier<PacketType.SUBACK> & {
-  returnCode: 0x00 | 0x01 | 0x02 | 0x80;
+  returnCode: QoS | 0x80;
 };
 
 // 10. UNSUBSCRIBE
-export type UnsubscribeV4 = PacketWithIdentifier<PacketType.UNSUBSCRIBE> & {
-  topicList: string[];
-};
+export type UnsubscribePacketV4 =
+  PacketWithIdentifier<PacketType.UNSUBSCRIBE> & {
+    topicFilterList: string[];
+  };
 
 // 11. UNSUBACK
 export type UnsubackPacketV4 = PacketWithIdentifier<PacketType.UNSUBACK>;

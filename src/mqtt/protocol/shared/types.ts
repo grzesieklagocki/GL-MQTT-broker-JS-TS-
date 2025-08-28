@@ -23,3 +23,9 @@ export type ControlPacket<T extends PacketType> = {
 export type PacketWithIdentifier<T extends PacketType> = ControlPacket<T> & {
   identifier: number;
 };
+
+export type FixedHeader = {
+  packetType: PacketType;
+  flags: number;
+  remainingLength: number;
+};
