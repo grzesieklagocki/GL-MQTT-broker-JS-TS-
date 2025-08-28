@@ -1,6 +1,6 @@
 import { describe, it, vi, expect } from "vitest";
-import { MQTTReaderV5 } from "../../../../../../src/mqtt/protocol/v5/decoding/MQTTReaderV5";
-import { arrayToHexString } from "../../../../../../src/mqtt/protocol/shared/testHelpers";
+import { MQTTReaderV5 } from "@mqtt/protocol/v5/decoding/MQTTReaderV5";
+import { arrayToHexString } from "@mqtt/protocol/shared/testHelpers";
 
 describe("", () => {
   [

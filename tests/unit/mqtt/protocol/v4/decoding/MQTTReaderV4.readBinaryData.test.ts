@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { MQTTReaderV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { arrayToHexString } from "../../../../../../src/mqtt/protocol/shared/testHelpers";
+import { describe, expect, it } from "vitest";
+import { arrayToHexString } from "@mqtt/protocol/shared/testHelpers";
+import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 
 describe("MQTTReader.readBinaryData", () => {
   [

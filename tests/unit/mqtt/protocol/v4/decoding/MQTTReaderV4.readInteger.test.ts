@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MQTTReaderV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/MQTTReaderV4";
+import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import {
   arrayToHexString,
   uint8ToHexString,
-} from "../../../../../../src/mqtt/protocol/shared/testHelpers";
+} from "@mqtt/protocol/shared/testHelpers";
 
 describe("MQTTReader.readInteger(IntegerType.oneByte)", () => {
   [

@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { PacketType } from "../../../../../../src/mqtt/protocol/shared/types";
-import { getParserFor } from "../../../../../../src/mqtt/protocol/v4/decoding/parseControlPacketV4";
-import { parseConnackPacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
-import { parseConnectPacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";
-import { parseEmptyPacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
-import { parsePacketWithIdentifierV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
-import { parsePublishPacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
-import { parseSubackPacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
-import { parseSubscribePacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4.";
-import { parseUnsubscribePacketV4 } from "../../../../../../src/mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import { PacketType } from "@mqtt/protocol/shared/types";
+import { getParserFor } from "@mqtt/protocol/v4/decoding/parseControlPacketV4";
+import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
+import { parseConnectPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";
+import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
+import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
+import { parsePublishPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
+import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
+import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4.";
+import { parseUnsubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
 
 describe("getParserFor", () => {
   it("returns the correct parser for each packet type", () => {

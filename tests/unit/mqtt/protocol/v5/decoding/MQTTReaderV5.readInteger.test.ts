@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   IntegerTypeV5,
   MQTTReaderV5,
-} from "../../../../../../src/mqtt/protocol/v5/decoding/MQTTReaderV5";
+} from "@mqtt/protocol/v5/decoding/MQTTReaderV5";
 import {
   arrayToHexString,
   uint8ToHexString,
-} from "../../../../../../src/mqtt/protocol/shared/testHelpers";
+} from "@mqtt/protocol/shared/testHelpers";
 
 describe("MQTTReader.readInteger(IntegerType.oneByte)", () => {
   [
