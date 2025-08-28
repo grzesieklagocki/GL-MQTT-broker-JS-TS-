@@ -40,7 +40,7 @@ describe("MQTTReader.readBinaryData", () => {
       const array = new Uint8Array(input);
       const reader = new MQTTReaderV5(array);
 
-      expect(() => reader.readBinaryData()).toThrowError(/Malformed/);
+      expect(() => reader.readBinaryData()).toThrowError(/Data reading error/);
     });
   });
 });

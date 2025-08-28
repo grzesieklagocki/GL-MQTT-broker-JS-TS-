@@ -1,3 +1,5 @@
+import { AppError } from "@src/AppError";
+
 /**
  * Converts a `Uint8Array` to a JavaScript `string` and validates it
  * Rules come from UTF‑8 (RFC 3629) and MQTT 5.0 (sections 1.5.4 and 5.4.9).
@@ -19,16 +21,18 @@
  *         decoded text violates the MQTT Unicode restrictions above.
  */
 export function Uint8ArrayToUtf8String(array: Uint8Array): string {
+  let text: string;
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+
   try {
-    const decoder = new TextDecoder("utf-8", { fatal: true });
-    const text = decoder.decode(array);
-
-    if (!isValidMqttUtf8(text)) throw new Error("Malformed UTF-8 string");
-
-    return hasBOM(array) ? restoreBOM(text) : text;
-  } catch {
-    throw new Error("Malformed UTF-8 string");
+    text = decoder.decode(array);
+  } catch (error) {
+    throw _assertIsInvalidUtf8(error as Error);
   }
+
+  _assertIsInvalidMqttUtf8(text);
+
+  return hasBOM(array) ? restoreBOM(text) : text;
 }
 
 function isValidMqttUtf8(str: string): boolean {
@@ -42,6 +46,17 @@ function isValidMqttUtf8(str: string): boolean {
 
   return true;
 }
+
+const _assertIsInvalidUtf8 = (error: Error): AppError => {
+  throw new AppError("Invalid UTF-8 byte sequence", error);
+};
+
+const _assertIsInvalidMqttUtf8 = (text: string) => {
+  if (!isValidMqttUtf8(text))
+    throw new AppError(
+      `"${text}" is valid UTF-8 string, but does not meet MQTT spec requirements`
+    );
+};
 
 const isValidMqttUtf8CodePoint = (codePoint: number) =>
   !isNullCharacter(codePoint) &&

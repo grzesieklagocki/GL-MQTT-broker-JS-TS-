@@ -1,3 +1,5 @@
+import { AppError } from "@src/AppError";
+
 export abstract class Uint8ArrayCollectionBase {
   private _index = 0;
 
@@ -22,12 +24,16 @@ export abstract class Uint8ArrayCollectionBase {
   }
 
   protected canProcess(bytesCount: number): boolean {
-    if (bytesCount < 1) throw Error("Bytes count must be at least 1");
+    this._assertArgumentInRange(bytesCount);
 
     return bytesCount <= this.remaining;
   }
 
   protected moveIndex(by: number) {
     this._index += by;
+  }
+
+  private _assertArgumentInRange(bytesCount: number) {
+    if (bytesCount < 1) throw new AppError("Bytes count must be at least 1");
   }
 }

@@ -126,7 +126,7 @@ describe("Uint8ArrayToUtf8 (invalid encoding case)", () => {
     it(`throws an Error when input is 0x${Buffer.from(input).toString(
       "hex"
     )}: ${description}`, () => {
-      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Invalid UTF-8/);
     });
   });
 });
@@ -172,7 +172,7 @@ describe("Uint8ArrayToUtf8 (Unicode surrogate case)", () => {
     it(`throws an Error when input is 0x${Buffer.from(input).toString(
       "hex"
     )}: ${description}`, () => {
-      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Invalid UTF-8/);
     });
   });
 });
@@ -207,7 +207,7 @@ describe("Uint8ArrayToUtf8 (Unicode null character case)", () => {
     it(`throws an Error when input is 0x${Buffer.from(input).toString(
       "hex"
     )}: ${description}`, () => {
-      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/MQTT spec/);
     });
   });
 });
@@ -283,7 +283,7 @@ describe("Uint8ArrayToUtf8 (Unicode control character case)", () => {
     it(`throws an Error when input is 0x${Buffer.from(input).toString(
       "hex"
     )}: ${description}`, () => {
-      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/MQTT spec/);
     });
   });
 
@@ -305,7 +305,7 @@ describe("Uint8ArrayToUtf8 (Unicode control character case)", () => {
       const char = String.fromCodePoint(controlCharacter);
       const array = encoder.encode(char);
 
-      expect(() => Uint8ArrayToUtf8String(array)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(array)).toThrowError(/MQTT spec/);
     });
   });
 });
@@ -345,7 +345,7 @@ describe("Uint8ArrayToUtf8 (Unicode non-character case)", () => {
     it(`throws an Error when input is 0x${Buffer.from(input).toString(
       "hex"
     )}: ${description}`, () => {
-      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(input)).toThrowError(/Invalid UTF-8/);
     });
   });
 
@@ -368,7 +368,7 @@ describe("Uint8ArrayToUtf8 (Unicode non-character case)", () => {
       const char = String.fromCodePoint(nonCharacter);
       const array = encoder.encode(char);
 
-      expect(() => Uint8ArrayToUtf8String(array)).toThrowError(/Malformed/);
+      expect(() => Uint8ArrayToUtf8String(array)).toThrowError(/MQTT spec/);
     });
   });
 });

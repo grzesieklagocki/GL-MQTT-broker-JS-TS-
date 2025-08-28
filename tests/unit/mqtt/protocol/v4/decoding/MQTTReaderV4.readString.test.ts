@@ -66,7 +66,7 @@ describe("", () => {
       const reader = new MQTTReaderV4(new Uint8Array(input));
       const converter = vi.fn().mockReturnValue("<ignored>");
 
-      expect(() => reader.readString(converter)).toThrow(/Malformed/);
+      expect(() => reader.readString(converter)).toThrow(/Data reading error/);
     });
   });
 });

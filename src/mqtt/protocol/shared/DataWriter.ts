@@ -1,3 +1,4 @@
+import { AppError } from "@src/AppError";
 import { Uint8ArrayCollectionBase } from "./Uint8ArrayCollectionBase";
 
 export class DataWriter extends Uint8ArrayCollectionBase {
@@ -12,7 +13,7 @@ export class DataWriter extends Uint8ArrayCollectionBase {
   }
 
   constructor(capacity: number) {
-    if (capacity < 1) throw Error("Capacity must be at least 1");
+    if (capacity < 1) throw new AppError("Capacity must be at least 1");
 
     const array = new Uint8Array(capacity);
     super(array);
@@ -56,14 +57,15 @@ export class DataWriter extends Uint8ArrayCollectionBase {
   public write(bytes: Uint8Array): void;
 
   public write(data: number | Uint8Array) {
-    if (this.isFinalized) throw Error("Cannot write to finalized DataWriter");
+    if (this.isFinalized)
+      throw new AppError("Cannot write to finalized DataWriter");
 
     if (typeof data === "number") this.writeByte(data);
     else this.writeBytes(data);
   }
 
   private writeByte(byte: number): void {
-    if (!this.canWrite()) throw Error("Buffer overflow");
+    if (!this.canWrite()) throw new AppError("Buffer overflow");
 
     this.array[this.index] = byte;
 

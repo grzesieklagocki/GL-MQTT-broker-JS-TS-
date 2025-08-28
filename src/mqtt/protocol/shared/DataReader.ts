@@ -1,3 +1,4 @@
+import { AppError } from "@src/AppError";
 import { Uint8ArrayCollectionBase } from "./Uint8ArrayCollectionBase";
 
 export class DataReader extends Uint8ArrayCollectionBase {
@@ -23,10 +24,7 @@ export class DataReader extends Uint8ArrayCollectionBase {
    * @throws If there is not enough bytes in the buffer.
    */
   public read(bytesCount: number): Uint8Array {
-    if (!this.canRead(bytesCount))
-      throw new Error(
-        `Cannot read ${bytesCount} bytes, only ${this.remaining} byte(s) available.`
-      );
+    this._assertCanRead(bytesCount);
 
     const begin = this.index;
     const end = this.index + bytesCount;
@@ -36,5 +34,12 @@ export class DataReader extends Uint8ArrayCollectionBase {
     const bytes = this.array.subarray(begin, end);
 
     return bytes;
+  }
+
+  private _assertCanRead(bytesCount: number) {
+    if (!this.canRead(bytesCount))
+      throw new AppError(
+        `Cannot read ${bytesCount} bytes, only ${this.remaining} byte(s) available.`
+      );
   }
 }

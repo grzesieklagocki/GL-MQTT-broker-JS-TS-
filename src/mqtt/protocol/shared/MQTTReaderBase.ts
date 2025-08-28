@@ -1,3 +1,4 @@
+import { AppError } from "@src/AppError";
 import { DataReader } from "./DataReader";
 
 export abstract class MQTTReaderBase extends DataReader {
@@ -33,7 +34,9 @@ export abstract class MQTTReaderBase extends DataReader {
       try {
         encodedByte = this.readOneByteInteger();
       } catch {
-        throw Error("Malformed Variable Byte Integer: incomplete sequence");
+        throw new AppError(
+          "Malformed Variable Byte Integer: incomplete sequence"
+        );
       }
 
       value += (encodedByte & 0x7f) * multiplier;
@@ -45,7 +48,7 @@ export abstract class MQTTReaderBase extends DataReader {
       multiplier *= 128;
     }
 
-    throw Error("Malformed Variable Byte Integer: too many bytes");
+    throw new AppError("Malformed Variable Byte Integer: too many bytes");
   }
 
   // Reads binary data from the MQTT packet prefixed with its length (encoded as a two-byte integer).
@@ -76,8 +79,8 @@ export abstract class MQTTReaderBase extends DataReader {
       const data = converter(array);
 
       return data;
-    } catch {
-      throw Error("Malformed");
+    } catch (error) {
+      throw new AppError("Data reading error", error as Error);
     }
   }
 }

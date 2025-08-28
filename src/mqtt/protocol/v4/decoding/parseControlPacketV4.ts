@@ -17,15 +17,15 @@ export function parseControlPacketV4(
   fixedHeader: FixedHeader,
   remainingData: Uint8Array
 ) {
-  // TODO: assert (fixedHeader.remainingLength === remainingData.length)
+  _assertHasValidRemainingLength(fixedHeader, remainingData);
 
   const reader = new MQTTReaderV4(remainingData);
   const packetType = fixedHeader.packetType;
-  const decoder = getParserFor(packetType);
+  const parser = getParserFor(packetType);
 
-  decoder(fixedHeader, reader);
+  parser(fixedHeader, reader);
 
-  // TODO: assert (reader.remaining === 0)
+  _assertNoBytesLeftAfterParsingIn(reader);
 }
 
 export function getParserFor(packetType: PacketType): Parser {
@@ -62,4 +62,19 @@ export function getParserFor(packetType: PacketType): Parser {
     default:
       throw new Error("Unknown packet type");
   }
+}
+
+function _assertHasValidRemainingLength(
+  fixedHeader: FixedHeader,
+  remainingData: Uint8Array
+) {
+  if (fixedHeader.remainingLength !== remainingData.length)
+    throw Error(
+      "Remaining bytes length is greater than declared in fixed header"
+    );
+}
+
+function _assertNoBytesLeftAfterParsingIn(reader: MQTTReaderV4) {
+  if (reader.remaining !== 0)
+    throw Error("Has left not decoded bytes after parsing");
 }
