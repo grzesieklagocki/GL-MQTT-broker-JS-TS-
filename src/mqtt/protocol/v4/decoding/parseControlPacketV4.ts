@@ -1,7 +1,6 @@
 import { FixedHeader, PacketType } from "../../shared/types";
 import { MQTTReaderV4 } from "./MQTTReaderV4";
 import { AnyPacketV4 } from "../types";
-
 import { parseConnectPacketV4 } from "./parsers/parseConnectPacketV4";
 import { parseConnackPacketV4 } from "./parsers/parseConnackPacketV4";
 import { parseEmptyPacketV4 } from "./parsers/parseEmptyPacketV4";
@@ -10,24 +9,39 @@ import { parsePublishPacketV4 } from "./parsers/parsePublishPacketV4";
 import { parseSubackPacketV4 } from "./parsers/parseSubackPacketV4";
 import { parseSubscribePacketV4 } from "./parsers/parseSubscribePacketV4.";
 import { parseUnsubscribePacketV4 } from "./parsers/parseUnsubscribePacketV4";
+import { AppError } from "@src/AppError";
 
 type Parser = (fixedHeader: FixedHeader, reader: MQTTReaderV4) => AnyPacketV4;
 
+/**
+ * Parse an MQTT control packet (for protocol version 3.1.1)
+ * from the fixed header and remaining data array.
+ * @param fixedHeader The fixed header of the MQTT packet.
+ * @param remainingData The remaining data of the MQTT packet.
+ * @returns The parsed MQTT packet.
+ */
 export function parseControlPacketV4(
   fixedHeader: FixedHeader,
   remainingData: Uint8Array
-) {
+): AnyPacketV4 {
   _assertHasValidRemainingLength(fixedHeader, remainingData);
 
   const reader = new MQTTReaderV4(remainingData);
   const packetType = fixedHeader.packetType;
   const parser = getParserFor(packetType);
 
-  parser(fixedHeader, reader);
+  const packet = parser(fixedHeader, reader);
 
   _assertNoBytesLeftAfterParsingIn(reader);
+
+  return packet;
 }
 
+/**
+ * Get the parser function for the given MQTT packet type.
+ * @param packetType The type of the MQTT packet.
+ * @returns A parser function that can parse the specified packet type.
+ */
 export function getParserFor(packetType: PacketType): Parser {
   switch (packetType) {
     case PacketType.CONNECT:
@@ -60,7 +74,7 @@ export function getParserFor(packetType: PacketType): Parser {
     case PacketType.DISCONNECT:
       return parseEmptyPacketV4;
     default:
-      throw new Error("Unknown packet type");
+      throw new AppError("Unknown packet type");
   }
 }
 
@@ -69,12 +83,12 @@ function _assertHasValidRemainingLength(
   remainingData: Uint8Array
 ) {
   if (fixedHeader.remainingLength !== remainingData.length)
-    throw Error(
+    throw new AppError(
       "Remaining bytes length is greater than declared in fixed header"
     );
 }
 
 function _assertNoBytesLeftAfterParsingIn(reader: MQTTReaderV4) {
   if (reader.remaining !== 0)
-    throw Error("Has left not decoded bytes after parsing");
+    throw new AppError("Bytes remain in buffer after parsing");
 }
