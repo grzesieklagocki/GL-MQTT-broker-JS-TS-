@@ -5,7 +5,7 @@ import { MQTTReaderV4 } from "../MQTTReaderV4";
 
 /**
  * Parses a SUBACK MQTT packet (for protocol version 3.1.1).
- * 
+ *
  * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
  * Parses and validates the identifier and return code.
  * @param fixedHeader The fixed header of the MQTT packet.
@@ -46,13 +46,13 @@ function _assertValidPacketId(id: PacketType): asserts id is PacketType.SUBACK {
     );
 }
 
-// flags must be 0x00
+// flags must be 0b00
 function _assertValidFlags(flags: number) {
-  if (flags !== 0x00)
+  if (flags !== 0b0000)
     throw new AppError(
-      `Invalid packet flags in fixed header: 0x${flags.toString(
-        16
-      )}, should be 0x00`
+      `Invalid packet flags in fixed header: 0b${flags
+        .toString(2)
+        .padStart(4, "0")}, should be 0b0000`
     );
 }
 
