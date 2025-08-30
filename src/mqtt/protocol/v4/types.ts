@@ -86,8 +86,10 @@ export type PubrelPacketV4 = PacketWithIdentifier<PacketType.PUBREL>;
 export type PubcompPacketV4 = PacketWithIdentifier<PacketType.PUBCOMP>;
 
 // 8. SUBSCRIBE
+type SubscriptionV4 = [topicFilter: string, qos: QoS];
+
 export type SubscribePacketV4 = PacketWithIdentifier<PacketType.SUBSCRIBE> & {
-  subscriptionList: [topicFilter: string, qos: QoS][];
+  subscriptionList: SubscriptionV4[];
 };
 
 // 9. SUBACK
