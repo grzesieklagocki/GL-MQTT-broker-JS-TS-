@@ -72,17 +72,17 @@ function _assertValidPacketId(
     );
 }
 
-// flags must be 0x01 for PUBREL and 0x00 for others
+// flags must be 0b0010 for PUBREL and 0b0000 for others
 function _assertValidFlags(flags: number, id: PacketType) {
   const expectedFlags = id === PacketType.PUBREL ? 0b0010 : 0b0000;
 
   if (flags !== expectedFlags) {
     throw new AppError(
-      `Invalid packet flags in fixed header: 0x${flags
-        .toString(16)
-        .padStart(2, "0")}, should be 0x${expectedFlags
-        .toString(16)
-        .padStart(2, "0")} for packet type ${id}`
+      `Invalid packet flags in fixed header: 0b${flags
+        .toString(2)
+        .padStart(4, "0")}, should be 0b${expectedFlags
+        .toString(2)
+        .padStart(4, "0")} for packet type ${id}`
     );
   }
 }

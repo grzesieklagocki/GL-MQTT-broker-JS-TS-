@@ -54,13 +54,13 @@ function _assertValidPacketId(id: PacketType): asserts id is EmptyPacketIdV4 {
     );
 }
 
-// flags must be 0x00
+// flags must be 0b0000
 function _assertValidFlags(flags: number) {
   if (flags !== 0x00)
     throw new AppError(
-      `Invalid packet flags in fixed header: 0x${flags.toString(
-        16
-      )}, should be 0x00`
+      `Invalid packet flags in fixed header: 0b${flags
+        .toString(2)
+        .padStart(4, "0")}, should be 0b0000`
     );
 }
 
