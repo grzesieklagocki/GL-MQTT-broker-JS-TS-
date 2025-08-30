@@ -15,6 +15,8 @@ export enum PacketType {
   DISCONNECT = 14, // Client is disconnecting
 }
 
+export type QoS = 0 | 1 | 2;
+
 // BASE
 export type ControlPacket<T extends PacketType> = {
   typeId: T;

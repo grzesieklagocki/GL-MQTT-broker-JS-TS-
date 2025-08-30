@@ -14,12 +14,11 @@ export type AnyPacketV4 =
   | PingrespPacketV4
   | DisconnectPacketV4;
 
-export type QoS = 0 | 1 | 2;
-
 import {
   ControlPacket,
   PacketType,
   PacketWithIdentifier,
+  QoS,
 } from "../shared/types";
 
 // 1. CONNECT
@@ -53,9 +52,11 @@ export type ConnectionPayloadV4 = {
 };
 
 // 2. CONNACK
+export type ConnackReturnCodeV4 = 0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05;
+
 export type ConnackPacketV4 = ControlPacket<PacketType.CONNACK> & {
   sessionPresentFlag: boolean;
-  connectReturnCode: 0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05;
+  connectReturnCode: ConnackReturnCodeV4;
 };
 
 // 3. PUBLISH
@@ -90,8 +91,10 @@ export type SubscribePacketV4 = PacketWithIdentifier<PacketType.SUBSCRIBE> & {
 };
 
 // 9. SUBACK
+export type SubackReturnCodeV4 = QoS | 0x80;
+
 export type SubackPacketV4 = PacketWithIdentifier<PacketType.SUBACK> & {
-  returnCode: QoS | 0x80;
+  returnCode: SubackReturnCodeV4;
 };
 
 // 10. UNSUBSCRIBE
