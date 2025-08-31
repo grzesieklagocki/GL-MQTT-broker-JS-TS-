@@ -7,7 +7,7 @@ import { parseEmptyPacketV4 } from "./parsers/parseEmptyPacketV4";
 import { parsePacketWithIdentifierV4 } from "./parsers/parsePacketWithIdentifierV4";
 import { parsePublishPacketV4 } from "./parsers/parsePublishPacketV4";
 import { parseSubackPacketV4 } from "./parsers/parseSubackPacketV4";
-import { parseSubscribePacketV4 } from "./parsers/parseSubscribePacketV4.";
+import { parseSubscribePacketV4 } from "./parsers/parseSubscribePacketV4";
 import { parseUnsubscribePacketV4 } from "./parsers/parseUnsubscribePacketV4";
 import { AppError } from "@src/AppError";
 

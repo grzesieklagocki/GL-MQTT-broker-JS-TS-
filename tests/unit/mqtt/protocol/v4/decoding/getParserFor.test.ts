@@ -7,7 +7,7 @@ import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmpt
 import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
 import { parsePublishPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
 import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
-import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4.";
+import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
 import { parseUnsubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
 
 describe("getParserFor", () => {
