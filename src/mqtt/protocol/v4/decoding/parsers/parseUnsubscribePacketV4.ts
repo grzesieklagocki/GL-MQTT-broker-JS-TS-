@@ -1,7 +1,6 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
-import { UnsubscribePacketV4 } from "../../types";
-import { MQTTReaderV4 } from "../MQTTReaderV4";
+import { IMQTTReaderV4, UnsubscribePacketV4 } from "../../types";
 import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 
 /**
@@ -10,12 +9,12 @@ import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
  * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
  * Parses and validates the identifier and topic filter list.
  * @param fixedHeader The fixed header of the MQTT packet.
- * @param reader The MQTTReaderV4 instance to read packet data.
+ * @param reader The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed UNSUBSCRIBE packet.
  */
 export function parseUnsubscribePacketV4(
   fixedHeader: FixedHeader,
-  reader: MQTTReaderV4
+  reader: IMQTTReaderV4
 ): UnsubscribePacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);
@@ -37,7 +36,7 @@ export function parseUnsubscribePacketV4(
 // parsers helpers
 //
 
-function parseTopicFilterList(reader: MQTTReaderV4) {
+function parseTopicFilterList(reader: IMQTTReaderV4) {
   const topicFilterList = [];
 
   while (reader.remaining > 0) {
@@ -48,7 +47,7 @@ function parseTopicFilterList(reader: MQTTReaderV4) {
   return topicFilterList;
 }
 
-function parseTopicFilter(reader: MQTTReaderV4) {
+function parseTopicFilter(reader: IMQTTReaderV4) {
   try {
     const topicFilter = reader.readString(Uint8ArrayToUtf8String);
     _assertValidTopicFilter(topicFilter);

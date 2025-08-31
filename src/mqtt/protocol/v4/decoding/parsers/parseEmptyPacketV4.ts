@@ -4,8 +4,8 @@ import {
   PingreqPacketV4,
   PingrespPacketV4,
   DisconnectPacketV4,
+  IMQTTReaderV4,
 } from "../../types";
-import { MQTTReaderV4 } from "../MQTTReaderV4";
 
 export type EmptyPacketV4 =
   | PingreqPacketV4
@@ -21,12 +21,12 @@ type EmptyPacketIdV4 =
  * Parses an empty MQTT packet (for protocol version 3.1.1).
  * Validates the packet type, flags, and remaining length before returning the parsed packet.
  * @param fixedHeader - The fixed header of the MQTT packet.
- * @param reader - The MQTTReaderV4 instance to read packet data.
+ * @param reader - The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed packet.
  */
 export function parseEmptyPacketV4(
   fixedHeader: FixedHeader,
-  reader: MQTTReaderV4
+  reader: IMQTTReaderV4
 ): EmptyPacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);

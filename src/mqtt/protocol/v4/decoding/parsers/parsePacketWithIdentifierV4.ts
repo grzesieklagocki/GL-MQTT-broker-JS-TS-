@@ -1,13 +1,13 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
 import {
+  IMQTTReaderV4,
   PubackPacketV4,
   PubcompPacketV4,
   PubrecPacketV4,
   PubrelPacketV4,
   UnsubackPacketV4,
 } from "../../types";
-import { MQTTReaderV4 } from "../MQTTReaderV4";
 
 type PacketWithIdentifier =
   | PubackPacketV4
@@ -30,12 +30,12 @@ type PacketWithIdentifierId =
  * Parses and validates the identifier.
  *
  * @param fixedHeader - The fixed header of the MQTT packet.
- * @param reader - The MQTTReaderV4 instance to read packet data.
+ * @param reader - The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed packet.
  */
 export function parsePacketWithIdentifierV4(
   fixedHeader: FixedHeader,
-  reader: MQTTReaderV4
+  reader: IMQTTReaderV4
 ): PacketWithIdentifier {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);

@@ -1,7 +1,6 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
-import { ConnackPacketV4, ConnackReturnCodeV4 } from "../../types";
-import { MQTTReaderV4 } from "../MQTTReaderV4";
+import { ConnackPacketV4, ConnackReturnCodeV4, IMQTTReaderV4 } from "../../types";
 
 /**
  * Parses a CONNACK MQTT packet (for protocol version 3.1.1).
@@ -9,12 +8,12 @@ import { MQTTReaderV4 } from "../MQTTReaderV4";
  * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
  * Parses and validates the session present flag and return code.
  * @param fixedHeader The fixed header of the MQTT packet.
- * @param reader The MQTTReaderV4 instance to read packet data.
+ * @param reader The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed CONNACK packet.
  */
 export function parseConnackPacketV4(
   fixedHeader: FixedHeader,
-  reader: MQTTReaderV4
+  reader: IMQTTReaderV4
 ): ConnackPacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);
