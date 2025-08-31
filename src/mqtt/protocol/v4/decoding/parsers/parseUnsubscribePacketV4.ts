@@ -4,6 +4,15 @@ import { UnsubscribePacketV4 } from "../../types";
 import { MQTTReaderV4 } from "../MQTTReaderV4";
 import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 
+/**
+ * Parses a UNSUBSCRIBE MQTT packet (for protocol version 3.1.1).
+ *
+ * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
+ * Parses and validates the identifier and topic filter list.
+ * @param fixedHeader The fixed header of the MQTT packet.
+ * @param reader The MQTTReaderV4 instance to read packet data.
+ * @returns The parsed UNSUBSCRIBE packet.
+ */
 export function parseUnsubscribePacketV4(
   fixedHeader: FixedHeader,
   reader: MQTTReaderV4
@@ -16,7 +25,6 @@ export function parseUnsubscribePacketV4(
   // parse
   const identifier = reader.readTwoByteInteger();
   const topicFilterList = parseTopicFilterList(reader);
-  _assertValidTopicFilterList(topicFilterList); // probably redundant
 
   return {
     typeId: PacketType.UNSUBSCRIBE,
@@ -106,13 +114,5 @@ function _assertValidTopicFilter(topicFilter: string) {
   if (topicFilter.length < 1)
     throw new AppError(
       `Invalid topic filter length: ${topicFilter.length}, should be at least 1`
-    );
-}
-
-// topic filter list must contain at least one topic filter
-function _assertValidTopicFilterList(list: string[]) {
-  if (list.length < 1)
-    throw new AppError(
-      `Invalid topic filter list length: ${list.length}, should be at least 1`
     );
 }
