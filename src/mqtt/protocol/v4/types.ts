@@ -1,3 +1,17 @@
+// Interface for MQTT v4 reader used in decoding
+export interface IMQTTReaderV4 {
+  get remaining(): number;
+
+  readOneByteInteger(): number;
+  readTwoByteInteger(): number;
+
+  readString(converter: (data: Uint8Array) => string): string;
+}
+
+//
+// MQTT v4 packet types and their structures
+//
+
 export type AnyPacketV4 =
   | ConnectPacketV4
   | ConnackPacketV4
