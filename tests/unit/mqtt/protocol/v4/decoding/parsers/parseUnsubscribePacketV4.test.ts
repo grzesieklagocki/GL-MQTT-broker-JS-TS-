@@ -131,6 +131,49 @@ describe("parsePacketWithIdentifierV4", () => {
     });
   });
 
+  it(`throws an Error when remaining bytes length declared in fixed header not match remaining in reader`, () => {
+    [
+      {
+        declared: 5,
+
+        // legth = 6
+        real: [
+          // packet identifier
+          0x00, 0x0f,
+          // topic filter length
+          0x00, 0x02,
+          // topic filter: "st"
+          0x73, 0x74,
+        ],
+      },
+      {
+        declared: 6,
+
+        // legth = 5
+        real: [
+          // packet identifier
+          0x00, 0x0f,
+          // topic filter length
+          0x00, 0x01,
+          // topic filter: "s"
+          0x73,
+        ],
+      },
+    ].forEach(({ declared, real }) => {
+      const fixedHeader = {
+        packetType: PacketType.UNSUBSCRIBE,
+        flags: 0b0010,
+        remainingLength: declared,
+      };
+      const remainingData = new Uint8Array(real);
+      const reader = new MQTTReaderV4(remainingData);
+
+      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+        /remaining/
+      );
+    });
+  });
+
   it("correctly parses Identifier value", () => {
     [
       { input: [0x00, 0x01], expected: 1 },
