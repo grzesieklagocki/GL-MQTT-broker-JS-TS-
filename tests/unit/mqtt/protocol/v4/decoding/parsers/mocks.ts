@@ -1,4 +1,4 @@
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { IMQTTReaderV4, SubscriptionV4 } from "@src/mqtt/protocol/v4/types";
 import { vi } from "vitest";
 
 // Create a mock reader for CONNACK packets
@@ -40,6 +40,20 @@ export function createUnsubscribeReaderMock(
     [], // not used in UNSUBSCRIBE packet
     [identifier],
     topicFilters
+  );
+}
+
+// Create a mock reader for SUBSCRIBE packets
+export function createSubscribeReaderMock(
+  remainingValues: number[],
+  identifier: number,
+  subscriptionList: SubscriptionV4[]
+) {
+  return createIMQTTReaderV4Mock(
+    remainingValues,
+    subscriptionList.map((sub) => sub[1]),
+    [identifier],
+    subscriptionList.map((sub) => sub[0])
   );
 }
 
