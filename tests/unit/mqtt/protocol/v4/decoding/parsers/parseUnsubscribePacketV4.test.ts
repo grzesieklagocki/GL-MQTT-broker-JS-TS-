@@ -1,25 +1,29 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseUnsubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
+import { createUnsubscribeReaderMock, getErrorMock } from "./mocks";
 
-describe("parsePacketWithIdentifierV4", () => {
+describe("parseUnsubscribePacketV4", () => {
+  const readerMock = {} as unknown as IMQTTReaderV4;
+
   it(`parse UNSUBSCRIBE packet`, () => {
     const fixedHeader = {
       packetType: PacketType.UNSUBSCRIBE,
       flags: 0b0010,
       remainingLength: 8,
     };
-    const remainingData = new Uint8Array([
-      // packet identifier
-      0x01, 0x05,
-      // topic filter length
-      0x00, 0x04,
-      // topic filter: "test"
-      0x74, 0x65, 0x73, 0x74,
-    ]);
-    const reader = new MQTTReaderV4(remainingData);
-    const packet = parseUnsubscribePacketV4(fixedHeader, reader);
+
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        8, // initial remaining value
+        6, // value after reading identifier
+      ],
+      0x0105, // packet identifier
+      ["test"] // topic filter: "test"
+    );
+
+    const packet = parseUnsubscribePacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.UNSUBSCRIBE);
     expect(packet.identifier).toBe(0x0105);
@@ -47,17 +51,8 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: 0b0010,
         remainingLength: 9,
       };
-      const remainingData = new Uint8Array([
-        // packet identifier
-        0x00, 0x05,
-        // topic filter length
-        0x00, 0x04,
-        // topic filter: "test2"
-        0x74, 0x65, 0x73, 0x74, 0x32,
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
       );
     });
@@ -70,17 +65,8 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: invalidFlags,
         remainingLength: 6,
       };
-      const remainingData = new Uint8Array([
-        // packet identifier
-        0x00, 0x05,
-        // topic filter length
-        0x00, 0x02,
-        // topic filter: "t1"
-        0x74, 0x31,
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
       );
     });
@@ -93,39 +79,25 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: 0b0010,
         remainingLength: invalidRemainingLength,
       };
-      const remainingData = new Uint8Array([
-        // packet identifier
-        0x00, 0x05,
-        // topic filter length
-        0x00, 0x03,
-        // topic filter: "t2/"
-        0x74, 0x32, 0x2f,
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /header/
       );
     });
   });
 
   it(`throws an Error for invalid remaining bytes count (<5 in reader)`, () => {
-    [
-      [], // empty buffer
-      [0x05], // one byte
-      [0x05, 0x07], // two bytes
-      [0x05, 0x07, 0x00], // three bytes
-      [0x05, 0x07, 0x00, 0x02], // four bytes
-    ].forEach((array) => {
+    [0, 1, 2, 3, 4].forEach((remaining) => {
       const fixedHeader = {
         packetType: PacketType.UNSUBSCRIBE,
         flags: 0b0010,
-        remainingLength: array.length,
+        remainingLength: remaining,
       };
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
+      const readerMock = {
+        remaining: remaining,
+      } as unknown as IMQTTReaderV4;
 
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /reader/
       );
     });
@@ -135,29 +107,11 @@ describe("parsePacketWithIdentifierV4", () => {
     [
       {
         declared: 5,
-
-        // legth = 6
-        real: [
-          // packet identifier
-          0x00, 0x0f,
-          // topic filter length
-          0x00, 0x02,
-          // topic filter: "st"
-          0x73, 0x74,
-        ],
+        real: 6,
       },
       {
         declared: 6,
-
-        // legth = 5
-        real: [
-          // packet identifier
-          0x00, 0x0f,
-          // topic filter length
-          0x00, 0x01,
-          // topic filter: "s"
-          0x73,
-        ],
+        real: 5,
       },
     ].forEach(({ declared, real }) => {
       const fixedHeader = {
@@ -165,124 +119,105 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: 0b0010,
         remainingLength: declared,
       };
-      const remainingData = new Uint8Array(real);
-      const reader = new MQTTReaderV4(remainingData);
+      const readerMock = {
+        remaining: real,
+      } as unknown as IMQTTReaderV4;
 
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /remaining/
       );
     });
   });
 
   it("correctly parses Identifier value", () => {
-    [
-      { input: [0x00, 0x01], expected: 1 },
-      { input: [0x00, 0xff], expected: 255 },
-      { input: [0x01, 0x04], expected: 260 },
-      { input: [0x12, 0x34], expected: 4660 },
-      { input: [0xff, 0xff], expected: 65535 },
-    ].forEach(({ input, expected }) => {
+    [1, 255, 260, 4660, 63535].forEach((identifier) => {
       const fixedHeader = {
         packetType: PacketType.UNSUBSCRIBE,
         flags: 0b0010,
         remainingLength: 5,
       };
-      const remainingData = new Uint8Array([
-        ...input,
-        ...[
-          // topic filter length
-          0x00, 0x01,
-          // topic filter: "b"
-          0x62,
+
+      const readerMock = createUnsubscribeReaderMock(
+        [
+          5, // initial remaining value
+          3, // // value after reading identifier
+          0, // value after reading first topic filter
         ],
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseUnsubscribePacketV4(fixedHeader, reader);
-
-      expect(packet.identifier).toBe(expected);
-    });
-  });
-
-  it("correctly parses all topic filter values", () => {
-    [
-      {
-        input: [
-          // topic filter length
-          0x00, 0x01,
-          // topic filter: "b"
-          100,
-        ],
-        expected: ["d"],
-      },
-      {
-        input: [
-          // topic filter length
-          0x00, 0x03,
-          // topic filter: "t1/"
-          0x74, 0x31, 0x2f,
-        ],
-        expected: ["t1/"],
-      },
-      {
-        input: [
-          // topic1 filter length
-          0x00, 0x02,
-          // topic1 filter: "t1"
-          0x74, 0x31,
-          // topic2 filter length
-          0x00, 0x04,
-          // topic2 filter: "t2/a"
-          0x74, 0x32, 0x2f, 0x61,
-        ],
-        expected: ["t1", "t2/a"],
-      },
-    ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 2 + input.length,
-      };
-      const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseUnsubscribePacketV4(fixedHeader, reader);
-
-      expect(packet.topicFilterList).toEqual(expected);
-    });
-  });
-
-  it(`throws an Error for invalid topic filters`, () => {
-    [
-      // empty first topic filter [null]
-      { input: [0x00, 0x00], expected: /reader/ },
-      // empty second topic filter [i, null]
-      { input: [0x00, 0x01, 0x69, 0x00, 0x00], expected: /topic/ },
-      // invalid topic filter length
-      { input: [0x00, 0x01, 0x62, 0x61], expected: /topic/ },
-      { input: [0x00, 0x01, 0x63, 0x00, 0x02, 0x67], expected: /topic/ },
-      { input: [0x00, 0x01, 0x64, 0x00, 0x01, 0x67, 0x66], expected: /topic/ },
-
-      // overlong encoding (invalid in MQTT UTF-8)
-      { input: [0x00, 0x02, 0xc0, 0xaf], expected: /topic/ },
-      // surrogate half (invalid in UTF-8)
-      { input: [0x00, 0x03, 0xed, 0xa0, 0x80], expected: /topic/ },
-      // continuation byte without a leading byte
-      { input: [0x00, 0x01, 0x80], expected: /topic/ },
-      // incomplete multi-byte sequence
-      { input: [0x00, 0x02, 0xe2, 0x28], expected: /topic/ },
-      // illegal byte (0xfe, 0xff are not valid in UTF-8)
-      { input: [0x00, 0x02, 0xfe, 0xff], expected: /topic/ },
-    ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 2 + input.length,
-      };
-      const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        expected
+        identifier, // packet identifier
+        ["/"] // topic filter: "test"
       );
+
+      const packet = parseUnsubscribePacketV4(fixedHeader, readerMock);
+
+      expect(packet.identifier).toBe(identifier);
     });
+  });
+
+  it("correctly parses list of two topic filters", () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 12,
+    };
+
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        12, // initial remaining value
+        10, // // value after reading identifier
+        6, // value after reading first topic filter
+        0, // value after reading second topic filter
+      ],
+      0, // packet identifier
+      ["t1", "t2/a"] // topic filter: "test"
+    );
+
+    const packet = parseUnsubscribePacketV4(fixedHeader, readerMock);
+
+    expect(packet.topicFilterList).toEqual(["t1", "t2/a"]);
+  });
+
+  it(`throws an Error for invalid first topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 5,
+    };
+
+    const error = getErrorMock("topic") as unknown as string;
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        5, // initial remaining value
+        3, // // value after reading identifier
+      ],
+      0, // packet identifier
+      [error] // topic1 filter throws an error
+    );
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /topic/
+    );
+  });
+
+  it(`throws an Error for invalid second topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 8,
+    };
+
+    const error = getErrorMock("topic") as unknown as string;
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        8, // initial remaining value
+        6, // value after reading identifier
+        3, // value after reading first topic filter
+      ],
+      0, // packet identifier
+      ["/", error] // topic1 filter
+    );
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /topic/
+    );
   });
 });

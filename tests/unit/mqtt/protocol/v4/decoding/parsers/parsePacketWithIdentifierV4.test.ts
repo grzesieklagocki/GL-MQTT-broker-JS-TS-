@@ -1,9 +1,11 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
-import { describe, it, expect } from "vitest";
+import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { describe, it, expect, vi } from "vitest";
 
 describe("parsePacketWithIdentifierV4", () => {
+  const readerMock = {} as unknown as IMQTTReaderV4;
+
   it(`parse PUBACK, PUBREC, PUBREL, PUBCOMP and UNSUBACK packets`, () => {
     [
       PacketType.PUBACK,
@@ -17,11 +19,15 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: validPacketType === PacketType.PUBREL ? 0b0010 : 0b0000,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x12, 0x34]);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketWithIdentifierV4(fixedHeader, reader);
+      const readerMock = {
+        remaining: 2,
+        readTwoByteInteger: vi.fn().mockReturnValue(0x1234),
+      } as unknown as IMQTTReaderV4;
+
+      const packet = parsePacketWithIdentifierV4(fixedHeader, readerMock);
 
       expect(packet.typeId).toBe(validPacketType);
+      expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
     });
   });
 
@@ -42,12 +48,10 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: 0b0000,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x12, 0x34]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketWithIdentifierV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
+      expect(() =>
+        parsePacketWithIdentifierV4(fixedHeader, readerMock)
+      ).toThrow(/Invalid packet type/);
     });
   });
 
@@ -58,12 +62,10 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: invalidFlags,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x12, 0x34]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketWithIdentifierV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
+      expect(() =>
+        parsePacketWithIdentifierV4(fixedHeader, readerMock)
+      ).toThrow(/Invalid packet flags/);
     });
   });
 
@@ -81,11 +83,9 @@ describe("parsePacketWithIdentifierV4", () => {
             flags: invalidFlags,
             remainingLength: 2,
           };
-          const remainingData = new Uint8Array([0x12, 0x34]);
-          const reader = new MQTTReaderV4(remainingData);
 
           expect(() =>
-            parsePacketWithIdentifierV4(fixedHeader, reader)
+            parsePacketWithIdentifierV4(fixedHeader, readerMock)
           ).toThrow(/Invalid packet flags/);
         }
       );
@@ -99,53 +99,43 @@ describe("parsePacketWithIdentifierV4", () => {
         flags: 0b0000,
         remainingLength: invalidRemainingLength,
       };
-      const remainingData = new Uint8Array([0x12, 0x34]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketWithIdentifierV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length/
-      );
+      expect(() =>
+        parsePacketWithIdentifierV4(fixedHeader, readerMock)
+      ).toThrow(/Invalid packet remaining length/);
     });
   });
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [
-      [], // empty buffer
-      [0xff], // only one byte
-      [0x12, 0x23, 0x34], // three bytes
-    ].forEach((array) => {
+    [0, 1, 3].forEach((remaining) => {
       const fixedHeader = {
         packetType: PacketType.PUBREL,
         flags: 0b0010,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketWithIdentifierV4(fixedHeader, reader)).toThrow(
-        /Invalid remaining bytes count in reader/
-      );
+      expect(() =>
+        parsePacketWithIdentifierV4(fixedHeader, readerMock)
+      ).toThrow(/Invalid remaining bytes count in reader/);
     });
   });
 
   it("correctly parses Identifier value", () => {
-    [
-      { input: [0x00, 0x01], expected: 1 },
-      { input: [0x00, 0xff], expected: 255 },
-      { input: [0x01, 0x04], expected: 260 },
-      { input: [0x12, 0x34], expected: 4660 },
-      { input: [0xff, 0xff], expected: 65535 },
-    ].forEach(({ input, expected }) => {
+    [1, 255, 260, 4660, 63535].forEach((identifier) => {
       const fixedHeader = {
         packetType: PacketType.PUBACK,
         flags: 0b0000,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketWithIdentifierV4(fixedHeader, reader);
+      const readerMock = {
+        remaining: 2,
+        readTwoByteInteger: vi.fn().mockReturnValue(identifier),
+      } as unknown as IMQTTReaderV4;
 
-      expect(packet.identifier).toBe(expected);
+      const packet = parsePacketWithIdentifierV4(fixedHeader, readerMock);
+
+      expect(packet.identifier).toBe(identifier);
+      expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
     });
   });
 });

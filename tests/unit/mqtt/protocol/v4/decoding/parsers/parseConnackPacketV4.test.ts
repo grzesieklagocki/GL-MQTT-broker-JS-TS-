@@ -1,18 +1,26 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
+import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
+import { createConnackReaderMock } from "./mocks";
 
-describe("parseSubackPacketV4", () => {
-  it(`parse SUBACK packet`, () => {
+describe("parseConnackPacketV4", () => {
+  const readerMock = {} as unknown as IMQTTReaderV4;
+
+  it(`parse CONNACK packet`, () => {
     const fixedHeader = {
       packetType: PacketType.CONNACK,
       flags: 0,
       remainingLength: 2,
     };
-    const remainingData = new Uint8Array([0x00, 0x00]);
-    const reader = new MQTTReaderV4(remainingData);
-    const packet = parseConnackPacketV4(fixedHeader, reader);
+
+    const readerMock = createConnackReaderMock(
+      2, // remaining
+      0x01, // session present flag
+      0x05 //connect return code
+    );
+
+    const packet = parseConnackPacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.CONNACK);
   });
@@ -38,10 +46,7 @@ describe("parseSubackPacketV4", () => {
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x01, 0x00]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
       );
     });
@@ -54,10 +59,8 @@ describe("parseSubackPacketV4", () => {
         flags: invalidFlags,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x00, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
       );
     });
@@ -70,31 +73,25 @@ describe("parseSubackPacketV4", () => {
         flags: 0,
         remainingLength: invalidRemainingLength,
       };
-      const remainingData = new Uint8Array([0x01, 0x00]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet remaining length/
       );
     });
   });
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [
-      [], // empty buffer
-      [0xff], // one byte
-      [0x12, 0x23, 0x34], // three bytes
-      [0x12, 0x23, 0x01, 0x77], // four bytes
-    ].forEach((array) => {
+    [0, 1, 3, 4].forEach((remaining) => {
       const fixedHeader = {
         packetType: PacketType.CONNACK,
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
+      const readerMock = {
+        remaining: remaining,
+      } as unknown as IMQTTReaderV4;
 
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid remaining bytes count in reader/
       );
     });
@@ -102,17 +99,22 @@ describe("parseSubackPacketV4", () => {
 
   it(`correctly parses Session Present Flag`, () => {
     [
-      { input: [0x00, 0x00], expected: false },
-      { input: [0x01, 0x00], expected: true },
+      { input: 0x00, expected: false },
+      { input: 0x01, expected: true },
     ].forEach(({ input, expected }) => {
       const fixedHeader = {
         packetType: PacketType.CONNACK,
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseConnackPacketV4(fixedHeader, reader);
+
+      const readerMock = createConnackReaderMock(
+        2, // remaining
+        input, // session present flag
+        0x05 //connect return code
+      );
+
+      const packet = parseConnackPacketV4(fixedHeader, readerMock);
 
       expect(packet.sessionPresentFlag).toBe(expected);
     });
@@ -125,34 +127,36 @@ describe("parseSubackPacketV4", () => {
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([invalidFirstByte, 0x00]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      const readerMock = createConnackReaderMock(
+        2, // remaining
+        invalidFirstByte, // session present flag
+        0x00 //connect return code
+      );
+
+      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid first byte/
       );
     });
   });
 
   it(`correctly parses all Connect Return Code values`, () => {
-    [
-      { input: [0x00, 0x00], expected: 0x00 },
-      { input: [0x01, 0x01], expected: 0x01 },
-      { input: [0x00, 0x02], expected: 0x02 },
-      { input: [0x01, 0x03], expected: 0x03 },
-      { input: [0x00, 0x04], expected: 0x04 },
-      { input: [0x01, 0x05], expected: 0x05 },
-    ].forEach(({ input, expected }) => {
+    [0x00, 0x01, 0x02, 0x03, 0x04, 0x05].forEach((validReturnCode) => {
       const fixedHeader = {
         packetType: PacketType.CONNACK,
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseConnackPacketV4(fixedHeader, reader);
 
-      expect(packet.connectReturnCode).toBe(expected);
+      const readerMock = createConnackReaderMock(
+        2, // remaining
+        0x00, // session present flag
+        validReturnCode //connect return code
+      );
+
+      const packet = parseConnackPacketV4(fixedHeader, readerMock);
+
+      expect(packet.connectReturnCode).toBe(validReturnCode);
     });
   });
 
@@ -164,10 +168,14 @@ describe("parseSubackPacketV4", () => {
           flags: 0,
           remainingLength: 2,
         };
-        const remainingData = new Uint8Array([0x00, invalidReturnCode]);
-        const reader = new MQTTReaderV4(remainingData);
 
-        expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+        const readerMock = createConnackReaderMock(
+          2, // remaining
+          0x00, // session present flag
+          invalidReturnCode //connect return code)
+        );
+
+        expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
           /Invalid CONNACK return code/
         );
       }

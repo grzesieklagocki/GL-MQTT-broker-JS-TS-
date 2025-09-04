@@ -1,18 +1,26 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
-import { describe, it, expect } from "vitest";
+import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { describe, it, expect, vi } from "vitest";
+import { createSubackReaderMock } from "./mocks";
 
 describe("parseSubackPacketV4", () => {
+  const readerMock = {} as unknown as IMQTTReaderV4;
+
   it(`parse SUBACK packet`, () => {
     const fixedHeader = {
       packetType: PacketType.SUBACK,
       flags: 0,
       remainingLength: 3,
     };
-    const remainingData = new Uint8Array([0x12, 0x34, 0x80]);
-    const reader = new MQTTReaderV4(remainingData);
-    const packet = parseSubackPacketV4(fixedHeader, reader);
+
+    const readerMock = createSubackReaderMock(
+      3, // remaining
+      0x1234, //identifier
+      0x80 // return code
+    );
+
+    const packet = parseSubackPacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.SUBACK);
   });
@@ -38,10 +46,8 @@ describe("parseSubackPacketV4", () => {
         flags: 0,
         remainingLength: 2,
       };
-      const remainingData = new Uint8Array([0x12, 0x34, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
       );
     });
@@ -54,10 +60,8 @@ describe("parseSubackPacketV4", () => {
         flags: invalidFlags,
         remainingLength: 3,
       };
-      const remainingData = new Uint8Array([0x12, 0x34, 0x02]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
       );
     });
@@ -70,74 +74,69 @@ describe("parseSubackPacketV4", () => {
         flags: 0x00,
         remainingLength: invalidRemainingLength,
       };
-      const remainingData = new Uint8Array([0x12, 0x34, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet remaining length/
       );
     });
   });
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [
-      [], // empty buffer
-      [0xff], // only one byte
-      [0x12, 0x23], // two bytes
-      [0x12, 0x23, 0x01, 0x77], // four bytes
-    ].forEach((array) => {
+    [0, 1, 2, 4].forEach((remaining) => {
       const fixedHeader = {
         packetType: PacketType.SUBACK,
         flags: 0x00,
         remainingLength: 3,
       };
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
+      const readerMock = {
+        remaining: remaining,
+      } as unknown as IMQTTReaderV4;
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid remaining bytes count in reader/
       );
     });
   });
 
   it("correctly parses Identifier value", () => {
-    [
-      { input: [0x00, 0x01, 0x00], expected: 1 },
-      { input: [0x00, 0xff, 0x01], expected: 255 },
-      { input: [0x01, 0x04, 0x02], expected: 260 },
-      { input: [0x12, 0x34, 0x80], expected: 4660 },
-      { input: [0xff, 0xff, 0x00], expected: 65535 },
-    ].forEach(({ input, expected }) => {
+    [1, 255, 260, 4660, 63535].forEach((identifier) => {
       const fixedHeader = {
         packetType: PacketType.SUBACK,
         flags: 0x00,
         remainingLength: 3,
       };
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseSubackPacketV4(fixedHeader, reader);
 
-      expect(packet.identifier).toBe(expected);
+      const readerMock = createSubackReaderMock(
+        3, // remaining
+        identifier, //identifier
+        0x00 // return code
+      );
+
+      const packet = parseSubackPacketV4(fixedHeader, readerMock);
+
+      expect(packet.identifier).toBe(identifier);
+      expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
+      expect(readerMock.readOneByteInteger).toHaveBeenCalledExactlyOnceWith();
     });
   });
 
   it("correctly parses all Return Code values", () => {
-    [
-      { input: [0x00, 0x01, 0x00], expected: 0x00 },
-      { input: [0x00, 0xff, 0x01], expected: 0x01 },
-      { input: [0x01, 0x04, 0x02], expected: 0x02 },
-      { input: [0x12, 0x34, 0x80], expected: 0x80 },
-    ].forEach(({ input, expected }) => {
+    [0x00, 0x01, 0x02, 0x80].forEach((validReturnCode) => {
       const fixedHeader = {
         packetType: PacketType.SUBACK,
         flags: 0x00,
         remainingLength: 3,
       };
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseSubackPacketV4(fixedHeader, reader);
 
-      expect(packet.returnCode).toBe(expected);
+      const readerMock = createSubackReaderMock(
+        3, // remaining
+        0x1234, //identifier
+        validReturnCode // return code
+      );
+
+      const packet = parseSubackPacketV4(fixedHeader, readerMock);
+
+      expect(packet.returnCode).toBe(validReturnCode);
     });
   });
 
@@ -148,10 +147,14 @@ describe("parseSubackPacketV4", () => {
         flags: 0x00,
         remainingLength: 3,
       };
-      const remainingData = new Uint8Array([0x12, 0x34, invalidReturnCode]);
-      const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      const readerMock = createSubackReaderMock(
+        3, // remaining
+        0x1234, //identifier
+        invalidReturnCode // return code
+      );
+
+      expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid SUBACK return code/
       );
     });
