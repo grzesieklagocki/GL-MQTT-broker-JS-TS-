@@ -5,6 +5,7 @@ export interface IMQTTReaderV4 {
   readOneByteInteger(): number;
   readTwoByteInteger(): number;
 
+  readBytes(): Uint8Array;
   readString(converter: (data: Uint8Array) => string): string;
 }
 
@@ -41,6 +42,8 @@ export type ConnectPacketV4 = ControlPacket<PacketType.CONNECT> & {
   flags: ConnectionFlagsV4;
 
   keepAlive: number;
+
+  payload: ConnectionPayloadV4;
 };
 
 export type ProtocolInfoV4 = {

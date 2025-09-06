@@ -13,4 +13,13 @@ export class MQTTReaderV4 extends MQTTReaderBase implements IMQTTReaderV4 {
   public constructor(array: Uint8Array) {
     super(array);
   }
+
+  /**
+   * Reads the specified number of bytes from the MQTT packet.
+   * @param bytesCount Number of bytes to read
+   * @returns The read bytes as a Uint8Array.
+   */
+  public readBytes(bytesCount: number = this.remaining): Uint8Array {
+    return this.readBytes(bytesCount);
+  }
 }
