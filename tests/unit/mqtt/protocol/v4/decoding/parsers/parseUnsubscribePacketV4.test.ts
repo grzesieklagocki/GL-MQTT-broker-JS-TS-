@@ -153,6 +153,28 @@ describe("parseUnsubscribePacketV4", () => {
     });
   });
 
+  it("throws an Error when Identifier is invalid", () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 5,
+    };
+
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        5, // initial remaining value
+        3, // // value after reading identifier
+        0, // value after reading first topic filter
+      ],
+      0, // packet identifier
+      ["/"] // topic filter: "test"
+    );
+
+    expect(() =>
+      parseUnsubscribePacketV4(fixedHeader, readerMock)
+    ).toThrowError(/non-zero/);
+  });
+
   it("correctly parses list of two topic filters", () => {
     const fixedHeader = {
       packetType: PacketType.UNSUBSCRIBE,
@@ -167,7 +189,7 @@ describe("parseUnsubscribePacketV4", () => {
         6, // value after reading first topic filter
         0, // value after reading second topic filter
       ],
-      0, // packet identifier
+      1, // packet identifier
       ["t1", "t2/a"] // topic filter: "test"
     );
 
@@ -189,7 +211,7 @@ describe("parseUnsubscribePacketV4", () => {
         5, // initial remaining value
         3, // // value after reading identifier
       ],
-      0, // packet identifier
+      1, // packet identifier
       [error] // topic1 filter throws an error
     );
 
@@ -212,7 +234,7 @@ describe("parseUnsubscribePacketV4", () => {
         6, // value after reading identifier
         3, // value after reading first topic filter
       ],
-      0, // packet identifier
+      1, // packet identifier
       ["/", error] // topic1 filter
     );
 

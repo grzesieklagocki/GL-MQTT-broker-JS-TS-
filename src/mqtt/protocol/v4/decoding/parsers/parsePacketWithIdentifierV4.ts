@@ -8,6 +8,7 @@ import {
   PubrelPacketV4,
   UnsubackPacketV4,
 } from "../../types";
+import { parseIdentifier } from "./parseIdentifier";
 
 type PacketWithIdentifier =
   | PubackPacketV4
@@ -43,7 +44,7 @@ export function parsePacketWithIdentifierV4(
   _assertValidRemainingLength(fixedHeader.remainingLength, reader.remaining);
 
   // parse
-  const identifier = reader.readTwoByteInteger();
+  const identifier = parseIdentifier(reader);
 
   return {
     identifier: identifier,
@@ -73,6 +74,9 @@ function _assertValidPacketId(
 }
 
 // flags must be 0b0010 for PUBREL and 0b0000 for others
+// Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+// it is reserved for future use and MUST be set to the value listed in that table
+// [MQTT-2.2.2-1].
 function _assertValidFlags(flags: number, id: PacketType) {
   const expectedFlags = id === PacketType.PUBREL ? 0b0010 : 0b0000;
 

@@ -154,6 +154,27 @@ describe("parseSubscribePacketV4", () => {
     });
   });
 
+  it("throws an Error when Identifier is invalid", () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+      const readerMock = createSubscribeReaderMock(
+        [
+          6, // initial remaining value
+          1, // // value after reading identifier
+          0, // value after reading first subscription
+        ],
+        0, // packet identifier
+        [["/", 0]] // first subscription: "/", qos: 0
+      );
+
+    expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrowError(
+      /non-zero/
+    );
+  });
+
   it("correctly parses list of two subscriptions", () => {
     const fixedHeader = {
       packetType: PacketType.SUBSCRIBE,
@@ -168,7 +189,7 @@ describe("parseSubscribePacketV4", () => {
         6, // value after reading first subscription
         0, // value after reading second subscription
       ],
-      0, // packet identifier
+      1, // packet identifier
       [
         ["t1", 1], // topic1: "t1", qos: 1
         ["t2/a", 2], // topic2: "t2/a", qos: 2
@@ -196,7 +217,7 @@ describe("parseSubscribePacketV4", () => {
         6, // initial remaining value
         4, // // value after reading identifier
       ],
-      0, // packet identifier
+      1, // packet identifier
       [[error, 0]] // topic1 throws an error
     );
 
@@ -219,7 +240,7 @@ describe("parseSubscribePacketV4", () => {
         8, // value after reading identifier
         4, // value after reading first subscription
       ],
-      0, // packet identifier
+      1, // packet identifier
       [
         ["/", 0], // subscription 1
         [error, 1], // subscription 2
@@ -244,7 +265,7 @@ describe("parseSubscribePacketV4", () => {
           6, // initial remaining value
           4, // value after reading identifier
         ],
-        0, // packet identifier
+        1, // packet identifier
         [["/", invalidQoS as QoS]] // qos of first subscription throws an error
       );
 
@@ -268,7 +289,7 @@ describe("parseSubscribePacketV4", () => {
           8, // value after reading identifier
           4, // value after reading first subscription
         ],
-        0, // packet identifier
+        1, // packet identifier
         [
           ["/", 2],
           ["/", invalidQoS as QoS],

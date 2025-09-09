@@ -1,6 +1,7 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, SubackPacketV4, SubackReturnCodeV4 } from "../../types";
+import { parseIdentifier } from "./parseIdentifier";
 
 /**
  * Parses a SUBACK MQTT packet (for protocol version 3.1.1).
@@ -21,7 +22,7 @@ export function parseSubackPacketV4(
   _assertValidRemainingLength(fixedHeader.remainingLength, reader.remaining);
 
   // parse
-  const identifier = reader.readTwoByteInteger();
+  const identifier = parseIdentifier(reader);
 
   const returnCode = reader.readOneByteInteger();
   _assertValidReturnCode(returnCode);
@@ -46,6 +47,9 @@ function _assertValidPacketId(id: PacketType): asserts id is PacketType.SUBACK {
 }
 
 // flags must be 0b00
+// Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+// it is reserved for future use and MUST be set to the value listed in that table
+// [MQTT-2.2.2-1].
 function _assertValidFlags(flags: number) {
   if (flags !== 0b0000)
     throw new AppError(

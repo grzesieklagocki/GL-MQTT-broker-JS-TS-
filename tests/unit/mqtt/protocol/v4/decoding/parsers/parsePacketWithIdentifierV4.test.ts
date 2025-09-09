@@ -138,4 +138,20 @@ describe("parsePacketWithIdentifierV4", () => {
       expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
     });
   });
+
+  it("throws an Error when Identifier is invalid", () => {
+    const fixedHeader = {
+      packetType: PacketType.PUBACK,
+      flags: 0b0000,
+      remainingLength: 2,
+    };
+    const readerMock = {
+      remaining: 2,
+      readTwoByteInteger: vi.fn().mockReturnValue(0),
+    } as unknown as IMQTTReaderV4;
+
+    expect(() =>
+      parsePacketWithIdentifierV4(fixedHeader, readerMock)
+    ).toThrowError(/non-zero/);
+  });
 });

@@ -51,6 +51,9 @@ function _assertValidPacketId(id: PacketType): asserts id is PacketType.SUBACK {
 }
 
 // flags must be 0b0000
+// Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits, 
+// it is reserved for future use and MUST be set to the value listed in that table 
+// [MQTT-2.2.2-1].
 function _assertValidFlags(flags: number) {
   if (flags !== 0b0000)
     throw new AppError(

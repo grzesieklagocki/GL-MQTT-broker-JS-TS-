@@ -120,6 +120,22 @@ describe("parseSubackPacketV4", () => {
     });
   });
 
+  it("throws an Error when Identifier is invalid", () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBACK,
+      flags: 0x00,
+      remainingLength: 3,
+    };
+    const readerMock = {
+      remaining: 3,
+      readTwoByteInteger: vi.fn().mockReturnValue(0),
+    } as unknown as IMQTTReaderV4;
+
+    expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrowError(
+      /non-zero/
+    );
+  });
+
   it("correctly parses all Return Code values", () => {
     [0x00, 0x01, 0x02, 0x80].forEach((validReturnCode) => {
       const fixedHeader = {

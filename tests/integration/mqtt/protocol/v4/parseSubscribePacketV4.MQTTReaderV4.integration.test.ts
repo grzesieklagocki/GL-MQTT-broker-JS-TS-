@@ -1,7 +1,6 @@
-import { PacketType, QoS } from "@mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@src/mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseSubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 
 describe("parseSubscribePacketV4", () => {
@@ -189,7 +188,7 @@ describe("parseSubscribePacketV4", () => {
 
     const array = new Uint8Array([
       // packet identifier
-      0x00, 0x00,
+      0x00, 0x01,
       // first subscription topic length: 2
       0x00, 0x02,
       // first subscription topic: "t1"
@@ -252,7 +251,7 @@ describe("parseSubscribePacketV4", () => {
       const array = new Uint8Array([
         // packet identifier
         0x00,
-        0x00,
+        0x01,
         // first subscription topic length
         0x00,
         0x05 + encodedTopic.length,
@@ -280,7 +279,7 @@ describe("parseSubscribePacketV4", () => {
       const array = new Uint8Array([
         // packet identifier
         0x00,
-        0x00,
+        0x01,
         // first subscription topic length
         0x00,
         0x01,
@@ -315,7 +314,7 @@ describe("parseSubscribePacketV4", () => {
       const array = new Uint8Array([
         // packet identifier
         0x00,
-        0x00,
+        0x01,
         // first subscription topic length
         0x00,
         0x01,
@@ -341,7 +340,7 @@ describe("parseSubscribePacketV4", () => {
       const array = new Uint8Array([
         // packet identifier
         0x00,
-        0x00,
+        0x01,
         // first subscription topic length
         0x00,
         0x01,
