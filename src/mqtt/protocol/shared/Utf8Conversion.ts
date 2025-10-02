@@ -24,6 +24,11 @@ export function Uint8ArrayToUtf8String(array: Uint8Array): string {
   let text: string;
   const decoder = new TextDecoder("utf-8", { fatal: true });
 
+  // The character data in a UTF-8 encoded string MUST be well-formed UTF-8
+  // as defined by the Unicode specification [Unicode] and restated in RFC 3629 [RFC3629].
+  // In particular this data MUST NOT include encodings of code points between U+D800 and U+DFFF.
+  // If a Server or Client receives a Control Packet containing ill-formed UTF-8 it MUST close the Network Connection
+  // [MQTT-1.5.3-1]
   try {
     text = decoder.decode(array);
   } catch (error) {
@@ -32,6 +37,9 @@ export function Uint8ArrayToUtf8String(array: Uint8Array): string {
 
   _assertIsInvalidMqttUtf8(text);
 
+  // A UTF-8 encoded sequence 0xEF 0xBB 0xBF is always to be interpreted to mean U+FEFF ("ZERO WIDTH NO-BREAK SPACE")
+  // wherever it appears in a string and MUST NOT be skipped over or stripped off by a packet receiver
+  // [MQTT-1.5.3-3]
   return hasBOM(array) ? restoreBOM(text) : text;
 }
 
