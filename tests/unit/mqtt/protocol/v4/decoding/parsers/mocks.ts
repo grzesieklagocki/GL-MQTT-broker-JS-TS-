@@ -73,13 +73,46 @@ export function createPublishReaderMock(
   );
 }
 
+// Create a mock reader for CONNECT packets
+export function createConnectReaderMock(
+  remainingValues: number[],
+  protocolName: string = "MQTT",
+  protocolLevel: number = 4,
+  connectFlags: number = 0,
+  keepAlive: number = 0,
+  clientId: string | Error = "id",
+  willTopic?: string | Error,
+  willMessage?: Uint8Array | Error,
+  username?: string | Error,
+  password?: Uint8Array | Error
+) {
+  const oneByteInts = [protocolLevel, connectFlags];
+  const twoByteInts = [keepAlive];
+
+  const strings: (string | Error)[] = [protocolName, clientId];
+  if (willTopic) strings.push(willTopic);
+  if (username) strings.push(username);
+
+  const bytes: (Uint8Array | Error)[] = [];
+  if (willMessage) bytes.push(willMessage);
+  if (password) bytes.push(password);
+
+  return createIMQTTReaderV4Mock(
+    remainingValues,
+    oneByteInts,
+    twoByteInts,
+    strings,
+    bytes
+  );
+}
+
 // Create mock for tests of MQTT v4 parsers
 function createIMQTTReaderV4Mock(
-  remainingReturnValues: number[],
-  read1BIntReturnValues: number[],
-  read2BIntReturnValues: number[],
-  readStringReturnValues: string[],
-  readBytesReturnValues?: Uint8Array[]
+  remainingReturnValues: (number | Error)[],
+  read1BIntReturnValues: (number | Error)[],
+  read2BIntReturnValues: (number | Error)[],
+  readStringReturnValues: (string | Error)[],
+  readBytesReturnValues?: (Uint8Array | Error)[]
 ) {
   const mock = {
     readOneByteInteger: createMockWithReturnValues(read1BIntReturnValues),
@@ -104,7 +137,7 @@ export const getErrorMock = (message: string) =>
 // Helper to set the return values of the `remaining` getter
 function setRemainingReturnValues(
   readerMock: IMQTTReaderV4,
-  returnValues: number[]
+  returnValues: (number | Error)[]
 ) {
   const mockFunction = vi.fn();
 
@@ -119,7 +152,13 @@ function setRemainingReturnValues(
 function createMockWithReturnValues<T>(values: T[]) {
   const mock = vi.fn();
 
-  values.forEach((value) => mock.mockReturnValueOnce(value));
+  values.forEach((value) => {
+    if (value instanceof Error)
+      mock.mockImplementationOnce(() => {
+        throw value;
+      });
+    else mock.mockReturnValueOnce(value);
+  });
 
   return mock;
 }
