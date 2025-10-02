@@ -39,7 +39,7 @@ import {
 // 1. CONNECT
 export type ConnectPacketV4 = ControlPacket<PacketType.CONNECT> & {
   protocol: ProtocolInfoV4;
-  flags: ConnectionFlagsV4;
+  flags: ConnectFlagsV4;
 
   keepAlive: number;
 
@@ -51,7 +51,7 @@ export type ProtocolInfoV4 = {
   level: 4;
 };
 
-export type ConnectionFlagsV4 = {
+export type ConnectFlagsV4 = {
   userName: boolean;
   password: boolean;
   willRetain: boolean;
@@ -77,8 +77,9 @@ export type ConnackPacketV4 = ControlPacket<PacketType.CONNACK> & {
 };
 
 // 3. PUBLISH
-export type PublishPacketV4 = PacketWithIdentifier<PacketType.PUBLISH> & {
+export type PublishPacketV4 = ControlPacket<PacketType.PUBLISH> & {
   flags: PublishFlagsV4;
+  identifier?: number;
 
   topicName: string;
   applicationMessage: Uint8Array;

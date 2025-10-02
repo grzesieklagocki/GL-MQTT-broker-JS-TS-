@@ -2,6 +2,7 @@ import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType, QoS } from "../../../shared/types";
 import { IMQTTReaderV4, PublishFlagsV4, PublishPacketV4 } from "../../types";
 import { Uint8ArrayToUtf8String } from "@src/mqtt/protocol/shared/Utf8Conversion";
+import { parseIdentifier } from "./parseIdentifier";
 
 /**
  * Parses a PUBLISH MQTT packet (for protocol version 3.1.1).
@@ -26,10 +27,13 @@ export function parsePublishPacketV4(
   const topicName = reader.readString(Uint8ArrayToUtf8String);
   _assertValidTopic(topicName);
 
-  const identifier = reader.readTwoByteInteger();
+  const identifier =
+    flags.qosLevel === 0x01 || flags.qosLevel === 0x02
+      ? parseIdentifier(reader)
+      : undefined;
 
   const message = reader.readBytes();
-  _assertAllBytesRead(reader.remaining);
+  _assertAllBytesRead(reader);
 
   return {
     typeId: fixedHeader.packetType,
@@ -59,19 +63,19 @@ function parsePublishFlags(flags: number): PublishFlagsV4 {
   };
 }
 
-  //
-  // assertions helpers
-  //
+//
+// assertions helpers
+//
 
-  // only PUBLISH is valid
-  function _assertValidPacketId(
-    id: PacketType
-  ): asserts id is PacketType.PUBLISH {
-    if (id !== PacketType.PUBLISH)
-      throw new AppError(
-        `Invalid packet type: ${id}, expected: ` + `${PacketType.PUBLISH}`
-      );
-  }
+// only PUBLISH is valid
+function _assertValidPacketId(
+  id: PacketType
+): asserts id is PacketType.PUBLISH {
+  if (id !== PacketType.PUBLISH)
+    throw new AppError(
+      `Invalid packet type: ${id}, expected: ` + `${PacketType.PUBLISH}`
+    );
+}
 
 // remaining length must be at least 5
 //
@@ -127,9 +131,9 @@ function _assertValidTopic(topicFilter: string) {
 }
 
 // all bytes must be read
-function _assertAllBytesRead(remaining: number) {
-  if (remaining !== 0)
+function _assertAllBytesRead(reader: IMQTTReaderV4) {
+  if (reader.remaining !== 0)
     throw new AppError(
-      `There are still ${remaining} unread byte(s) in the packet`
+      `There are still ${reader.remaining} unread byte(s) in the packet`
     );
 }
