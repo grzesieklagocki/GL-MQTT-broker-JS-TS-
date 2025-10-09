@@ -1,6 +1,6 @@
 import { FixedHeader, PacketType } from "../../shared/types";
 import { MQTTReaderV4 } from "./MQTTReaderV4";
-import { AnyPacketV4 } from "../types";
+import { AnyPacketV4, IMQTTReaderV4 } from "../types";
 import { parseConnectPacketV4 } from "./parsers/parseConnectPacketV4";
 import { parseConnackPacketV4 } from "./parsers/parseConnackPacketV4";
 import { parseEmptyPacketV4 } from "./parsers/parseEmptyPacketV4";
@@ -11,7 +11,7 @@ import { parseSubscribePacketV4 } from "./parsers/parseSubscribePacketV4";
 import { parseUnsubscribePacketV4 } from "./parsers/parseUnsubscribePacketV4";
 import { AppError } from "@src/AppError";
 
-type Parser = (fixedHeader: FixedHeader, reader: MQTTReaderV4) => AnyPacketV4;
+type Parser = (fixedHeader: FixedHeader, reader: IMQTTReaderV4) => AnyPacketV4;
 
 /**
  * Parse an MQTT control packet (for protocol version 3.1.1)
