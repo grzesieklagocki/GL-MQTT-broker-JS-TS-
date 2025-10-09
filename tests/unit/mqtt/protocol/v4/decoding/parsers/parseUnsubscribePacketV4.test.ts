@@ -153,6 +153,9 @@ describe("parseUnsubscribePacketV4", () => {
     });
   });
 
+  // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0)
+  // Control Packets MUST contain a non-zero 16-bit Packet Identifier
+  // [MQTT-2.3.1-1]
   it("throws an Error when Identifier is invalid", () => {
     const fixedHeader = {
       packetType: PacketType.UNSUBSCRIBE,

@@ -154,21 +154,24 @@ describe("parseSubscribePacketV4", () => {
     });
   });
 
+  // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0)
+  // Control Packets MUST contain a non-zero 16-bit Packet Identifier
+  // [MQTT-2.3.1-1]
   it("throws an Error when Identifier is invalid", () => {
     const fixedHeader = {
       packetType: PacketType.SUBSCRIBE,
       flags: 0b0010,
       remainingLength: 6,
     };
-      const readerMock = createSubscribeReaderMock(
-        [
-          6, // initial remaining value
-          1, // // value after reading identifier
-          0, // value after reading first subscription
-        ],
-        0, // packet identifier
-        [["/", 0]] // first subscription: "/", qos: 0
-      );
+    const readerMock = createSubscribeReaderMock(
+      [
+        6, // initial remaining value
+        1, // // value after reading identifier
+        0, // value after reading first subscription
+      ],
+      0, // packet identifier
+      [["/", 0]] // first subscription: "/", qos: 0
+    );
 
     expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrowError(
       /non-zero/
