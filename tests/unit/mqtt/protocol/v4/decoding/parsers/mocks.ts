@@ -60,16 +60,16 @@ export function createSubscribeReaderMock(
 // Create a mock reader for PUBLISH packets
 export function createPublishReaderMock(
   remainingValues: number[],
-  topicName: string,
-  identifier: number,
-  message: Uint8Array
+  topicName: string | Error,
+  identifier?: number,
+  message?: Uint8Array
 ) {
   return createIMQTTReaderV4Mock(
     remainingValues,
     [],
-    [identifier],
+    identifier === undefined ? [] : [identifier],
     [topicName],
-    [message]
+    message === undefined ? [] : [message]
   );
 }
 

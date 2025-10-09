@@ -77,22 +77,23 @@ function _assertValidPacketId(
     );
 }
 
-// remaining length must be at least 5
+// remaining length must be at least 7
 //
 //   Topic Name Length: 2 bytes
 // + Topic1 Name: minimum 1 byte
 // + Packet Identifier: 2 bytes
-// = minimum 5 bytes
+// + Application Message: minimum 2 bytes
+// = minimum 7 bytes
 function _assertValidRemainingLength(
   declaredLength: number,
   realLength: number
 ) {
-  if (realLength < 5)
+  if (realLength < 7)
     throw new AppError(
       `Invalid packet remaining length in reader: ${realLength}, should be at least 5`
     );
 
-  if (declaredLength < 5)
+  if (declaredLength < 7)
     throw new AppError(
       `Invalid packet remaining length in fixed header: ${declaredLength}, should be at least 5`
     );
@@ -104,6 +105,9 @@ function _assertValidRemainingLength(
 }
 
 // QOS must be 0b00, 0b01 or 0b10
+// A PUBLISH Packet MUST NOT have both QoS bits set to 1.
+// If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
+// [MQTT-3.3.1-4].
 function _assertValidQoS(qos: number): asserts qos is QoS {
   if (qos !== 0b00 && qos !== 0b01 && qos !== 0b10)
     throw new AppError(
@@ -122,11 +126,19 @@ function _assertValidDup(dup: number, qos: QoS) {
     );
 }
 
-// topic must be at least 1 character long
 function _assertValidTopic(topicFilter: string) {
+  // All Topic Names and Topic Filters MUST be at least one character long
+  // [MQTT-4.7.3-1]
   if (topicFilter.length < 1)
     throw new AppError(
-      `Invalid topic length: ${topicFilter.length}, should be at least 1`
+      `Invalid topic length: ${topicFilter.length}. All Topic Names and Topic Filters MUST be at least one character long [MQTT-4.7.3-1]`
+    );
+
+  // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters
+  // [MQTT-3.3.2-2]
+  if (topicFilter.includes("+") || topicFilter.includes("#"))
+    throw new AppError(
+      `Invalid topic filter: ${topicFilter}. The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
     );
 }
 
