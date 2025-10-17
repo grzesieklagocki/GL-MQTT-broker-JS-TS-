@@ -76,7 +76,12 @@ function _assertValidPacketId(
 // flags must be 0b0010 for PUBREL and 0b0000 for others
 // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
 // it is reserved for future use and MUST be set to the value listed in that table
-// [MQTT-2.2.2-1].
+// [MQTT-2.2.2-1]
+//
+// Bits 3,2,1 and 0 of the fixed header in the PUBREL Control Packet are reserved
+// and MUST be set to 0,0,1 and 0 respectively.
+// The Server MUST treat any other value as malformed and close the Network Connection
+// [MQTT-3.6.1-1]
 function _assertValidFlags(flags: number, id: PacketType) {
   const expectedFlags = id === PacketType.PUBREL ? 0b0010 : 0b0000;
 

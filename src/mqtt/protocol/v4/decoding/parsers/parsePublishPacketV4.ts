@@ -107,7 +107,7 @@ function _assertValidRemainingLength(
 // QOS must be 0b00, 0b01 or 0b10
 // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
 // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
-// [MQTT-3.3.1-4].
+// [MQTT-3.3.1-4]
 function _assertValidQoS(qos: number): asserts qos is QoS {
   if (qos !== 0b00 && qos !== 0b01 && qos !== 0b10)
     throw new AppError(
@@ -126,9 +126,9 @@ function _assertValidDup(dup: number, qos: QoS) {
     );
 }
 
+// All Topic Names and Topic Filters MUST be at least one character long
+// [MQTT-4.7.3-1]
 function _assertValidTopic(topicFilter: string) {
-  // All Topic Names and Topic Filters MUST be at least one character long
-  // [MQTT-4.7.3-1]
   if (topicFilter.length < 1)
     throw new AppError(
       `Invalid topic length: ${topicFilter.length}. All Topic Names and Topic Filters MUST be at least one character long [MQTT-4.7.3-1]`

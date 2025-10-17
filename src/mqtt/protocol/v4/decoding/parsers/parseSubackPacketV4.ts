@@ -49,7 +49,7 @@ function _assertValidPacketId(id: PacketType): asserts id is PacketType.SUBACK {
 // flags must be 0b00
 // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
 // it is reserved for future use and MUST be set to the value listed in that table
-// [MQTT-2.2.2-1].
+// [MQTT-2.2.2-1]
 function _assertValidFlags(flags: number) {
   if (flags !== 0b0000)
     throw new AppError(
@@ -75,7 +75,8 @@ function _assertValidRemainingLength(
     );
 }
 
-// only 0x00, 0x01, 0x02 and 0x80 are valid
+// SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
+// [MQTT-3.9.3-2]
 function _assertValidReturnCode(
   returnCode: number
 ): asserts returnCode is SubackReturnCodeV4 {

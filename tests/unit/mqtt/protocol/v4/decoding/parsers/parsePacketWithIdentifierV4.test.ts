@@ -31,6 +31,9 @@ describe("parsePacketWithIdentifierV4", () => {
     });
   });
 
+  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+  // it is reserved for future use and MUST be set to the value listed in that table
+  // [MQTT-2.2.2-1]
   it(`throws an Error for other packet types`, () => {
     [
       PacketType.CONNECT,
@@ -55,6 +58,14 @@ describe("parsePacketWithIdentifierV4", () => {
     });
   });
 
+  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+  // it is reserved for future use and MUST be set to the value listed in that table
+  // [MQTT-2.2.2-1]
+  //
+  // Bits 3,2,1 and 0 of the fixed header in the PUBREL Control Packet are reserved
+  // and MUST be set to 0,0,1 and 0 respectively.
+  // The Server MUST treat any other value as malformed and close the Network Connection
+  // [MQTT-3.6.1-1]
   it(`throws an Error for invalid flags (for PUBREL)`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
       const fixedHeader = {
@@ -69,6 +80,9 @@ describe("parsePacketWithIdentifierV4", () => {
     });
   });
 
+  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+  // it is reserved for future use and MUST be set to the value listed in that table
+  // [MQTT-2.2.2-1]
   it(`throws an Error for invalid flags (for other packet types)`, () => {
     [
       PacketType.PUBACK,

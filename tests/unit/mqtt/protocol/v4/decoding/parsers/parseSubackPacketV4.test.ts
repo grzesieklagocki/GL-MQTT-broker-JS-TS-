@@ -53,6 +53,9 @@ describe("parseSubackPacketV4", () => {
     });
   });
 
+  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+  // it is reserved for future use and MUST be set to the value listed in that table
+  // [MQTT-2.2.2-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
       const fixedHeader = {
@@ -136,7 +139,9 @@ describe("parseSubackPacketV4", () => {
     );
   });
 
-  it("correctly parses all Return Code values", () => {
+  // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
+  // [MQTT-3.9.3-2]
+  it(`correctly parses all Return Code values`, () => {
     [0x00, 0x01, 0x02, 0x80].forEach((validReturnCode) => {
       const fixedHeader = {
         packetType: PacketType.SUBACK,

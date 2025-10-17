@@ -93,6 +93,11 @@ function _assertValidPacketId(
 // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
 // it is reserved for future use and MUST be set to the value listed in that table
 // [MQTT-2.2.2-1].
+//
+// Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved
+// and MUST be set to 0,0,1 and 0 respectively.
+// The Server MUST treat any other value as malformed and close the Network Connection
+// [MQTT-3.8.1-1]
 function _assertValidFlags(flags: number) {
   if (flags !== 0b0010)
     throw new AppError(
@@ -129,7 +134,8 @@ function _assertValidRemainingLength(
     );
 }
 
-// topic must be at least 1 character long
+// All Topic Names and Topic Filters MUST be at least one character long
+// [MQTT-4.7.3-1]
 function _assertValidTopic(topicFilter: string) {
   if (topicFilter.length < 1)
     throw new AppError(

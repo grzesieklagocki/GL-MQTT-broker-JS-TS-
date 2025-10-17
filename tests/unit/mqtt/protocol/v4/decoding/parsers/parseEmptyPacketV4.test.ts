@@ -48,6 +48,12 @@ describe("parseEmptyPacketV4", () => {
     });
   });
 
+  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+  // it is reserved for future use and MUST be set to the value listed in that table
+  // [MQTT-2.2.2-1]
+  //
+  // The Server MUST validate that reserved bits are set to zero and disconnect the Client if they are not zero.
+  // [MQTT-3.14.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
       const fixedHeader = {
