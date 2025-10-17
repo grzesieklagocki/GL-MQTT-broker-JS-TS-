@@ -1,8 +1,8 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, UnsubscribePacketV4 } from "../../types";
-import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 import { parseIdentifier } from "./parseIdentifier";
+import { parseTopicFilter } from "./parseTopic";
 
 /**
  * Parses a UNSUBSCRIBE MQTT packet (for protocol version 3.1.1).
@@ -48,17 +48,6 @@ function parseTopicFilterList(reader: IMQTTReaderV4) {
   }
 
   return topicFilterList;
-}
-
-function parseTopicFilter(reader: IMQTTReaderV4) {
-  try {
-    const topicFilter = reader.readString(Uint8ArrayToUtf8String);
-    _assertValidTopicFilter(topicFilter);
-
-    return topicFilter;
-  } catch (error) {
-    throw new AppError(`Error while parsing topic filter`, error as Error);
-  }
 }
 
 //
@@ -116,14 +105,5 @@ function _assertValidRemainingLength(
   if (declaredLength !== realLength)
     throw new AppError(
       `Declared (${declaredLength}) and real (${realLength}) remaining length do not match`
-    );
-}
-
-// All Topic Names and Topic Filters MUST be at least one character long
-// [MQTT-4.7.3-1]
-function _assertValidTopicFilter(topicFilter: string) {
-  if (topicFilter.length < 1)
-    throw new AppError(
-      `Invalid topic filter length: ${topicFilter.length}, should be at least 1`
     );
 }

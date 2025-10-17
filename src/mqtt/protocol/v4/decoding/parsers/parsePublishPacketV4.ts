@@ -1,8 +1,8 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType, QoS } from "../../../shared/types";
 import { IMQTTReaderV4, PublishFlagsV4, PublishPacketV4 } from "../../types";
-import { Uint8ArrayToUtf8String } from "@src/mqtt/protocol/shared/Utf8Conversion";
 import { parseIdentifier } from "./parseIdentifier";
+import { parseTopicName } from "./parseTopic";
 
 /**
  * Parses a PUBLISH MQTT packet (for protocol version 3.1.1).
@@ -24,8 +24,7 @@ export function parsePublishPacketV4(
   // parse
   const flags = parsePublishFlags(fixedHeader.flags);
 
-  const topicName = reader.readString(Uint8ArrayToUtf8String);
-  _assertValidTopic(topicName);
+  const topicName = parseTopicName(reader);
 
   const identifier =
     flags.qosLevel === 0x01 || flags.qosLevel === 0x02
@@ -123,22 +122,6 @@ function _assertValidDup(dup: number, qos: QoS) {
   if (qos === 0 && dup !== 0)
     throw new AppError(
       `The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]`
-    );
-}
-
-// All Topic Names and Topic Filters MUST be at least one character long
-// [MQTT-4.7.3-1]
-function _assertValidTopic(topicFilter: string) {
-  if (topicFilter.length < 1)
-    throw new AppError(
-      `Invalid topic length: ${topicFilter.length}. All Topic Names and Topic Filters MUST be at least one character long [MQTT-4.7.3-1]`
-    );
-
-  // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters
-  // [MQTT-3.3.2-2]
-  if (topicFilter.includes("+") || topicFilter.includes("#"))
-    throw new AppError(
-      `Invalid topic filter: ${topicFilter}. The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
     );
 }
 

@@ -1,8 +1,8 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType, QoS } from "../../../shared/types";
 import { IMQTTReaderV4, SubscribePacketV4, SubscriptionV4 } from "../../types";
-import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 import { parseIdentifier } from "./parseIdentifier";
+import { parseTopicFilter } from "./parseTopic";
 
 /**
  * Parses a SUBSCRIBE MQTT packet (for protocol version 3.1.1).
@@ -43,7 +43,7 @@ function parseSubscriptionList(reader: IMQTTReaderV4) {
   const subscriptionList: SubscriptionV4[] = [];
 
   while (reader.remaining > 0) {
-    const topic = parseTopic(reader);
+    const topic = parseTopicFilter(reader);
     const qos = parseQoS(reader);
 
     subscriptionList.push([topic, qos]);
@@ -51,21 +51,6 @@ function parseSubscriptionList(reader: IMQTTReaderV4) {
   _assertValidSubscriptionList(subscriptionList);
 
   return subscriptionList;
-}
-
-function parseTopic(reader: IMQTTReaderV4) {
-  try {
-    const topic = reader.readString(Uint8ArrayToUtf8String);
-
-    _assertValidTopic(topic);
-
-    return topic;
-  } catch (error) {
-    throw new AppError(
-      `Error while parsing topic: ${(error as Error).message}`,
-      error as Error
-    );
-  }
 }
 
 function parseQoS(reader: IMQTTReaderV4): QoS {
@@ -131,15 +116,6 @@ function _assertValidRemainingLength(
   if (declaredLength !== realLength)
     throw new AppError(
       `Declared (${declaredLength}) and real (${realLength}) remaining length do not match`
-    );
-}
-
-// All Topic Names and Topic Filters MUST be at least one character long
-// [MQTT-4.7.3-1]
-function _assertValidTopic(topicFilter: string) {
-  if (topicFilter.length < 1)
-    throw new AppError(
-      `Invalid topic length: ${topicFilter.length}, should be at least 1`
     );
 }
 
