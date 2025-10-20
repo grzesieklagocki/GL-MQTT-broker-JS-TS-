@@ -263,6 +263,9 @@ describe("parseSubscribePacketV4", () => {
     );
   });
 
+  // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection
+  // if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2.
+  // [MQTT-3-8.3-4]
   it(`throws an Error for invalid QoS of first subscription`, () => {
     [3, 4, 7, 255].forEach((invalidQoS) => {
       const fixedHeader = {
@@ -311,5 +314,50 @@ describe("parseSubscribePacketV4", () => {
         /QoS/
       );
     });
+  });
+
+  // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
+  // [MQTT-3.8.3-1]
+  it(`throws an Error for invalid UTF-8 encoding in topic`, () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+
+    const readerMock = createSubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // // value after reading identifier
+      ],
+      1, // packet identifier
+      [[new Error("UTF-8"), 0]] // invalid UTF-8 topic
+    );
+
+    expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /UTF-8/
+    );
+  });
+
+  // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.
+  // A SUBSCRIBE packet with no payload is a protocol violation.
+  // [MQTT-3.8.3-3]
+  it(`throws an Error for empty subscription list`, () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+
+    const readerMock = createSubscribeReaderMock(
+      [
+        6, // initial remaining value
+      ],
+      1, // packet identifier
+      [] // empty subscription list
+    );
+    expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /subscription list length/
+    );
   });
 });
