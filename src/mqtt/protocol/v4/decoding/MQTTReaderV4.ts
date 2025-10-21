@@ -20,6 +20,6 @@ export class MQTTReaderV4 extends MQTTReaderBase implements IMQTTReaderV4 {
    * @returns The read bytes as a Uint8Array.
    */
   public readBytes(bytesCount: number = this.remaining): Uint8Array {
-    return this.readBytes(bytesCount);
+    return super.read(bytesCount);
   }
 }
