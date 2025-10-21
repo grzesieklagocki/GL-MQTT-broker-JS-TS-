@@ -26,12 +26,14 @@ export function parsePublishPacketV4(
 
   const topicName = parseTopicName(reader);
 
+  _assertCanReadIdentifier(flags.qosLevel, reader.remaining);
+
   const identifier =
     flags.qosLevel === 0x01 || flags.qosLevel === 0x02
       ? parseIdentifier(reader)
       : undefined;
 
-  const message = reader.readBytes();
+  const message = reader.remaining > 0 ? reader.readBytes() : new Uint8Array();
   _assertAllBytesRead(reader);
 
   return {
@@ -123,6 +125,12 @@ function _assertValidDup(dup: number, qos: QoS) {
     throw new AppError(
       `The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]`
     );
+}
+
+// Packet Identifier must be present when QoS > 0
+function _assertCanReadIdentifier(qos: QoS, remaining: number) {
+  if (qos !== 0 && remaining < 2)
+    throw new AppError("Not enough bytes to read Packet Identifier");
 }
 
 // all bytes must be read

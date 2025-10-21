@@ -19,6 +19,8 @@ describe("parsePublishPacketV4", () => {
     const readerMock = createPublishReaderMock(
       [
         9, // initial remaining value
+        5, // after reading topic name
+        3, // before read message
         0, // after parsing
       ],
       "t1", // topic name
@@ -55,6 +57,8 @@ describe("parsePublishPacketV4", () => {
     const readerMock = createPublishReaderMock(
       [
         9, // initial remaining value
+        5, // after parsing topic name
+        3, // before read message
         0, // after parsing
       ],
       "t1", // topic name
@@ -151,6 +155,7 @@ describe("parsePublishPacketV4", () => {
       const readerMock = createPublishReaderMock(
         [
           7, // initial remaining value
+          4, // after reading topic name
           0, // after parsing
         ],
         "t", // topic name
@@ -180,6 +185,7 @@ it(`throws an Error for packet identifier present when QoS is 0`, () => {
   const readerMock = createPublishReaderMock(
     [
       7, // initial remaining value
+      4, // after parsing topic name
       2, // after parsing
     ],
     "t", // topic name
