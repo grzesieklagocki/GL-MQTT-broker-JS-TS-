@@ -369,4 +369,89 @@ describe("parseSubscribePacketV4", () => {
       expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(/QoS/);
     });
   });
+
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
+  it(`throws an Error for zero-length first topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 9,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x00, 0x01,
+      // first subscription topic length
+      0x00, 0x00,
+      // first subscription topic: empty
+
+      // first subscription QoS: 1
+      0x01,
+      // second subscription topic length
+      0x00, 0x01,
+      // second subscription topic: "/"
+      0x2f,
+      // second subscription QoS: 2
+      0x02,
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic length/
+    );
+  });
+
+  it(`throws an Error for zero-length second topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 9,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x00, 0x01,
+      // first subscription topic length
+      0x00, 0x01,
+      // first subscription topic: "/"
+      0x2f,
+      // first subscription QoS: 1
+      0x01,
+      // second subscription topic length
+      0x00, 0x00,
+      // second subscription topic: empty
+
+      // second subscription QoS: 2
+      0x02,
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic length/
+    );
+  });
+
+  // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
+  // [MQTT-4.7.3-2]
+  it(`throws an Error for topic filter containing null character`, () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 10,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x01, 0x05,
+      // topic filter length
+      0x00, 0x05,
+      // topic filter: "test" + null
+      0x74, 0x65, 0x73, 0x74, 0x00,
+      // QoS: 0
+      0x00,
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic/
+    );
+  });
 });

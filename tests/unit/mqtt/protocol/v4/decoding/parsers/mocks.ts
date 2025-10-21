@@ -34,7 +34,7 @@ export function createSubackReaderMock(
 export function createUnsubscribeReaderMock(
   remainingValues: number[],
   identifier: number,
-  topicFilters: string[]
+  topicFilters: (string | Error)[]
 ) {
   return createIMQTTReaderV4Mock(
     remainingValues,

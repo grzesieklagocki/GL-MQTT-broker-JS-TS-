@@ -186,6 +186,53 @@ describe("parseUnsubscribePacketV4", () => {
     ).toThrowError(/non-zero/);
   });
 
+  // [MQTT-3.10.3-1]
+  // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
+  it(`throws an Error for invalid UTF-8 encoding in topic`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // // value after reading identifier
+      ],
+      1, // packet identifier
+      [new Error("UTF-8")] // invalid UTF-8 topic
+    );
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /UTF-8/
+    );
+  });
+
+  // [MQTT-3.10.3-2]
+  // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
+  // An UNSUBSCRIBE packet with no payload is a protocol violation.
+  it(`throws an Error for empty topic filter list`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // // value after reading identifier
+      ],
+      1, // packet identifier
+      [] // empty topic filter list
+    );
+
+    expect(() =>
+      parseUnsubscribePacketV4(fixedHeader, readerMock)
+    ).toThrowError(/topic/);
+  });
+
   it("correctly parses list of two topic filters", () => {
     const fixedHeader = {
       packetType: PacketType.UNSUBSCRIBE,
@@ -251,6 +298,56 @@ describe("parseUnsubscribePacketV4", () => {
 
     expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
       /topic/
+    );
+  });
+
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
+  it(`throws an Error for zero-length topic name`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // value after reading identifier
+        0, // after parsing
+      ],
+      1, // packet identifier
+      [
+        "", // zero-length topic name
+      ]
+    );
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /Invalid topic length/
+    );
+  });
+
+  // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
+  // [MQTT-4.7.3-2]
+  it(`throws an Error for topic name containing null character`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 6,
+    };
+    const readerMock = createUnsubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // value after reading identifier
+        0, // after parsing
+      ],
+      1, // packet identifier
+      [
+        new Error("null"), // invalid topic name
+      ]
+    );
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /null/
     );
   });
 });

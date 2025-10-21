@@ -297,4 +297,78 @@ describe("parseUnsubscribePacketV4", () => {
       );
     });
   });
+
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
+  it(`throws an Error for zero-length first topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 7,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x01, 0x05,
+      // topic 1 filter length
+      0x00, 0x00,
+      // topic 1 filter: empty
+
+      // topic 2 filter length
+      0x00, 0x00,
+      // topic 2 filter: "/"
+      0x2f,
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic length/
+    );
+  });
+
+  it(`throws an Error for zero-length second topic filter`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 7,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x01, 0x05,
+      // topic 1 filter length
+      0x00, 0x01,
+      // topic 1 filter: "/"
+      0x2f,
+      // topic 2 filter length
+      0x00, 0x00,
+      // topic 2 filter: empty
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic length/
+    );
+  });
+
+  // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
+  // [MQTT-4.7.3-2]
+  it(`throws an Error for topic filter containing null character`, () => {
+    const fixedHeader = {
+      packetType: PacketType.UNSUBSCRIBE,
+      flags: 0b0010,
+      remainingLength: 9,
+    };
+    const remainingData = new Uint8Array([
+      // packet identifier
+      0x01, 0x05,
+      // topic filter length
+      0x00, 0x05,
+      // topic filter: "test" + null
+      0x74, 0x65, 0x73, 0x74, 0x00,
+    ]);
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrowError(
+      /topic/
+    );
+  });
 });

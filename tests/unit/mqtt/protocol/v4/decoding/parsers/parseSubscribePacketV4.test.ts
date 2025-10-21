@@ -5,6 +5,11 @@ import { describe, it, expect } from "vitest";
 import { createSubscribeReaderMock, getErrorMock } from "./mocks";
 
 describe("parseSubscribePacketV4", () => {
+  const fixedHeader = {
+    packetType: PacketType.SUBSCRIBE,
+    flags: 0b0010,
+    remainingLength: 6,
+  };
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse SUBSCRIBE packet`, () => {
@@ -140,12 +145,6 @@ describe("parseSubscribePacketV4", () => {
 
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 6,
-      };
-
       const readerMock = createSubscribeReaderMock(
         [
           6, // initial remaining value
@@ -166,11 +165,6 @@ describe("parseSubscribePacketV4", () => {
   // Control Packets MUST contain a non-zero 16-bit Packet Identifier
   // [MQTT-2.3.1-1]
   it("throws an Error when Identifier is invalid", () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
     const readerMock = createSubscribeReaderMock(
       [
         6, // initial remaining value
@@ -216,12 +210,6 @@ describe("parseSubscribePacketV4", () => {
   });
 
   it(`throws an Error for invalid first topic`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
-
     const error = getErrorMock("topic") as unknown as string;
     const readerMock = createSubscribeReaderMock(
       [
@@ -268,12 +256,6 @@ describe("parseSubscribePacketV4", () => {
   // [MQTT-3-8.3-4]
   it(`throws an Error for invalid QoS of first subscription`, () => {
     [3, 4, 7, 255].forEach((invalidQoS) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 6,
-      };
-
       const readerMock = createSubscribeReaderMock(
         [
           6, // initial remaining value
@@ -319,12 +301,6 @@ describe("parseSubscribePacketV4", () => {
   // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
   // [MQTT-3.8.3-1]
   it(`throws an Error for invalid UTF-8 encoding in topic`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
-
     const readerMock = createSubscribeReaderMock(
       [
         6, // initial remaining value
@@ -343,12 +319,6 @@ describe("parseSubscribePacketV4", () => {
   // A SUBSCRIBE packet with no payload is a protocol violation.
   // [MQTT-3.8.3-3]
   it(`throws an Error for empty subscription list`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
-
     const readerMock = createSubscribeReaderMock(
       [
         6, // initial remaining value
@@ -358,6 +328,52 @@ describe("parseSubscribePacketV4", () => {
     );
     expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
       /subscription list length/
+    );
+  });
+
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
+  it(`throws an Error for zero-length topic name`, () => {
+    const readerMock = createSubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // value after reading identifier
+        0, // after parsing
+      ],
+      1, // packet identifier
+      [
+        [
+          "", // zero-length topic name
+          0, // qos
+        ],
+      ]
+    );
+
+    expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /Invalid topic length/
+    );
+  });
+
+  // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
+  // [MQTT-4.7.3-2]
+  it(`throws an Error for topic name containing null character`, () => {
+    const readerMock = createSubscribeReaderMock(
+      [
+        6, // initial remaining value
+        4, // value after reading identifier
+        0, // after parsing
+      ],
+      1, // packet identifier
+      [
+        [
+          new Error("null"), // invalid topic name
+          0, // qos
+        ],
+      ]
+    );
+
+    expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
+      /null/
     );
   });
 });
