@@ -76,25 +76,25 @@ function _assertValidPacketId(
     );
 }
 
-// remaining length must be at least 7
+// remaining length must be at least 3
 //
 //   Topic Name Length: 2 bytes
 // + Topic1 Name: minimum 1 byte
-// + Packet Identifier: 2 bytes
-// + Application Message: minimum 2 bytes
-// = minimum 7 bytes
+// + Packet Identifier: minimum 0 bytes
+// + Application Message: minimum 0 bytes
+// = minimum 3 bytes
 function _assertValidRemainingLength(
   declaredLength: number,
   realLength: number
 ) {
-  if (realLength < 7)
+  if (realLength < 3)
     throw new AppError(
-      `Invalid packet remaining length in reader: ${realLength}, should be at least 5`
+      `Invalid packet remaining length in reader: ${realLength}, should be at least 3`
     );
 
-  if (declaredLength < 7)
+  if (declaredLength < 3)
     throw new AppError(
-      `Invalid packet remaining length in fixed header: ${declaredLength}, should be at least 5`
+      `Invalid packet remaining length in fixed header: ${declaredLength}, should be at least 3`
     );
 
   if (declaredLength !== realLength)

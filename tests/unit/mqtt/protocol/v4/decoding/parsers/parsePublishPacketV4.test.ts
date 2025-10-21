@@ -8,10 +8,46 @@ import { AppError } from "@src/AppError";
 describe("parsePublishPacketV4", () => {
   const readerMock = {} as unknown as IMQTTReaderV4;
 
-  it(`parse PUBLISH packet`, () => {
+  it(`parse PUBLISH packet (QoS 0)`, () => {
     const fixedHeader = {
       packetType: PacketType.PUBLISH,
-      flags: 0b1010,
+      flags: 0b0000, // QoS 0
+      remainingLength: 9,
+    };
+
+    const message = new Uint8Array([0, 1, 2]);
+    const readerMock = createPublishReaderMock(
+      [
+        9, // initial remaining value
+        0, // after parsing
+      ],
+      "t1", // topic name
+      undefined, // packet identifier
+      message // message
+    );
+
+    const packet = parsePublishPacketV4(fixedHeader, readerMock);
+
+    expect(packet.typeId).toBe(PacketType.PUBLISH);
+
+    expect(packet.flags.dup).toBe(false);
+    expect(packet.flags.qosLevel).toBe(0);
+    expect(packet.flags.retain).toBe(false);
+
+    expect(packet.topicName).toBe("t1");
+    expect(packet.identifier).toBe(undefined);
+    expect(packet.applicationMessage).toEqual(message);
+
+    expect(readerMock.readString).toHaveBeenCalledOnce(); // topic name
+    expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled(); // identifier
+    expect(readerMock.readBytes).toHaveBeenCalledOnce(); // message
+    expect(readerMock.readOneByteInteger).not.toBeCalled(); // unused
+  });
+
+  it(`parse PUBLISH packet (QoS > 0)`, () => {
+    const fixedHeader = {
+      packetType: PacketType.PUBLISH,
+      flags: 0b1010, // DUP flag set, QoS 1
       remainingLength: 9,
     };
 
@@ -73,7 +109,7 @@ describe("parsePublishPacketV4", () => {
   });
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4, 5, 6].forEach((invalidRemainingLength) => {
+    [0, 1, 2].forEach((invalidRemainingLength) => {
       const fixedHeader = {
         packetType: PacketType.PUBLISH,
         flags: 0,
@@ -87,7 +123,7 @@ describe("parsePublishPacketV4", () => {
   });
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [0, 1, 2, 3, 4, 5, 6].forEach((remaining) => {
+    [0, 1, 2].forEach((remaining) => {
       const fixedHeader = {
         packetType: PacketType.PUBLISH,
         flags: 0,
@@ -267,9 +303,7 @@ it(`throws an Error for zero-length topic name`, () => {
       8, // initial remaining value
       0, // after parsing
     ],
-    "", // invalid topic name
-    0x0105, // packet identifier
-    new Uint8Array() // message
+    "" // invalid topic name
   );
 
   expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(
@@ -280,4 +314,23 @@ it(`throws an Error for zero-length topic name`, () => {
   expect(readerMock.readTwoByteInteger).not.toBeCalled(); // identifier
   expect(readerMock.readBytes).not.toBeCalled(); // message
   expect(readerMock.readOneByteInteger).not.toBeCalled(); // unused
+});
+
+// Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
+// [MQTT-4.7.3-2]
+it(`throws an Error for topic name containing null character`, () => {
+  const fixedHeader = {
+    packetType: PacketType.PUBLISH,
+    flags: 0b0010,
+    remainingLength: 8,
+  };
+  const readerMock = createPublishReaderMock(
+    [
+      8, // initial remaining value
+      0, // after parsing
+    ],
+    new Error("null") // invalid topic name
+  );
+
+  expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(/null/);
 });
