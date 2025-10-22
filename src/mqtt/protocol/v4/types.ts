@@ -6,6 +6,7 @@ export interface IMQTTReaderV4 {
   readTwoByteInteger(): number;
 
   readBytes(): Uint8Array;
+  readBinaryData(): Uint8Array;
   readString(converter: (data: Uint8Array) => string): string;
 }
 

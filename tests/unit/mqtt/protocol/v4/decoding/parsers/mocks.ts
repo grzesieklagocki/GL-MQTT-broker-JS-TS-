@@ -48,9 +48,7 @@ export function createUnsubscribeReaderMock(
 export function createSubscribeReaderMock(
   remainingValues: number[],
   identifier: number,
-  subscriptionList:
-    | SubscriptionV4[]
-    | [error: Error, qos: QoS][]
+  subscriptionList: SubscriptionV4[] | [error: Error, qos: QoS][]
 ) {
   return createIMQTTReaderV4Mock(
     remainingValues,
@@ -105,6 +103,7 @@ export function createConnectReaderMock(
     oneByteInts,
     twoByteInts,
     strings,
+    bytes,
     bytes
   );
 }
@@ -115,7 +114,8 @@ function createIMQTTReaderV4Mock(
   read1BIntReturnValues: (number | Error)[],
   read2BIntReturnValues: (number | Error)[],
   readStringReturnValues: (string | Error)[],
-  readBytesReturnValues?: (Uint8Array | Error)[]
+  readBytesReturnValues?: (Uint8Array | Error)[],
+  readBinaryDataReturnValues?: (Uint8Array | Error)[]
 ) {
   const mock = {
     readOneByteInteger: createMockWithReturnValues(read1BIntReturnValues),
@@ -123,7 +123,10 @@ function createIMQTTReaderV4Mock(
     readString: createMockWithReturnValues(readStringReturnValues),
     readBytes: readBytesReturnValues
       ? createMockWithReturnValues(readBytesReturnValues)
-      : [],
+      : undefined,
+    readBinaryData: readBinaryDataReturnValues
+      ? createMockWithReturnValues(readBinaryDataReturnValues)
+      : undefined,
   } as unknown as IMQTTReaderV4;
 
   setRemainingReturnValues(mock, remainingReturnValues);

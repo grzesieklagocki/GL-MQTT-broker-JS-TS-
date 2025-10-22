@@ -76,11 +76,11 @@ function parsePayload(
   const willTopic = flags.willFlag
     ? reader.readString(Uint8ArrayToUtf8String)
     : undefined;
-  const willMessage = flags.willFlag ? reader.readBytes() : undefined;
+  const willMessage = flags.willFlag ? reader.readBinaryData() : undefined;
   const userName = flags.userName
     ? reader.readString(Uint8ArrayToUtf8String)
     : undefined;
-  const password = flags.password ? reader.readBytes() : undefined;
+  const password = flags.password ? reader.readBinaryData() : undefined;
 
   return {
     clientIdentifier: identifier,
@@ -236,5 +236,7 @@ function _assertValidConnectionPayload(
 // all bytes must be read
 function _assertAllBytesRead(reader: IMQTTReaderV4) {
   if (reader.remaining !== 0)
-    throw new AppError(`There are still ${reader.remaining} unread byte(s) in the packet`);
+    throw new AppError(
+      `There are still ${reader.remaining} unread byte(s) in the packet`
+    );
 }

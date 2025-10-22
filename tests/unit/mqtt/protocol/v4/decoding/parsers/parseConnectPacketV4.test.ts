@@ -56,8 +56,8 @@ describe("parseConnectPacketV4", () => {
 
     expect(readerMock.readString).toBeCalledTimes(4); // protocol name, client id, will topic, user name
     expect(readerMock.readOneByteInteger).toBeCalledTimes(2); // protocol level, flags
-    expect(readerMock.readTwoByteInteger).toBeCalledTimes(1); // keep alive
-    expect(readerMock.readBytes).toBeCalledTimes(2); // will message, password
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).toBeCalledTimes(2); // will message, password
   });
 
   it(`throws an Error for other packet types`, () => {
@@ -186,7 +186,7 @@ describe("parseConnectPacketV4", () => {
       expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
       expect(readerMock.readOneByteInteger).toHaveBeenCalledOnce(); // protocol level
       expect(readerMock.readTwoByteInteger).not.toBeCalled();
-      expect(readerMock.readBytes).not.toBeCalled();
+      expect(readerMock.readBinaryData).not.toBeCalled();
     });
   });
 
@@ -212,7 +212,7 @@ describe("parseConnectPacketV4", () => {
       expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
       expect(readerMock.readTwoByteInteger).not.toBeCalled();
-      expect(readerMock.readBytes).not.toBeCalled();
+      expect(readerMock.readBinaryData).not.toBeCalled();
     });
   });
 
@@ -240,7 +240,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).not.toBeCalled();
+    expect(readerMock.readBinaryData).not.toBeCalled();
   });
 
   it(`throws an Error for missing Will Message when Will Flag is set`, () => {
@@ -265,7 +265,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).toHaveBeenCalledOnce(); // will message
+    expect(readerMock.readBinaryData).toHaveBeenCalledOnce(); // will message
   });
 
   // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
@@ -300,7 +300,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00).
@@ -324,7 +324,7 @@ describe("parseConnectPacketV4", () => {
       expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
       expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
-      expect(readerMock.readBytes).not.toHaveBeenCalled();
+      expect(readerMock.readBinaryData).not.toHaveBeenCalled();
     });
   });
 
@@ -346,7 +346,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0.
@@ -369,7 +369,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the User Name Flag is set to 0, a user name MUST NOT be present in the payload.
@@ -399,7 +399,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the User Name Flag is set to 1, a user name MUST be present in the payload.
@@ -426,8 +426,8 @@ describe("parseConnectPacketV4", () => {
 
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, user name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledTimes(1); // keep alive
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the Password Flag is set to 0, a password MUST NOT be present in the payload.
@@ -454,7 +454,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // If the Password Flag is set to 1, a password MUST be present in the payload.
@@ -483,7 +483,7 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, user name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readBytes).toHaveBeenCalledOnce(); // password
+    expect(readerMock.readBinaryData).toHaveBeenCalledOnce(); // password
   });
 
   // If the User Name Flag is set to 0, the Password Flag MUST be set to 0.
@@ -503,10 +503,10 @@ describe("parseConnectPacketV4", () => {
       parseConnectPacketV4(fixedHeader, readerMock);
     }).toThrowError("MQTT-3.1.2-22");
 
-    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol leve, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledTimes(0);
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
+    expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
   });
 
   // These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password.
@@ -542,10 +542,10 @@ describe("parseConnectPacketV4", () => {
     expect(packet.payload.userName).toBe(userName);
     expect(packet.payload.password).toBe(password);
 
+    expect(readerMock.readString).toHaveBeenCalledTimes(4); // protocol name, client id, user name, password
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
     expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-    expect(readerMock.readString).toHaveBeenCalledTimes(4); // protocol name, client id, user name, password
-    expect(readerMock.readBytes).toHaveBeenCalledTimes(2); // will message, password
+    expect(readerMock.readBinaryData).toHaveBeenCalledTimes(2); // will message, password
   });
 
   // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
@@ -572,10 +572,11 @@ describe("parseConnectPacketV4", () => {
       "remaining"
     );
 
+    expect(readerMock.readString).not.toHaveBeenCalled();
     expect(readerMock.readOneByteInteger).not.toHaveBeenCalled();
     expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
-    expect(readerMock.readString).not.toHaveBeenCalled();
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
   });
 
   // The ClientId MUST be a UTF-8 encoded string as defined in Section 1.5.3.
@@ -598,10 +599,11 @@ describe("parseConnectPacketV4", () => {
     // simulate that it throws an error when reading client id
     expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(/Id/);
 
-    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol leve, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
   });
 
   // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length,
@@ -629,10 +631,11 @@ describe("parseConnectPacketV4", () => {
         /Client Id/
       );
 
+      expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
       expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
-      expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
-      expect(readerMock.readBytes).not.toHaveBeenCalled();
+      expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+      expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
     });
   });
 
@@ -655,10 +658,11 @@ describe("parseConnectPacketV4", () => {
       /ClientId/
     );
 
-    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol leve, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
   });
 
   // The Will Topic MUST be a UTF-8 encoded string as defined in Section 1.5.3.
@@ -684,10 +688,11 @@ describe("parseConnectPacketV4", () => {
       /Will Topic/
     );
 
-    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol leve, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
   });
 
   // The User Name MUST be a UTF-8 encoded string as defined in Section 1.5.3.
@@ -715,9 +720,10 @@ describe("parseConnectPacketV4", () => {
       /User Name/
     );
 
-    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol leve, flags
-    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
-    expect(readerMock.readBytes).not.toHaveBeenCalled();
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
+    expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
+    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
+    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
   });
 });
