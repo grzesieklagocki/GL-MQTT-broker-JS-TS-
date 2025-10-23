@@ -1,19 +1,16 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseUnsubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import { parseUnsubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import { createFixedHeader, createUnsubscribeFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
-// integration tests for parseConnackPacketV4 using MQTTReaderV4 with data buffers
+// integration tests for parseUnsubscribePacketV4 using MQTTReaderV4 with data buffers
 //
 
 describe("parseUnsubscribePacketV4", () => {
   it(`parse UNSUBSCRIBE packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 8,
-    };
+    const fixedHeader = createUnsubscribeFixedHeader(8);
     const remainingData = new Uint8Array([
       // packet identifier
       0x01, 0x05,
@@ -46,11 +43,11 @@ describe("parseUnsubscribePacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0010,
-        remainingLength: 9,
-      };
+      const fixedHeader = createFixedHeader(
+        invalidPacketType,
+        0b0010, // flags
+        9 // remaining length
+      );
       const remainingData = new Uint8Array([
         // packet identifier
         0x00, 0x05,
@@ -77,11 +74,7 @@ describe("parseUnsubscribePacketV4", () => {
   // [MQTT-3.10.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: invalidFlags,
-        remainingLength: 6,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(6, invalidFlags);
       const remainingData = new Uint8Array([
         // packet identifier
         0x00, 0x05,
@@ -100,11 +93,7 @@ describe("parseUnsubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 5 declared in fixed header)`, () => {
     [0, 1, 2, 3, 4].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(invalidRemainingLength);
       const remainingData = new Uint8Array([
         // packet identifier
         0x00, 0x05,
@@ -129,11 +118,7 @@ describe("parseUnsubscribePacketV4", () => {
       [0x05, 0x07, 0x00], // three bytes
       [0x05, 0x07, 0x00, 0x02], // four bytes
     ].forEach((array) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: array.length,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(array.length);
       const remainingData = new Uint8Array(array);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -172,11 +157,7 @@ describe("parseUnsubscribePacketV4", () => {
         ],
       },
     ].forEach(({ declared, real }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: declared,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(declared);
       const remainingData = new Uint8Array(real);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -194,11 +175,7 @@ describe("parseUnsubscribePacketV4", () => {
       { input: [0x12, 0x34], expected: 4660 },
       { input: [0xff, 0xff], expected: 65535 },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 5,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(5);
       const remainingData = new Uint8Array([
         ...input,
         ...[
@@ -249,11 +226,7 @@ describe("parseUnsubscribePacketV4", () => {
         expected: ["t1", "t2/a"],
       },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 2 + input.length,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(2 + input.length);
       const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
       const reader = new MQTTReaderV4(remainingData);
       const packet = parseUnsubscribePacketV4(fixedHeader, reader);
@@ -284,11 +257,7 @@ describe("parseUnsubscribePacketV4", () => {
       // illegal byte (0xfe, 0xff are not valid in UTF-8)
       { input: [0x00, 0x02, 0xfe, 0xff], expected: /topic/ },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 2 + input.length,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(2 + input.length);
       const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -301,11 +270,7 @@ describe("parseUnsubscribePacketV4", () => {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   it(`throws an Error for zero-length first topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 7,
-    };
+    const fixedHeader = createUnsubscribeFixedHeader(7);
     const remainingData = new Uint8Array([
       // packet identifier
       0x01, 0x05,
@@ -326,11 +291,7 @@ describe("parseUnsubscribePacketV4", () => {
   });
 
   it(`throws an Error for zero-length second topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 7,
-    };
+    const fixedHeader = createUnsubscribeFixedHeader(7);
     const remainingData = new Uint8Array([
       // packet identifier
       0x01, 0x05,
@@ -352,11 +313,7 @@ describe("parseUnsubscribePacketV4", () => {
   // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
   // [MQTT-4.7.3-2]
   it(`throws an Error for topic filter containing null character`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 9,
-    };
+    const fixedHeader = createUnsubscribeFixedHeader(9);
     const remainingData = new Uint8Array([
       // packet identifier
       0x01, 0x05,

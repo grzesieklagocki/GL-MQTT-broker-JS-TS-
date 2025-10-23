@@ -1,19 +1,19 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MQTTReaderV4 } from "@src/mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseSubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
+import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
+import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
+import { createFixedHeader, createSubscribeFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
+
+//
+// integration tests for parseSubscribePacketV4 using MQTTReaderV4 with data buffers
+//
 
 describe("parseSubscribePacketV4", () => {
   const array = new Uint8Array();
   const reader = new MQTTReaderV4(array);
 
   it(`parse SUBSCRIBE packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 9,
-    };
-
+    const fixedHeader = createSubscribeFixedHeader(9);
     const array = new Uint8Array([
       // packet identifier: 0x0105
       0x01, 0x05,
@@ -49,11 +49,7 @@ describe("parseSubscribePacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0010,
-        remainingLength: 9,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0010, 9);
 
       expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet type/
@@ -71,11 +67,7 @@ describe("parseSubscribePacketV4", () => {
   // [MQTT-3.8.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: invalidFlags,
-        remainingLength: 6,
-      };
+      const fixedHeader = createSubscribeFixedHeader(6, invalidFlags);
 
       expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet flags/
@@ -85,12 +77,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 6 declared in fixed header)`, () => {
     [0, 1, 2, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: invalidRemainingLength,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(invalidRemainingLength);
       const array = new Uint8Array([
         // packet identifier: 0x0105
         0x01, 0x05,
@@ -111,12 +98,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 6 in reader)`, () => {
     [0, 1, 2, 3, 4, 5].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: remaining,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(remaining);
       const array = new Uint8Array([
         // packet identifier: 0x0105
         0x01, 0x05,
@@ -145,11 +127,7 @@ describe("parseSubscribePacketV4", () => {
         real: 6,
       },
     ].forEach(({ declared, real }) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: declared,
-      };
+      const fixedHeader = createSubscribeFixedHeader(declared);
       const array = new Uint8Array(real);
       const reader = new MQTTReaderV4(array);
 
@@ -161,12 +139,7 @@ describe("parseSubscribePacketV4", () => {
 
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 6,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(6);
       const array = new Uint8Array([
         // packet identifier
         identifier >> 8,
@@ -188,12 +161,7 @@ describe("parseSubscribePacketV4", () => {
   });
 
   it("correctly parses list of two subscriptions", () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 14,
-    };
-
+    const fixedHeader = createSubscribeFixedHeader(14);
     const array = new Uint8Array([
       // packet identifier
       0x00, 0x01,
@@ -250,12 +218,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid first topic`, () => {
     invalidTopics.forEach((encodedTopic) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 5 + encodedTopic.length,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(5 + encodedTopic.length);
       const array = new Uint8Array([
         // packet identifier
         0x00,
@@ -278,12 +241,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid second topic`, () => {
     invalidTopics.forEach((encodedTopic) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 9 + encodedTopic.length,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(9 + encodedTopic.length);
       const array = new Uint8Array([
         // packet identifier
         0x00,
@@ -313,12 +271,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid QoS of first subscription`, () => {
     [3, 4, 7, 255].forEach((invalidQoS) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 6,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(6);
       const array = new Uint8Array([
         // packet identifier
         0x00,
@@ -339,12 +292,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid QoS of second subscription`, () => {
     [3, 4, 7, 255].forEach((invalidQoS) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 10,
-      };
-
+      const fixedHeader = createSubscribeFixedHeader(10);
       const array = new Uint8Array([
         // packet identifier
         0x00,
@@ -373,11 +321,7 @@ describe("parseSubscribePacketV4", () => {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   it(`throws an Error for zero-length first topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 9,
-    };
+    const fixedHeader = createSubscribeFixedHeader(9);
     const remainingData = new Uint8Array([
       // packet identifier
       0x00, 0x01,
@@ -402,11 +346,7 @@ describe("parseSubscribePacketV4", () => {
   });
 
   it(`throws an Error for zero-length second topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 9,
-    };
+    const fixedHeader = createSubscribeFixedHeader(9);
     const remainingData = new Uint8Array([
       // packet identifier
       0x00, 0x01,
@@ -433,11 +373,7 @@ describe("parseSubscribePacketV4", () => {
   // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
   // [MQTT-4.7.3-2]
   it(`throws an Error for topic filter containing null character`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 10,
-    };
+    const fixedHeader = createSubscribeFixedHeader(10);
     const remainingData = new Uint8Array([
       // packet identifier
       0x01, 0x05,

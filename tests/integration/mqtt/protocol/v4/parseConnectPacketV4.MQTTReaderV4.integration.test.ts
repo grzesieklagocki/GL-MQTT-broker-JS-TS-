@@ -2,53 +2,54 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import { parseConnectPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { describe, it, expect } from "vitest";
+import {
+  createConnectFixedHeader,
+  createFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 
-const fixedHeader = {
-  packetType: PacketType.CONNECT,
-  flags: 0b0000,
-  remainingLength: 12,
-};
-
-// common array for tests
-const array = new Uint8Array([
-  // protocol name length: 4
-  0x00, 0x04,
-  // protocol name: "MQTT"
-  0x4d, 0x51, 0x54, 0x54,
-  // protocol level: 4
-  0x04,
-  // flags: 0b00000000
-  0b00000000,
-  // keep alive: 0xabdc
-  0xab, 0xdc,
-  // client identifier length: 0
-  0x00, 0x00,
-  // client identifier: empty
-]);
-
-// arrays with invalid UTF-8 sequences (for testing UTF-8 string parsing)
-const invalidUtf8Arrays = [
-  // Overlong encoding of '/'
-  [0x00, 0x02, 0xc0, 0xaf], // U+002F '/' encoded as 0xC0 0xAF (invalid overlong form)
-  // Surrogate half (UTF-16 range D800–DFFF)
-  [0x00, 0x03, 0xed, 0xa0, 0x80], // U+D800 (illegal in UTF-8 per RFC 3629)
-  // Truncated sequence (missing continuation byte)
-  [0x00, 0x01, 0xc2],
-  // Lone continuation byte (single 0x80 cannot start a UTF-8 sequence)
-  [0x00, 0x01, 0x80],
-  // Out-of-range (> U+10FFFF)
-  [0x00, 0x04, 0xf4, 0x90, 0x80, 0x80],
-  // Invalid start byte (F8 = disallowed, UTF-8 max 0xF4)
-  [0x00, 0x05, 0xf8, 0x80, 0x80, 0x80, 0x80],
-];
+//
+// integration tests for parseConnectPacketV4 using MQTTReaderV4 with data buffers
+//
 
 describe("parseConnectPacketV4", () => {
-  it(`parse CONNECT packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 29,
-    };
+  // commonly used fixed header for CONNECT packet
+  const fixedHeader = createConnectFixedHeader(12);
+
+  // common array for tests
+  const array = new Uint8Array([
+    // protocol name length: 4
+    0x00, 0x04,
+    // protocol name: "MQTT"
+    0x4d, 0x51, 0x54, 0x54,
+    // protocol level: 4
+    0x04,
+    // flags: 0b00000000
+    0b00000000,
+    // keep alive: 0xabdc
+    0xab, 0xdc,
+    // client identifier length: 0
+    0x00, 0x00,
+    // client identifier: empty
+  ]);
+
+  // arrays with invalid UTF-8 sequences (for testing UTF-8 string parsing)
+  const invalidUtf8Arrays = [
+    // Overlong encoding of '/'
+    [0x00, 0x02, 0xc0, 0xaf], // U+002F '/' encoded as 0xC0 0xAF (invalid overlong form)
+    // Surrogate half (UTF-16 range D800–DFFF)
+    [0x00, 0x03, 0xed, 0xa0, 0x80], // U+D800 (illegal in UTF-8 per RFC 3629)
+    // Truncated sequence (missing continuation byte)
+    [0x00, 0x01, 0xc2],
+    // Lone continuation byte (single 0x80 cannot start a UTF-8 sequence)
+    [0x00, 0x01, 0x80],
+    // Out-of-range (> U+10FFFF)
+    [0x00, 0x04, 0xf4, 0x90, 0x80, 0x80],
+    // Invalid start byte (F8 = disallowed, UTF-8 max 0xF4)
+    [0x00, 0x05, 0xf8, 0x80, 0x80, 0x80, 0x80],
+  ];
+
+  it(`parses CONNECT packet`, () => {
+    const fixedHeader = createConnectFixedHeader(29);
     const willMessage = new Uint8Array([0xfc]);
     const password = new Uint8Array([0xbb]);
     const array = new Uint8Array([
@@ -123,11 +124,7 @@ describe("parseConnectPacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0,
-        remainingLength: 12,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0, 12);
       const reader = new MQTTReaderV4(array);
 
       expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
@@ -141,11 +138,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-2.2.2-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: invalidFlags,
-        remainingLength: 12,
-      };
+      const fixedHeader = createConnectFixedHeader(12, invalidFlags);
       const reader = new MQTTReaderV4(array);
 
       expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
@@ -156,11 +149,7 @@ describe("parseConnectPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createConnectFixedHeader(invalidRemainingLength);
       const reader = new MQTTReaderV4(array);
 
       expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
@@ -171,11 +160,6 @@ describe("parseConnectPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: 12,
-      };
       const array = new Uint8Array(remaining); // smaller than required
       const reader = new MQTTReaderV4(array); // so reader has less bytes (remaining) than required (min 12)
 
@@ -190,13 +174,9 @@ describe("parseConnectPacketV4", () => {
   // If the protocol name is incorrect the Server MAY disconnect the Client,
   // or it MAY continue processing the CONNECT packet in accordance with some other specification.
   // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification
-  // [MQTT-3.1.2-1].
+  // [MQTT-3.1.2-1]
   it(`throws an Error for invalid protocol name`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 14,
-    };
+    const fixedHeader = createConnectFixedHeader(14);
     const array = new Uint8Array([
       // protocol name length: 6
       0x00, 0x06,
@@ -221,7 +201,7 @@ describe("parseConnectPacketV4", () => {
 
   // The Server MUST respond to the CONNECT Packet with a CONNACK return code 0x01 (unacceptable protocol level)
   // and then disconnect the Client if the Protocol Level is not supported by the Server
-  // [MQTT-3.1.2-2].
+  // [MQTT-3.1.2-2]
   it(`throws an Error for invalid protocol level`, () => {
     [1, 2, 3, 5].forEach((level) => {
       const array = new Uint8Array([
@@ -255,7 +235,7 @@ describe("parseConnectPacketV4", () => {
 
   // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero
   // and disconnect the Client if it is not zero
-  // [MQTT-3.1.2-3].
+  // [MQTT-3.1.2-3]
   it(`throws an Error for invalid reserved flag`, () => {
     [0b00000001, 0b11000001, 0b00110101, 0b11101111].forEach((invalidFlags) => {
       const array = new Uint8Array([
@@ -289,13 +269,9 @@ describe("parseConnectPacketV4", () => {
 
   // If the Will Flag is set to 1, the Will QoS and Will Retain fields in the Connect Flags will be used by the Server,
   // and the Will Topic and Will Message fields MUST be present in the payload
-  // [MQTT-3.1.2-9].
+  // [MQTT-3.1.2-9]
   it(`throws an Error for missing Will Topic when Will Flag is set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 15,
-    };
+    const fixedHeader = createConnectFixedHeader(15);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -331,11 +307,7 @@ describe("parseConnectPacketV4", () => {
   });
 
   it(`throws an Error for missing Will Message when Will Flag is set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 15,
-    };
+    const fixedHeader = createConnectFixedHeader(15);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -372,13 +344,9 @@ describe("parseConnectPacketV4", () => {
 
   // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
   // and the Will Topic and Will Message fields MUST NOT be present in the payload
-  // [MQTT-3.1.2-11].
+  // [MQTT-3.1.2-11]
   it(`throws an Error for present Will Topic and Will Message when Will Flag is not set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 18,
-    };
+    const fixedHeader = createConnectFixedHeader(18);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -513,11 +481,7 @@ describe("parseConnectPacketV4", () => {
   // If the User Name Flag is set to 0, a user name MUST NOT be present in the payload.
   // [MQTT-3.1.2-18]
   it(`throws an Error for present User Name when User Name Flag is not set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 15,
-    };
+    const fixedHeader = createConnectFixedHeader(15);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -590,11 +554,7 @@ describe("parseConnectPacketV4", () => {
   // If the Password Flag is set to 0, a password MUST NOT be present in the payload.
   // [MQTT-3.1.2-20]
   it(`throws an Error for present Password when Password Flag is not set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 18,
-    };
+    const fixedHeader = createConnectFixedHeader(18);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -638,11 +598,7 @@ describe("parseConnectPacketV4", () => {
   // If the Password Flag is set to 1, a password MUST be present in the payload.
   // [MQTT-3.1.2-21]
   it(`throws an Error for missing Password when Password Flag is set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 15,
-    };
+    const fixedHeader = createConnectFixedHeader(15);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -726,11 +682,7 @@ describe("parseConnectPacketV4", () => {
       userName.length +
       password.length +
       20;
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: packetLength,
-    };
+    const fixedHeader = createConnectFixedHeader(packetLength);
     const encoder = new TextEncoder();
     const array = new Uint8Array([
       // protocol name length: 4
@@ -788,11 +740,7 @@ describe("parseConnectPacketV4", () => {
   // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
   // [MQTT-3.1.3-3]
   it(`throw an Error for missing ClientId`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 10,
-    };
+    const fixedHeader = createConnectFixedHeader(10);
     const array = new Uint8Array([
       // protocol name length: 4
       0x00, 0x04,
@@ -817,11 +765,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-4]
   it(`throw an Error for invalid encoded ClientId`, () => {
     invalidUtf8Arrays.forEach((invalidClientId) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: 10 + invalidClientId.length,
-      };
+      const fixedHeader = createConnectFixedHeader(10 + invalidClientId.length);
       const array = new Uint8Array([
         // protocol name length: 4
         0x00,
@@ -862,11 +806,9 @@ describe("parseConnectPacketV4", () => {
         const encoder = new TextEncoder();
         const invalidIdArray = encoder.encode(invalidId);
 
-        const fixedHeader = {
-          packetType: PacketType.CONNECT,
-          flags: 0,
-          remainingLength: 12 + invalidIdArray.length,
-        };
+        const fixedHeader = createConnectFixedHeader(
+          12 + invalidIdArray.length
+        );
         const array = new Uint8Array([
           // protocol name length: 4
           0x00,
@@ -933,11 +875,9 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-10]
   it(`throw an Error for invalid encoded Will Topic`, () => {
     invalidUtf8Arrays.forEach((invalidWillTopic) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: 17 + invalidWillTopic.length,
-      };
+      const fixedHeader = createConnectFixedHeader(
+        17 + invalidWillTopic.length
+      );
       const array = new Uint8Array([
         // protocol name length: 4
         0x00,
@@ -980,11 +920,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-11]
   it(`throw an Error for invalid encoded User Name`, () => {
     invalidUtf8Arrays.forEach((invalidUserName) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: 20 + invalidUserName.length,
-      };
+      const fixedHeader = createConnectFixedHeader(20 + invalidUserName.length);
       const array = new Uint8Array([
         // protocol name length: 4
         0x00,

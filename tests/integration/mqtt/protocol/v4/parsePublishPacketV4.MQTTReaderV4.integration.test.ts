@@ -2,8 +2,17 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import { describe, it, expect } from "vitest";
 import { parsePublishPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
+import {
+  createFixedHeader,
+  createPublishFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
+
+//
+// integration tests for parsePublishPacketV4 using MQTTReaderV4 with data buffers
+//
 
 describe("parsePublishPacketV4", () => {
+  // commonly used reader for PUBLISH packet
   const reader = new MQTTReaderV4(
     new Uint8Array([
       // topic length: 1
@@ -15,12 +24,11 @@ describe("parsePublishPacketV4", () => {
     ])
   );
 
-  it(`parse PUBLISH packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b1010, // DUP flag set, QoS 1
-      remainingLength: 9,
-    };
+  it(`parses PUBLISH packet`, () => {
+    const fixedHeader = createPublishFixedHeader(
+      9, // remaining length
+      0b1010 // DUP flag set, QoS 1)
+    );
     const message = new Uint8Array([0, 1, 2]);
     const array = new Uint8Array([
       // topic length: 2
@@ -66,11 +74,7 @@ describe("parsePublishPacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0000,
-        remainingLength: 3,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 3);
 
       expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet type/
@@ -80,11 +84,10 @@ describe("parsePublishPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 2].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBLISH,
-        flags: 0,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createPublishFixedHeader(
+        invalidRemainingLength, // remaining length
+        0b0000 // flags
+      );
 
       expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet remaining length/
@@ -94,11 +97,10 @@ describe("parsePublishPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
     [0, 1, 2].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBLISH,
-        flags: 0,
-        remainingLength: 3,
-      };
+      const fixedHeader = createPublishFixedHeader(
+        3, // remaining length
+        0b0000 // flags
+      );
 
       const reader = new MQTTReaderV4(new Uint8Array(remaining));
 
@@ -112,11 +114,10 @@ describe("parsePublishPacketV4", () => {
   // [MQTT-2.3.1-1]
   it(`throws an Error for zero packet identifier when QoS > 0`, () => {
     [0b01, 0b10].forEach((qos) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBLISH,
-        flags: 0b0110 & (qos << 1), // QoS 1 or 2
-        remainingLength: 5,
-      };
+      const fixedHeader = createPublishFixedHeader(
+        5, // remaining length
+        0b0110 & (qos << 1) // flags: QoS 1 or 2
+      );
       const array = new Uint8Array([
         // topic length: 1
         0x00, 0x01,
@@ -144,11 +145,10 @@ describe("parsePublishPacketV4", () => {
   // The DUP flag MUST be set to 0 for all QoS 0 messages
   // [MQTT-3.3.1-2]
   it(`throws an Error for invalid DUP flag`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b1000, // invalid DUP flag for QoS 0
-      remainingLength: 3,
-    };
+    const fixedHeader = createPublishFixedHeader(
+      3, // remaining length
+      0b1000 // flags: invalid DUP flag for QoS 0
+    );
 
     expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(/DUP flag/);
   });
@@ -157,11 +157,10 @@ describe("parsePublishPacketV4", () => {
   // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
   // [MQTT-3.3.1-4]
   it(`throws an Error for invalid QoS flags`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b0110, // invalid QoS (0b11)
-      remainingLength: 3,
-    };
+    const fixedHeader = createPublishFixedHeader(
+      3, // remaining length
+      0b0110 // flags: invalid QoS (0b11)
+    );
 
     expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
       /Invalid QoS flags/
@@ -172,11 +171,10 @@ describe("parsePublishPacketV4", () => {
   // It MUST be a UTF-8 encoded string
   // [MQTT-3.3.2-1]
   it(`throws an Error for invalid topic name`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b0000,
-      remainingLength: 3,
-    };
+    const fixedHeader = createPublishFixedHeader(
+      3, // remaining length
+      0b0000 // flags
+    );
     const array = new Uint8Array([
       // topic length: 1
       0x00, 0x01,
@@ -196,17 +194,16 @@ describe("parsePublishPacketV4", () => {
     ["t/+", "t/#", "+/t", "#/t", "t/#/t", "t/+/t"].forEach((invalidTopic) => {
       const encoder = new TextEncoder();
       const topicBytes = encoder.encode(invalidTopic);
-      const len = topicBytes.length;
-      const lengthBytes = [(len >> 8) & 0xff, len & 0xff];
+      const length = topicBytes.length;
+      const lengthBytes = [(length >> 8) & 0xff, length & 0xff];
 
       const array = new Uint8Array([...lengthBytes, ...topicBytes]);
       const reader = new MQTTReaderV4(array);
 
-      const fixedHeader = {
-        packetType: PacketType.PUBLISH,
-        flags: 0b0000,
-        remainingLength: 2 + len,
-      };
+      const fixedHeader = createPublishFixedHeader(
+        2 + length, // remaining length
+        0b0000 // flags
+      );
 
       expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
         /wildcard/
@@ -217,11 +214,10 @@ describe("parsePublishPacketV4", () => {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   it(`throws an Error for zero-length topic name`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b0010,
-      remainingLength: 4,
-    };
+    const fixedHeader = createPublishFixedHeader(
+      4, // remaining length
+      0b0010 // flags: QoS 1
+    );
     const array = new Uint8Array([
       // topic length: 0
       0x00, 0x00,
@@ -240,11 +236,10 @@ describe("parsePublishPacketV4", () => {
   // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
   // [MQTT-4.7.3-2]
   it(`throws an Error for topic name containing null character`, () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBLISH,
-      flags: 0b0000, // QoS 0
-      remainingLength: 5,
-    };
+    const fixedHeader = createPublishFixedHeader(
+      5, // remaining length
+      0b0000 // flags
+    );
     const array = new Uint8Array([
       // topic length: 3
       0x00, 0x03,

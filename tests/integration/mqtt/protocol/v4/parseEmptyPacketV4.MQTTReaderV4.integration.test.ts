@@ -1,21 +1,21 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
+import {
+  createEmptyPacketFixedHeader,
+  createFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
-// integration tests for parseConnackPacketV4 using MQTTReaderV4 with data buffers
+// integration tests for parseEmptyPacketV4 using MQTTReaderV4 with data buffers
 //
 
 describe("parseEmptyPacketV4", () => {
-  it(`parse PINGREQ, PINGRESP and DISCONNECT packets`, () => {
+  it(`parses PINGREQ, PINGRESP and DISCONNECT packets`, () => {
     [PacketType.PINGREQ, PacketType.PINGRESP, PacketType.DISCONNECT].forEach(
       (validPacketType) => {
-        const fixedHeader = {
-          packetType: validPacketType,
-          flags: 0x00,
-          remainingLength: 0,
-        };
+        const fixedHeader = createEmptyPacketFixedHeader(validPacketType);
         const remainingData = new Uint8Array();
         const reader = new MQTTReaderV4(remainingData);
         const packet = parseEmptyPacketV4(fixedHeader, reader);
@@ -39,11 +39,7 @@ describe("parseEmptyPacketV4", () => {
       PacketType.UNSUBSCRIBE,
       PacketType.UNSUBACK,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0x00,
-        remainingLength: 0,
-      };
+      const fixedHeader = createEmptyPacketFixedHeader(invalidPacketType);
       const remainingData = new Uint8Array();
       const reader = new MQTTReaderV4(remainingData);
 
@@ -61,11 +57,10 @@ describe("parseEmptyPacketV4", () => {
   // [MQTT-3.14.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.PINGREQ,
-        flags: invalidFlags,
-        remainingLength: 0,
-      };
+      const fixedHeader = createEmptyPacketFixedHeader(
+        PacketType.PINGREQ,
+        invalidFlags
+      );
       const remainingData = new Uint8Array();
       const reader = new MQTTReaderV4(remainingData);
 
@@ -77,11 +72,11 @@ describe("parseEmptyPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [1, 2, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.PINGRESP,
-        flags: 0x00,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createEmptyPacketFixedHeader(
+        PacketType.PINGRESP,
+        0b0000,
+        invalidRemainingLength
+      );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -97,11 +92,7 @@ describe("parseEmptyPacketV4", () => {
       [0xc1, 0x0a], // two bytes
       [0x12, 0x23, 0x34], // three bytes
     ].forEach((array) => {
-      const fixedHeader = {
-        packetType: PacketType.DISCONNECT,
-        flags: 0x00,
-        remainingLength: 0,
-      };
+      const fixedHeader = createEmptyPacketFixedHeader(PacketType.DISCONNECT);
       const remainingData = new Uint8Array(array);
       const reader = new MQTTReaderV4(remainingData);
 

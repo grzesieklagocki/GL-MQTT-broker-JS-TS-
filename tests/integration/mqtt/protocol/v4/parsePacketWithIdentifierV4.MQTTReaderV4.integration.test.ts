@@ -1,14 +1,15 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
+import { createFixedHeader, createPacketWithIdentifierFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
-// integration tests for parseConnackPacketV4 using MQTTReaderV4 with data buffers
+// integration tests for parsePacketWithIdentifierV4 using MQTTReaderV4 with data buffers
 //
 
 describe("parsePacketWithIdentifierV4", () => {
-  it(`parse PUBACK, PUBREC, PUBREL, PUBCOMP and UNSUBACK packets`, () => {
+  it(`parses PUBACK, PUBREC, PUBREL, PUBCOMP and UNSUBACK packets`, () => {
     [
       PacketType.PUBACK,
       PacketType.PUBREC,
@@ -16,11 +17,10 @@ describe("parsePacketWithIdentifierV4", () => {
       PacketType.PUBCOMP,
       PacketType.UNSUBACK,
     ].forEach((validPacketType) => {
-      const fixedHeader = {
-        packetType: validPacketType,
-        flags: validPacketType === PacketType.PUBREL ? 0b0010 : 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        validPacketType,
+        validPacketType === PacketType.PUBREL ? 0b0010 : 0b0000
+      );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
       const packet = parsePacketWithIdentifierV4(fixedHeader, reader);
@@ -44,11 +44,8 @@ describe("parsePacketWithIdentifierV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader =
+        createPacketWithIdentifierFixedHeader(invalidPacketType);
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -68,11 +65,10 @@ describe("parsePacketWithIdentifierV4", () => {
   // [MQTT-3.6.1-1]
   it(`throws an Error for invalid flags (for PUBREL)`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREL,
-        flags: invalidFlags,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREL,
+        invalidFlags
+      );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -94,11 +90,10 @@ describe("parsePacketWithIdentifierV4", () => {
     ].forEach((packetType) => {
       [0b0001, 0b0010, 0b0011, 0b0100, 0b1000, 0b1010].forEach(
         (invalidFlags) => {
-          const fixedHeader = {
+          const fixedHeader = createPacketWithIdentifierFixedHeader(
             packetType,
-            flags: invalidFlags,
-            remainingLength: 2,
-          };
+            invalidFlags
+          );
           const remainingData = new Uint8Array([0x12, 0x34]);
           const reader = new MQTTReaderV4(remainingData);
 
@@ -112,11 +107,11 @@ describe("parsePacketWithIdentifierV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREC,
-        flags: 0b0000,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREC,
+        0b0000,
+        invalidRemainingLength
+      );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -132,11 +127,10 @@ describe("parsePacketWithIdentifierV4", () => {
       [0xff], // only one byte
       [0x12, 0x23, 0x34], // three bytes
     ].forEach((array) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREL,
-        flags: 0b0010,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREL,
+        0b0010
+      );
       const remainingData = new Uint8Array(array);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -154,11 +148,9 @@ describe("parsePacketWithIdentifierV4", () => {
       { input: [0x12, 0x34], expected: 4660 },
       { input: [0xff, 0xff], expected: 65535 },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBACK,
-        flags: 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBACK
+      );
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
       const packet = parsePacketWithIdentifierV4(fixedHeader, reader);

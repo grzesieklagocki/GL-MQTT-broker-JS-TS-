@@ -1,6 +1,10 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
+import {
+  createConnackFixedHeader,
+  createFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -8,12 +12,10 @@ import { describe, it, expect } from "vitest";
 //
 
 describe("parseConnackPacketV4", () => {
-  it(`parse CONNACK packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNACK,
-      flags: 0,
-      remainingLength: 2,
-    };
+  // commonly used fixed header for CONNACK packet
+  const fixedHeader = createConnackFixedHeader(2);
+
+  it(`parses CONNACK packet`, () => {
     const remainingData = new Uint8Array([0x00, 0x00]);
     const reader = new MQTTReaderV4(remainingData);
     const packet = parseConnackPacketV4(fixedHeader, reader);
@@ -37,11 +39,7 @@ describe("parseConnackPacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0,
-        remainingLength: 2,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 2);
       const remainingData = new Uint8Array([0x01, 0x00]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -56,11 +54,7 @@ describe("parseConnackPacketV4", () => {
   // [MQTT-2.2.2-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: invalidFlags,
-        remainingLength: 2,
-      };
+      const fixedHeader = createConnackFixedHeader(2, invalidFlags);
       const remainingData = new Uint8Array([0x00, 0x01]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -72,11 +66,7 @@ describe("parseConnackPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: 0,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createConnackFixedHeader(invalidRemainingLength);
       const remainingData = new Uint8Array([0x01, 0x00]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -93,11 +83,6 @@ describe("parseConnackPacketV4", () => {
       [0x12, 0x23, 0x34], // three bytes
       [0x12, 0x23, 0x01, 0x77], // four bytes
     ].forEach((array) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: 0,
-        remainingLength: 2,
-      };
       const remainingData = new Uint8Array(array);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -112,11 +97,6 @@ describe("parseConnackPacketV4", () => {
       { input: [0x00, 0x00], expected: false },
       { input: [0x01, 0x00], expected: true },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: 0,
-        remainingLength: 2,
-      };
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
       const packet = parseConnackPacketV4(fixedHeader, reader);
@@ -127,11 +107,6 @@ describe("parseConnackPacketV4", () => {
 
   it(`throws an Error for invalid first byte values (Session Present Flag)`, () => {
     [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0xff].forEach((invalidFirstByte) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: 0,
-        remainingLength: 2,
-      };
       const remainingData = new Uint8Array([invalidFirstByte, 0x00]);
       const reader = new MQTTReaderV4(remainingData);
 
@@ -150,11 +125,6 @@ describe("parseConnackPacketV4", () => {
       { input: [0x00, 0x04], expected: 0x04 },
       { input: [0x01, 0x05], expected: 0x05 },
     ].forEach(({ input, expected }) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNACK,
-        flags: 0,
-        remainingLength: 2,
-      };
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
       const packet = parseConnackPacketV4(fixedHeader, reader);
@@ -166,11 +136,6 @@ describe("parseConnackPacketV4", () => {
   it(`throws an Error for invalid Connect Return Code values`, () => {
     [0x06, 0x07, 0x08, 0x09, 0x0a, 0x7f, 0x80, 0xfe, 0xff].forEach(
       (invalidReturnCode) => {
-        const fixedHeader = {
-          packetType: PacketType.CONNACK,
-          flags: 0,
-          remainingLength: 2,
-        };
         const remainingData = new Uint8Array([0x00, invalidReturnCode]);
         const reader = new MQTTReaderV4(remainingData);
 
