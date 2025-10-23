@@ -1,9 +1,11 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
+import { createPacketWithIdentifierFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect, vi } from "vitest";
 
 describe("parsePacketWithIdentifierV4", () => {
+  // commonly used reader mock
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse PUBACK, PUBREC, PUBREL, PUBCOMP and UNSUBACK packets`, () => {
@@ -14,11 +16,10 @@ describe("parsePacketWithIdentifierV4", () => {
       PacketType.PUBCOMP,
       PacketType.UNSUBACK,
     ].forEach((validPacketType) => {
-      const fixedHeader = {
-        packetType: validPacketType,
-        flags: validPacketType === PacketType.PUBREL ? 0b0010 : 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        validPacketType,
+        validPacketType === PacketType.PUBREL ? 0b0010 : 0b0000
+      );
       const readerMock = {
         remaining: 2,
         readTwoByteInteger: vi.fn().mockReturnValue(0x1234),
@@ -46,11 +47,8 @@ describe("parsePacketWithIdentifierV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader =
+        createPacketWithIdentifierFixedHeader(invalidPacketType);
 
       expect(() =>
         parsePacketWithIdentifierV4(fixedHeader, readerMock)
@@ -68,11 +66,10 @@ describe("parsePacketWithIdentifierV4", () => {
   // [MQTT-3.6.1-1]
   it(`throws an Error for invalid flags (for PUBREL)`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREL,
-        flags: invalidFlags,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREL,
+        invalidFlags
+      );
 
       expect(() =>
         parsePacketWithIdentifierV4(fixedHeader, readerMock)
@@ -92,11 +89,10 @@ describe("parsePacketWithIdentifierV4", () => {
     ].forEach((packetType) => {
       [0b0001, 0b0010, 0b0011, 0b0100, 0b1000, 0b1010].forEach(
         (invalidFlags) => {
-          const fixedHeader = {
+          const fixedHeader = createPacketWithIdentifierFixedHeader(
             packetType,
-            flags: invalidFlags,
-            remainingLength: 2,
-          };
+            invalidFlags
+          );
 
           expect(() =>
             parsePacketWithIdentifierV4(fixedHeader, readerMock)
@@ -108,11 +104,11 @@ describe("parsePacketWithIdentifierV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREC,
-        flags: 0b0000,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREC,
+        0b0000,
+        invalidRemainingLength
+      );
 
       expect(() =>
         parsePacketWithIdentifierV4(fixedHeader, readerMock)
@@ -122,11 +118,13 @@ describe("parsePacketWithIdentifierV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
     [0, 1, 3].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBREL,
-        flags: 0b0010,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBREL,
+        0b0010
+      );
+      const readerMock = {
+        remaining: remaining,
+      } as unknown as IMQTTReaderV4;
 
       expect(() =>
         parsePacketWithIdentifierV4(fixedHeader, readerMock)
@@ -136,11 +134,9 @@ describe("parsePacketWithIdentifierV4", () => {
 
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
-      const fixedHeader = {
-        packetType: PacketType.PUBACK,
-        flags: 0b0000,
-        remainingLength: 2,
-      };
+      const fixedHeader = createPacketWithIdentifierFixedHeader(
+        PacketType.PUBACK
+      );
       const readerMock = {
         remaining: 2,
         readTwoByteInteger: vi.fn().mockReturnValue(identifier),
@@ -154,11 +150,9 @@ describe("parsePacketWithIdentifierV4", () => {
   });
 
   it("throws an Error when Identifier is invalid", () => {
-    const fixedHeader = {
-      packetType: PacketType.PUBACK,
-      flags: 0b0000,
-      remainingLength: 2,
-    };
+    const fixedHeader = createPacketWithIdentifierFixedHeader(
+      PacketType.PUBACK
+    );
     const readerMock = {
       remaining: 2,
       readTwoByteInteger: vi.fn().mockReturnValue(0),

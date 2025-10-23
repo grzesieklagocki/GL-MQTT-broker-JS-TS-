@@ -4,14 +4,16 @@ import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createConnectReaderMock } from "./mocks";
 import { AppError } from "@src/AppError";
-
-const fixedHeader = {
-  packetType: PacketType.CONNECT,
-  flags: 0,
-  remainingLength: 12,
-};
+import {
+  createConnectFixedHeader,
+  createFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 
 describe("parseConnectPacketV4", () => {
+  // commonly used fixed header for CONNECT packet
+  const fixedHeader = createConnectFixedHeader(12);
+
+  // commonly used reader mock for CONNECT packet
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse CONNECT packet`, () => {
@@ -76,11 +78,8 @@ describe("parseConnectPacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0,
-        remainingLength: 12,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 12);
+
       expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
       );
@@ -92,11 +91,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-2.2.2-1]
   it(`throws an Error for invalid flags`, () => {
     [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: invalidFlags,
-        remainingLength: 12,
-      };
+      const fixedHeader = createConnectFixedHeader(12, invalidFlags);
 
       expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
@@ -106,11 +101,7 @@ describe("parseConnectPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createConnectFixedHeader(invalidRemainingLength);
 
       expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet remaining length/
@@ -120,11 +111,6 @@ describe("parseConnectPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.CONNECT,
-        flags: 0,
-        remainingLength: 12,
-      };
       const readerMock = {
         remaining: remaining,
       } as unknown as IMQTTReaderV4;
@@ -272,11 +258,7 @@ describe("parseConnectPacketV4", () => {
   // and the Will Topic and Will Message fields MUST NOT be present in the payload
   // [MQTT-3.1.2-11].
   it(`throws an Error for present Will Topic and Will Message when Will Flag is not set`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 16,
-    };
+    const fixedHeader = createConnectFixedHeader(16);
     const readerMock = createConnectReaderMock(
       [
         16, // remaining
@@ -551,11 +533,7 @@ describe("parseConnectPacketV4", () => {
   // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
   // [MQTT-3.1.3-3]
   it(`throw an Error for missing ClientId`, () => {
-    const fixedHeader = {
-      packetType: PacketType.CONNECT,
-      flags: 0,
-      remainingLength: 10,
-    };
+    const fixedHeader = createConnectFixedHeader(10);
     const readerMock = createConnectReaderMock(
       [
         10, // remaining

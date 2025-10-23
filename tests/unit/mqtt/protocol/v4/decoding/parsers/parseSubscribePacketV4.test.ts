@@ -1,24 +1,22 @@
 import { PacketType, QoS } from "@mqtt/protocol/shared/types";
-import { parseSubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
+import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createSubscribeReaderMock, getErrorMock } from "./mocks";
+import {
+  createFixedHeader,
+  createSubscribeFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 
 describe("parseSubscribePacketV4", () => {
-  const fixedHeader = {
-    packetType: PacketType.SUBSCRIBE,
-    flags: 0b0010,
-    remainingLength: 6,
-  };
+  // commonly used fixed header for SUBSCRIBE packet
+  const fixedHeader = createSubscribeFixedHeader(6);
+
+  // commonly used reader mock for SUBSCRIBE packet
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse SUBSCRIBE packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 9,
-    };
-
+    const fixedHeader = createSubscribeFixedHeader(9);
     const readerMock = createSubscribeReaderMock(
       [
         9, // initial remaining value
@@ -52,11 +50,7 @@ describe("parseSubscribePacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0010,
-        remainingLength: 9,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0010, 9);
 
       expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
@@ -74,11 +68,7 @@ describe("parseSubscribePacketV4", () => {
   // [MQTT-3.8.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: invalidFlags,
-        remainingLength: 6,
-      };
+      const fixedHeader = createSubscribeFixedHeader(6, invalidFlags);
 
       expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
@@ -88,11 +78,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 6 declared in fixed header)`, () => {
     [0, 1, 2, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createSubscribeFixedHeader(invalidRemainingLength);
 
       expect(() => parseSubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /header/
@@ -102,11 +88,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 6 in reader)`, () => {
     [0, 1, 2, 3, 4, 5].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: remaining,
-      };
+      const fixedHeader = createSubscribeFixedHeader(remaining);
       const readerMock = {
         remaining: remaining,
       } as unknown as IMQTTReaderV4;
@@ -128,11 +110,7 @@ describe("parseSubscribePacketV4", () => {
         real: 6,
       },
     ].forEach(({ declared, real }) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: declared,
-      };
+      const fixedHeader = createSubscribeFixedHeader(declared);
       const readerMock = {
         remaining: real,
       } as unknown as IMQTTReaderV4;
@@ -181,12 +159,7 @@ describe("parseSubscribePacketV4", () => {
   });
 
   it("correctly parses list of two subscriptions", () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 12,
-    };
-
+    const fixedHeader = createSubscribeFixedHeader(12);
     const readerMock = createSubscribeReaderMock(
       [
         12, // initial remaining value
@@ -226,12 +199,7 @@ describe("parseSubscribePacketV4", () => {
   });
 
   it(`throws an Error for invalid second topic`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 10,
-    };
-
+    const fixedHeader = createSubscribeFixedHeader(10);
     const error = getErrorMock("topic") as unknown as string;
     const readerMock = createSubscribeReaderMock(
       [
@@ -273,11 +241,7 @@ describe("parseSubscribePacketV4", () => {
 
   it(`throws an Error for invalid QoS of second subscription`, () => {
     [3, 4, 7, 255].forEach((invalidQoS) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 10,
-      };
+      const fixedHeader = createSubscribeFixedHeader(10);
 
       const readerMock = createSubscribeReaderMock(
         [

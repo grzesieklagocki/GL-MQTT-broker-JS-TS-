@@ -1,19 +1,21 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect, vi } from "vitest";
 import { createSubackReaderMock } from "./mocks";
+import {
+  createFixedHeader,
+  createSubackFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 
 describe("parseSubackPacketV4", () => {
+  // commonly used fixed header for SUBACK packet
+  const fixedHeader = createSubackFixedHeader();
+
+  // commonly used reader mock
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse SUBACK packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBACK,
-      flags: 0,
-      remainingLength: 3,
-    };
-
     const readerMock = createSubackReaderMock(
       3, // remaining
       0x1234, //identifier
@@ -41,11 +43,7 @@ describe("parseSubackPacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0,
-        remainingLength: 2,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 2);
 
       expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
@@ -72,11 +70,7 @@ describe("parseSubackPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
     [0, 1, 2, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBACK,
-        flags: 0x00,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createSubackFixedHeader(invalidRemainingLength);
 
       expect(() => parseSubackPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet remaining length/
@@ -86,11 +80,6 @@ describe("parseSubackPacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
     [0, 1, 2, 4].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBACK,
-        flags: 0x00,
-        remainingLength: 3,
-      };
       const readerMock = {
         remaining: remaining,
       } as unknown as IMQTTReaderV4;
@@ -103,12 +92,6 @@ describe("parseSubackPacketV4", () => {
 
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBACK,
-        flags: 0x00,
-        remainingLength: 3,
-      };
-
       const readerMock = createSubackReaderMock(
         3, // remaining
         identifier, //identifier
@@ -124,11 +107,6 @@ describe("parseSubackPacketV4", () => {
   });
 
   it("throws an Error when Identifier is invalid", () => {
-    const fixedHeader = {
-      packetType: PacketType.SUBACK,
-      flags: 0x00,
-      remainingLength: 3,
-    };
     const readerMock = {
       remaining: 3,
       readTwoByteInteger: vi.fn().mockReturnValue(0),
@@ -143,12 +121,6 @@ describe("parseSubackPacketV4", () => {
   // [MQTT-3.9.3-2]
   it(`correctly parses all Return Code values`, () => {
     [0x00, 0x01, 0x02, 0x80].forEach((validReturnCode) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBACK,
-        flags: 0x00,
-        remainingLength: 3,
-      };
-
       const readerMock = createSubackReaderMock(
         3, // remaining
         0x1234, //identifier
@@ -163,12 +135,6 @@ describe("parseSubackPacketV4", () => {
 
   it(`throws an Error for invalid Return Code values`, () => {
     [0x03, 0x04, 0x05, 0x7f, 0x81, 0xfe, 0xff].forEach((invalidReturnCode) => {
-      const fixedHeader = {
-        packetType: PacketType.SUBACK,
-        flags: 0x00,
-        remainingLength: 3,
-      };
-
       const readerMock = createSubackReaderMock(
         3, // remaining
         0x1234, //identifier

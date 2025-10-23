@@ -1,19 +1,22 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { parseUnsubscribePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
-import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { parseUnsubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createUnsubscribeReaderMock, getErrorMock } from "./mocks";
+import {
+  createFixedHeader,
+  createUnsubscribeFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 
 describe("parseUnsubscribePacketV4", () => {
+  // commonly used fixed header for UNSUBSCRIBE packet
+  const fixedHeader = createUnsubscribeFixedHeader(6);
+
+  // commonly used reader mock for UNSUBSCRIBE packet
   const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse UNSUBSCRIBE packet`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 8,
-    };
-
+    const fixedHeader = createUnsubscribeFixedHeader(8);
     const readerMock = createUnsubscribeReaderMock(
       [
         8, // initial remaining value
@@ -46,11 +49,7 @@ describe("parseUnsubscribePacketV4", () => {
       PacketType.PINGRESP,
       PacketType.DISCONNECT,
     ].forEach((invalidPacketType) => {
-      const fixedHeader = {
-        packetType: invalidPacketType,
-        flags: 0b0010,
-        remainingLength: 9,
-      };
+      const fixedHeader = createFixedHeader(invalidPacketType, 0b0010, 9);
 
       expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet type/
@@ -68,11 +67,7 @@ describe("parseUnsubscribePacketV4", () => {
   // [MQTT-3.10.1-1]
   it(`throws an Error for invalid flags`, () => {
     [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: invalidFlags,
-        remainingLength: 6,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(6, invalidFlags);
 
       expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet flags/
@@ -82,11 +77,7 @@ describe("parseUnsubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (< 5 declared in fixed header)`, () => {
     [0, 1, 2, 3, 4].forEach((invalidRemainingLength) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: invalidRemainingLength,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(invalidRemainingLength);
 
       expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
         /header/
@@ -96,11 +87,7 @@ describe("parseUnsubscribePacketV4", () => {
 
   it(`throws an Error for invalid remaining bytes count (<5 in reader)`, () => {
     [0, 1, 2, 3, 4].forEach((remaining) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: remaining,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(remaining);
       const readerMock = {
         remaining: remaining,
       } as unknown as IMQTTReaderV4;
@@ -122,11 +109,7 @@ describe("parseUnsubscribePacketV4", () => {
         real: 5,
       },
     ].forEach(({ declared, real }) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: declared,
-      };
+      const fixedHeader = createUnsubscribeFixedHeader(declared);
       const readerMock = {
         remaining: real,
       } as unknown as IMQTTReaderV4;
@@ -139,12 +122,7 @@ describe("parseUnsubscribePacketV4", () => {
 
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
-      const fixedHeader = {
-        packetType: PacketType.UNSUBSCRIBE,
-        flags: 0b0010,
-        remainingLength: 5,
-      };
-
+      const fixedHeader = createUnsubscribeFixedHeader(5);
       const readerMock = createUnsubscribeReaderMock(
         [
           5, // initial remaining value
@@ -165,12 +143,7 @@ describe("parseUnsubscribePacketV4", () => {
   // Control Packets MUST contain a non-zero 16-bit Packet Identifier
   // [MQTT-2.3.1-1]
   it("throws an Error when Identifier is invalid", () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 5,
-    };
-
+    const fixedHeader = createUnsubscribeFixedHeader(5);
     const readerMock = createUnsubscribeReaderMock(
       [
         5, // initial remaining value
@@ -189,12 +162,6 @@ describe("parseUnsubscribePacketV4", () => {
   // [MQTT-3.10.3-1]
   // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
   it(`throws an Error for invalid UTF-8 encoding in topic`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
-
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
@@ -213,12 +180,6 @@ describe("parseUnsubscribePacketV4", () => {
   // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
   // An UNSUBSCRIBE packet with no payload is a protocol violation.
   it(`throws an Error for empty topic filter list`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
-
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
@@ -234,12 +195,7 @@ describe("parseUnsubscribePacketV4", () => {
   });
 
   it("correctly parses list of two topic filters", () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 12,
-    };
-
+    const fixedHeader = createUnsubscribeFixedHeader(12);
     const readerMock = createUnsubscribeReaderMock(
       [
         12, // initial remaining value
@@ -257,12 +213,7 @@ describe("parseUnsubscribePacketV4", () => {
   });
 
   it(`throws an Error for invalid first topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 5,
-    };
-
+    const fixedHeader = createUnsubscribeFixedHeader(5);
     const error = getErrorMock("topic") as unknown as string;
     const readerMock = createUnsubscribeReaderMock(
       [
@@ -279,12 +230,7 @@ describe("parseUnsubscribePacketV4", () => {
   });
 
   it(`throws an Error for invalid second topic filter`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 8,
-    };
-
+    const fixedHeader = createUnsubscribeFixedHeader(8);
     const error = getErrorMock("topic") as unknown as string;
     const readerMock = createUnsubscribeReaderMock(
       [
@@ -304,11 +250,6 @@ describe("parseUnsubscribePacketV4", () => {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   it(`throws an Error for zero-length topic name`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
@@ -329,11 +270,6 @@ describe("parseUnsubscribePacketV4", () => {
   // Topic Names and Topic Filters MUST NOT include the null character (Unicode U+0000).
   // [MQTT-4.7.3-2]
   it(`throws an Error for topic name containing null character`, () => {
-    const fixedHeader = {
-      packetType: PacketType.UNSUBSCRIBE,
-      flags: 0b0010,
-      remainingLength: 6,
-    };
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
