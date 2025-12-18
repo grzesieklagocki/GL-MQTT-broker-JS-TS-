@@ -123,7 +123,137 @@ describe("FixedHeaderParserV4", () => {
         });
       });
 
-      it("throws when Flags are invalid for given Packet Type (for all packet types)", () => {});
+      // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
+      // it is reserved for future use and MUST be set to the value listed in that table
+      // [MQTT-2.2.2-1]
+      it("throws when Flags are invalid for given Packet Type (for all packet types)", () => {
+        [
+          {
+            packetType: 0b0001, // CONNECT
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b0010, // CONNACK
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b0011, // PUBLISH
+            invalidFlags: [
+              // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
+              // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
+              // [MQTT-3.3.1-4]
+              0b0110,
+
+              // The DUP flag MUST be set to 0 for all QoS 0 messages
+              // [MQTT-3.3.1-2]
+              0b1000,
+            ],
+          },
+          {
+            packetType: 0b0100, // PUBACK
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b0101, // PUBREC
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            // Bits 3,2,1 and 0 of the fixed header in the PUBREL Control Packet are reserved
+            // and MUST be set to 0,0,1 and 0 respectively.
+            // The Server MUST treat any other value as malformed and close the Network Connection
+            // [MQTT-3.6.1-1]
+            packetType: 0b0110, // PUBREL
+            invalidFlags: [
+              0b0000, 0b0001, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b0111, // PUBCOMP
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved
+            // and MUST be set to 0,0,1 and 0 respectively.
+            // The Server MUST treat any other value as malformed and close the Network Connection
+            // [MQTT-3.8.1-1]
+            packetType: 0b1000, // SUBSCRIBE
+            invalidFlags: [
+              0b0000, 0b0001, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b1001, // SUBACK
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved
+            // and MUST be set to 0,0,1 and 0 respectively.
+            // The Server MUST treat any other value as malformed and close the Network Connection
+            // [MQTT-3.10.1-1]
+            packetType: 0b1010, // UNSUBSCRIBE
+            invalidFlags: [
+              0b0000, 0b0001, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b1011, // UNSUBACK
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b1100, // PINGREQ
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b1101, // PINGRESP
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+          {
+            packetType: 0b1110, // DISCONNECT
+            invalidFlags: [
+              0b0001, 0b0010, 0b0011, 0b0100, 0b0101, 0b0110, 0b0111, 0b1000,
+              0b1001, 0b1010, 0b1011, 0b1100, 0b1101, 0b1110, 0b1111,
+            ],
+          },
+        ].forEach(({ packetType, invalidFlags }) => {
+          invalidFlags.forEach((invalidFlag) => {
+            const firstByte = (packetType << 4) + invalidFlag;
+            const readerMock = readerFrom([firstByte]);
+            const parser = new FixedHeaderParserV4();
+
+            expect(() => parser.parse(readerMock)).toThrow(/Flag/);
+          });
+        });
+      });
     });
 
     describe("Remaining Length", () => {
