@@ -108,6 +108,16 @@ export function createConnectReaderMock(
   );
 }
 
+// Create a mock reader for Fixed Header parsing
+export function createFixedHeaderReaderV4Mock(bytes: number[]) {
+  const size = bytes.length;
+  const remainingReturnValues: number[] = [size];
+
+  for (let i = 0; i < size; i++) remainingReturnValues[i] = size - i;
+
+  return createIMQTTReaderV4Mock(remainingReturnValues, bytes, [], [], [], []);
+}
+
 // Create mock for tests of MQTT v4 parsers
 function createIMQTTReaderV4Mock(
   remainingReturnValues: (number | Error)[],
