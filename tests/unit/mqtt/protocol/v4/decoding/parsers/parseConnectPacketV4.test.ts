@@ -20,10 +20,7 @@ describe("parseConnectPacketV4", () => {
     const willMessage = new Uint8Array([0xfc]);
     const password = new Uint8Array([0x01]);
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [0],
       "MQTT", // protocol name
       4, // protocol level
       0b11001110, // User Name, Password, Will and Clean Session Flags set, Will QoS 1
@@ -86,51 +83,13 @@ describe("parseConnectPacketV4", () => {
     });
   });
 
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table.
-  // [MQTT-2.2.2-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = createConnectFixedHeader(12, invalidFlags);
-
-      expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((invalidRemainingLength) => {
-      const fixedHeader = createConnectFixedHeader(invalidRemainingLength);
-
-      expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((remaining) => {
-      const readerMock = {
-        remaining: remaining,
-      } as unknown as IMQTTReaderV4;
-
-      expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet remaining length in reader/
-      );
-    });
-  });
-
   // If the protocol name is incorrect the Server MAY disconnect the Client,
   // or it MAY continue processing the CONNECT packet in accordance with some other specification.
   // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification
   // [MQTT-3.1.2-1].
   it(`throws an Error for invalid protocol name`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "INVALID", // protocol name
       4, // protocol level
       0b00000000, // flags
@@ -154,10 +113,7 @@ describe("parseConnectPacketV4", () => {
   it(`throws an Error for invalid protocol level`, () => {
     [1, 2, 3, 5].forEach((level) => {
       const readerMock = createConnectReaderMock(
-        [
-          12, // remaining
-          0,
-        ],
+        [], // remaining values not needed
         "MQTT", // protocol name
         level, // protocol level
         0b00000000, // flags
@@ -182,10 +138,7 @@ describe("parseConnectPacketV4", () => {
   it(`throws an Error for invalid reserved flag`, () => {
     [0b00000001, 0b11000001, 0b00110101, 0b11101111].forEach((invalidFlags) => {
       const readerMock = createConnectReaderMock(
-        [
-          12, // remaining
-          0,
-        ],
+        [], // remaining values not needed
         "MQTT", // protocol name
         4, // protocol level
         invalidFlags // flags
@@ -207,10 +160,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-9].
   it(`throws an Error for missing Will Topic when Will Flag is set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000100, // Will Flag set
@@ -231,10 +181,7 @@ describe("parseConnectPacketV4", () => {
 
   it(`throws an Error for missing Will Message when Will Flag is set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000100, // Will Flag set
@@ -260,11 +207,7 @@ describe("parseConnectPacketV4", () => {
   it(`throws an Error for present Will Topic and Will Message when Will Flag is not set`, () => {
     const fixedHeader = createConnectFixedHeader(16);
     const readerMock = createConnectReaderMock(
-      [
-        16, // remaining
-        3,
-        3,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000000, // Will Flag not set
@@ -290,10 +233,7 @@ describe("parseConnectPacketV4", () => {
   it(`throws an Error for invalid Will QoS when Will Flag is not set`, () => {
     [0x01, 0x02].forEach((invalidWillQoS) => {
       const readerMock = createConnectReaderMock(
-        [
-          12, // remaining
-          0,
-        ],
+        [], // remaining values not needed
         "MQTT", // protocol name
         4, // protocol level
         invalidWillQoS << 4 // Will Flag not set
@@ -314,10 +254,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-14]
   it(`throws an Error for invalid Will QoS when Will Flag is set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00011100 // Will Flag set, QoS 3
@@ -335,10 +272,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-15]
   it(`throws an Error for invalid Will Retain Flag when Will Flag is not set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00100000 // Will Flag not set, Will Retain Flag set
@@ -358,10 +292,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-18]
   it(`throws an Error for present User Name when User Name Flag is not set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        6,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000000, // User Name Flag not set
@@ -388,10 +319,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-19]
   it(`throws an Error for missing User Name when User Name Flag is set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b10000000, // User Name Flag set
@@ -416,10 +344,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-20]
   it(`throws an Error for present Password when Password Flag is not set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        3,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000000, // Password Flag not set
@@ -443,10 +368,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-21]
   it(`throws an Error for missing Password when Password Flag is set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b11000000, // User Name and Password Flags set
@@ -472,10 +394,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.2-22]
   it(`throws an Error for Password Flag set when User Name Flag is not set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b01000000 // User Name Flag not set, Password Flag set
@@ -502,8 +421,7 @@ describe("parseConnectPacketV4", () => {
 
     const readerMock = createConnectReaderMock(
       [
-        12, // remaining
-        0,
+        0, // remaining
       ],
       "MQTT", // protocol name
       4, // protocol level
@@ -532,39 +450,12 @@ describe("parseConnectPacketV4", () => {
 
   // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
   // [MQTT-3.1.3-3]
-  it(`throw an Error for missing ClientId`, () => {
-    const fixedHeader = createConnectFixedHeader(10);
-    const readerMock = createConnectReaderMock(
-      [
-        10, // remaining
-        0,
-      ],
-      "MQTT", // protocol name
-      4, // protocol level
-      0b00000000, // Clean Session flag not set
-      0x00, // keep alive
-      undefined // client id
-    );
-
-    expect(() => parseConnectPacketV4(fixedHeader, readerMock)).toThrow(
-      "remaining"
-    );
-
-    expect(readerMock.readString).not.toHaveBeenCalled();
-    expect(readerMock.readOneByteInteger).not.toHaveBeenCalled();
-    expect(readerMock.readTwoByteInteger).not.toHaveBeenCalled();
-    expect(readerMock.readBinaryData).not.toHaveBeenCalled();
-    expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
-  });
-
+  //
   // The ClientId MUST be a UTF-8 encoded string as defined in Section 1.5.3.
   // [MQTT-3.1.3-4]
-  it(`throw an Error for invalid encoded ClientId`, () => {
+  it(`throw an Error for missing or invalid encoded ClientId`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000100, // Will Flag set
@@ -594,10 +485,7 @@ describe("parseConnectPacketV4", () => {
   it(`throw an Error for invalid ClientId`, () => {
     ["a".repeat(24), "invalid!", "with space"].forEach((invalidId) => {
       const readerMock = createConnectReaderMock(
-        [
-          12, // remaining
-          0,
-        ],
+        [], // remaining values not needed
         "MQTT", // protocol name
         4, // protocol level
         0b00000000, // Clean Session flag not set
@@ -621,10 +509,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-7]
   it(`throw an Error for zero length ClientId when Clean Session flag is not set`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000000, // Clean Session flag not set
@@ -647,10 +532,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-10]
   it(`throw an Error for invalid encoded Will Topic`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b00000100, // Will Flag set
@@ -677,10 +559,7 @@ describe("parseConnectPacketV4", () => {
   // [MQTT-3.1.3-11]
   it(`throw an Error for invalid encoded User Name`, () => {
     const readerMock = createConnectReaderMock(
-      [
-        12, // remaining
-        0,
-      ],
+      [], // remaining values not needed
       "MQTT", // protocol name
       4, // protocol level
       0b10000000, // User Name Flag set

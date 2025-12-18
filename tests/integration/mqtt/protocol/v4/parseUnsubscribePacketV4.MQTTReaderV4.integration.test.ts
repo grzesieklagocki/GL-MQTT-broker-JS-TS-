@@ -1,7 +1,10 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseUnsubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
-import { createFixedHeader, createUnsubscribeFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
+import {
+  createFixedHeader,
+  createUnsubscribeFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -60,109 +63,6 @@ describe("parseUnsubscribePacketV4", () => {
 
       expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet type/
-      );
-    });
-  });
-
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  //
-  // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved
-  // and MUST be set to 0,0,1 and 0 respectively.
-  // The Server MUST treat any other value as malformed and close the Network Connection
-  // [MQTT-3.10.1-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = createUnsubscribeFixedHeader(6, invalidFlags);
-      const remainingData = new Uint8Array([
-        // packet identifier
-        0x00, 0x05,
-        // topic filter length
-        0x00, 0x02,
-        // topic filter: "t1"
-        0x74, 0x31,
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (< 5 declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4].forEach((invalidRemainingLength) => {
-      const fixedHeader = createUnsubscribeFixedHeader(invalidRemainingLength);
-      const remainingData = new Uint8Array([
-        // packet identifier
-        0x00, 0x05,
-        // topic filter length
-        0x00, 0x03,
-        // topic filter: "t2/"
-        0x74, 0x32, 0x2f,
-      ]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        /header/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (<5 in reader)`, () => {
-    [
-      [], // empty buffer
-      [0x05], // one byte
-      [0x05, 0x07], // two bytes
-      [0x05, 0x07, 0x00], // three bytes
-      [0x05, 0x07, 0x00, 0x02], // four bytes
-    ].forEach((array) => {
-      const fixedHeader = createUnsubscribeFixedHeader(array.length);
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        /reader/
-      );
-    });
-  });
-
-  it(`throws an Error when remaining bytes length declared in fixed header not match remaining in reader`, () => {
-    [
-      {
-        declared: 5,
-
-        // legth = 6
-        real: [
-          // packet identifier
-          0x00, 0x0f,
-          // topic filter length
-          0x00, 0x02,
-          // topic filter: "st"
-          0x73, 0x74,
-        ],
-      },
-      {
-        declared: 6,
-
-        // legth = 5
-        real: [
-          // packet identifier
-          0x00, 0x0f,
-          // topic filter length
-          0x00, 0x01,
-          // topic filter: "s"
-          0x73,
-        ],
-      },
-    ].forEach(({ declared, real }) => {
-      const fixedHeader = createUnsubscribeFixedHeader(declared);
-      const remainingData = new Uint8Array(real);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        /remaining/
       );
     });
   });
@@ -238,31 +138,31 @@ describe("parseUnsubscribePacketV4", () => {
   it(`throws an Error for invalid topic filters`, () => {
     [
       // empty first topic filter [null]
-      { input: [0x00, 0x00], expected: /reader/ },
+      [0x00, 0x00],
       // empty second topic filter [i, null]
-      { input: [0x00, 0x01, 0x69, 0x00, 0x00], expected: /topic/ },
+      [0x00, 0x01, 0x69, 0x00, 0x00],
       // invalid topic filter length
-      { input: [0x00, 0x01, 0x62, 0x61], expected: /topic/ },
-      { input: [0x00, 0x01, 0x63, 0x00, 0x02, 0x67], expected: /topic/ },
-      { input: [0x00, 0x01, 0x64, 0x00, 0x01, 0x67, 0x66], expected: /topic/ },
+      [0x00, 0x01, 0x62, 0x61],
+      [0x00, 0x01, 0x63, 0x00, 0x02, 0x67],
+      [0x00, 0x01, 0x64, 0x00, 0x01, 0x67, 0x66],
 
       // overlong encoding (invalid in MQTT UTF-8)
-      { input: [0x00, 0x02, 0xc0, 0xaf], expected: /topic/ },
+      [0x00, 0x02, 0xc0, 0xaf],
       // surrogate half (invalid in UTF-8)
-      { input: [0x00, 0x03, 0xed, 0xa0, 0x80], expected: /topic/ },
+      [0x00, 0x03, 0xed, 0xa0, 0x80],
       // continuation byte without a leading byte
-      { input: [0x00, 0x01, 0x80], expected: /topic/ },
+      [0x00, 0x01, 0x80],
       // incomplete multi-byte sequence
-      { input: [0x00, 0x02, 0xe2, 0x28], expected: /topic/ },
+      [0x00, 0x02, 0xe2, 0x28],
       // illegal byte (0xfe, 0xff are not valid in UTF-8)
-      { input: [0x00, 0x02, 0xfe, 0xff], expected: /topic/ },
-    ].forEach(({ input, expected }) => {
-      const fixedHeader = createUnsubscribeFixedHeader(2 + input.length);
-      const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
+      [0x00, 0x02, 0xfe, 0xff],
+    ].forEach((topicFilter) => {
+      const fixedHeader = createUnsubscribeFixedHeader(2 + topicFilter.length);
+      const remainingData = new Uint8Array([0xfc, 0x45, ...topicFilter]);
       const reader = new MQTTReaderV4(remainingData);
 
       expect(() => parseUnsubscribePacketV4(fixedHeader, reader)).toThrow(
-        expected
+        /topic/
       );
     });
   });

@@ -1,7 +1,10 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseSubscribePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
-import { createFixedHeader, createSubscribeFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
+import {
+  createFixedHeader,
+  createSubscribeFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -53,86 +56,6 @@ describe("parseSubscribePacketV4", () => {
 
       expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet type/
-      );
-    });
-  });
-
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  //
-  // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved
-  // and MUST be set to 0,0,1 and 0 respectively.
-  // The Server MUST treat any other value as malformed and close the Network Connection
-  // [MQTT-3.8.1-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = createSubscribeFixedHeader(6, invalidFlags);
-
-      expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (< 6 declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = createSubscribeFixedHeader(invalidRemainingLength);
-      const array = new Uint8Array([
-        // packet identifier: 0x0105
-        0x01, 0x05,
-        // first subscription length: 1
-        0x00, 0x01,
-        // first subscription topic: "t"
-        0x74,
-        // QoS
-        0x00,
-      ]);
-      const reader = new MQTTReaderV4(array);
-
-      expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
-        /header/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (< 6 in reader)`, () => {
-    [0, 1, 2, 3, 4, 5].forEach((remaining) => {
-      const fixedHeader = createSubscribeFixedHeader(remaining);
-      const array = new Uint8Array([
-        // packet identifier: 0x0105
-        0x01, 0x05,
-        // first subscription length: 4
-        0x00, 0x04,
-        // first subscription topic: "t"
-        0x74,
-        // missing QoS
-      ]);
-      const reader = new MQTTReaderV4(array);
-
-      expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
-        /reader/
-      );
-    });
-  });
-
-  it(`throws an Error when remaining bytes length declared in fixed header not match remaining in reader`, () => {
-    [
-      {
-        declared: 6,
-        real: 7,
-      },
-      {
-        declared: 7,
-        real: 6,
-      },
-    ].forEach(({ declared, real }) => {
-      const fixedHeader = createSubscribeFixedHeader(declared);
-      const array = new Uint8Array(real);
-      const reader = new MQTTReaderV4(array);
-
-      expect(() => parseSubscribePacketV4(fixedHeader, reader)).toThrow(
-        /remaining/
       );
     });
   });

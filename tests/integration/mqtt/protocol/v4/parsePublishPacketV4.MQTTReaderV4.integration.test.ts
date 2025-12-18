@@ -82,34 +82,6 @@ describe("parsePublishPacketV4", () => {
     });
   });
 
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2].forEach((invalidRemainingLength) => {
-      const fixedHeader = createPublishFixedHeader(
-        invalidRemainingLength, // remaining length
-        0b0000 // flags
-      );
-
-      expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [0, 1, 2].forEach((remaining) => {
-      const fixedHeader = createPublishFixedHeader(
-        3, // remaining length
-        0b0000 // flags
-      );
-
-      const reader = new MQTTReaderV4(new Uint8Array(remaining));
-
-      expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length in reader/
-      );
-    });
-  });
-
   // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0) Control Packets MUST contain a non-zero 16-bit Packet Identifier
   // [MQTT-2.3.1-1]
   it(`throws an Error for zero packet identifier when QoS > 0`, () => {
@@ -141,31 +113,6 @@ describe("parsePublishPacketV4", () => {
   // it's not possible to identify the first two bytes of the remaining bytes are identifier or part of message
   // so this test is not implemented
   // ***
-
-  // The DUP flag MUST be set to 0 for all QoS 0 messages
-  // [MQTT-3.3.1-2]
-  it(`throws an Error for invalid DUP flag`, () => {
-    const fixedHeader = createPublishFixedHeader(
-      3, // remaining length
-      0b1000 // flags: invalid DUP flag for QoS 0
-    );
-
-    expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(/DUP flag/);
-  });
-
-  // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
-  // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
-  // [MQTT-3.3.1-4]
-  it(`throws an Error for invalid QoS flags`, () => {
-    const fixedHeader = createPublishFixedHeader(
-      3, // remaining length
-      0b0110 // flags: invalid QoS (0b11)
-    );
-
-    expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
-      /Invalid QoS flags/
-    );
-  });
 
   // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header.
   // It MUST be a UTF-8 encoded string

@@ -7,7 +7,8 @@ import { parseTopicName } from "./parseTopic";
 /**
  * Parses a PUBLISH MQTT packet (for protocol version 3.1.1).
  *
- * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
+ * Validates the packet type before parsing the rest of the packet.
+ * Flags and remaining length in fixed header must be validated before calling this function.
  * Parses and validates the topic name, identifier and message.
  * @param fixedHeader The fixed header of the MQTT packet.
  * @param reader The IMQTTReaderV4 instance to read packet data.
@@ -19,10 +20,9 @@ export function parsePublishPacketV4(
 ): PublishPacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);
-  _assertValidRemainingLength(fixedHeader.remainingLength, reader.remaining);
 
   // parse
-  const flags = parsePublishFlags(fixedHeader.flags);
+  const flags = parseFlags(fixedHeader.flags);
 
   const topicName = parseTopicName(reader);
 
@@ -34,6 +34,7 @@ export function parsePublishPacketV4(
       : undefined;
 
   const message = reader.remaining > 0 ? reader.readBytes() : new Uint8Array();
+
   _assertAllBytesRead(reader);
 
   return {
@@ -47,19 +48,19 @@ export function parsePublishPacketV4(
 
 // parsers helpers
 
+const parseRetain = (flags: number) => flags & 0b0001;
+const parseQoS = (flags: number) => (flags & 0b0110) >> 1;
+const parseDup = (flags: number) => (flags & 0b1000) >> 3;
+
 // Parses the flags from the fixed header
-function parsePublishFlags(flags: number): PublishFlagsV4 {
-  const retain = flags & 0b0001;
-
-  const qos = (flags & 0b0110) >> 1;
-  _assertValidQoS(qos);
-
-  const dup = (flags & 0b1000) >> 3;
-  _assertValidDup(dup, qos);
+function parseFlags(flags: number): PublishFlagsV4 {
+  const retain = parseRetain(flags);
+  const qos = parseQoS(flags);
+  const dup = parseDup(flags);
 
   return {
     retain: retain === 1 ? true : false,
-    qosLevel: qos,
+    qosLevel: qos as QoS, // flags are already validated (before call parsePublishPacketV4 function)
     dup: dup === 1 ? true : false,
   };
 }
@@ -75,55 +76,6 @@ function _assertValidPacketId(
   if (id !== PacketType.PUBLISH)
     throw new AppError(
       `Invalid packet type: ${id}, expected: ` + `${PacketType.PUBLISH}`
-    );
-}
-
-// remaining length must be at least 3
-//
-//   Topic Name Length: 2 bytes
-// + Topic1 Name: minimum 1 byte
-// + Packet Identifier: minimum 0 bytes
-// + Application Message: minimum 0 bytes
-// = minimum 3 bytes
-function _assertValidRemainingLength(
-  declaredLength: number,
-  realLength: number
-) {
-  if (realLength < 3)
-    throw new AppError(
-      `Invalid packet remaining length in reader: ${realLength}, should be at least 3`
-    );
-
-  if (declaredLength < 3)
-    throw new AppError(
-      `Invalid packet remaining length in fixed header: ${declaredLength}, should be at least 3`
-    );
-
-  if (declaredLength !== realLength)
-    throw new AppError(
-      `Declared (${declaredLength}) and real (${realLength}) remaining length do not match`
-    );
-}
-
-// QOS must be 0b00, 0b01 or 0b10
-// A PUBLISH Packet MUST NOT have both QoS bits set to 1.
-// If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
-// [MQTT-3.3.1-4]
-function _assertValidQoS(qos: number): asserts qos is QoS {
-  if (qos !== 0b00 && qos !== 0b01 && qos !== 0b10)
-    throw new AppError(
-      `Invalid QoS flags in fixed header: 0b${qos
-        .toString(2)
-        .padStart(2, "0")}, should be 0b00, 0b01 or 0b10`
-    );
-}
-
-// The DUP flag MUST be set to 0 for all QoS 0 messages
-// [MQTT-3.3.1-2]
-function _assertValidDup(dup: number, qos: QoS) {
-  if (qos === 0 && dup !== 0)
-    throw new AppError(
-      `The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]`
     );
 }
 

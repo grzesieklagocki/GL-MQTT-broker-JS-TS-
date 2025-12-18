@@ -7,7 +7,8 @@ import { parseTopicFilter } from "./parseTopic";
 /**
  * Parses a SUBSCRIBE MQTT packet (for protocol version 3.1.1).
  *
- * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
+ * Validates the packet type before parsing the rest of the packet.
+ * Flags and remaining length in fixed header must be validated before calling this function.
  * Parses and validates the identifier and subscription list.
  * @param fixedHeader The fixed header of the MQTT packet.
  * @param reader The IMQTTReaderV4 instance to read packet data.
@@ -19,8 +20,6 @@ export function parseSubscribePacketV4(
 ): SubscribePacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);
-  _assertValidFlags(fixedHeader.flags);
-  _assertValidRemainingLength(fixedHeader.remainingLength, reader.remaining);
 
   // parse
 
@@ -29,7 +28,7 @@ export function parseSubscribePacketV4(
   const subscriptionList = parseSubscriptionList(reader);
 
   return {
-    typeId: PacketType.SUBSCRIBE,
+    typeId: fixedHeader.packetType,
     identifier: identifier,
     subscriptionList: subscriptionList,
   };
@@ -71,51 +70,6 @@ function _assertValidPacketId(
   if (id !== PacketType.SUBSCRIBE)
     throw new AppError(
       `Invalid packet type: ${id}, expected: ` + `${PacketType.SUBSCRIBE}`
-    );
-}
-
-// flags must be 0b0010
-// Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-// it is reserved for future use and MUST be set to the value listed in that table
-// [MQTT-2.2.2-1].
-//
-// Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved
-// and MUST be set to 0,0,1 and 0 respectively.
-// The Server MUST treat any other value as malformed and close the Network Connection
-// [MQTT-3.8.1-1]
-function _assertValidFlags(flags: number) {
-  if (flags !== 0b0010)
-    throw new AppError(
-      `Invalid packet flags in fixed header: 0b${flags
-        .toString(2)
-        .padStart(4, "0")}, should be 0b0010`
-    );
-}
-
-// remaining length must be at least 6
-//
-//   Packet Identifier: 2 bytes
-// + Topic1 Length: 2 bytes
-// + Topic1 Data: minimum 1 byte
-// + Topic1 QoS: minimum 1 byte
-// = minimum 6 bytes
-function _assertValidRemainingLength(
-  declaredLength: number,
-  realLength: number
-) {
-  if (realLength < 6)
-    throw new AppError(
-      `Invalid packet remaining length in reader: ${realLength}, should be at least 6`
-    );
-
-  if (declaredLength < 6)
-    throw new AppError(
-      `Invalid packet remaining length in fixed header: ${declaredLength}, should be at least 6`
-    );
-
-  if (declaredLength !== realLength)
-    throw new AppError(
-      `Declared (${declaredLength}) and real (${realLength}) remaining length do not match`
     );
 }
 

@@ -19,8 +19,7 @@ describe("parseUnsubscribePacketV4", () => {
     const fixedHeader = createUnsubscribeFixedHeader(8);
     const readerMock = createUnsubscribeReaderMock(
       [
-        8, // initial remaining value
-        6, // value after reading identifier
+        6, // remaining value after reading identifier
       ],
       0x0105, // packet identifier
       ["test"] // topic filter: "test"
@@ -57,78 +56,11 @@ describe("parseUnsubscribePacketV4", () => {
     });
   });
 
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  //
-  // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved
-  // and MUST be set to 0,0,1 and 0 respectively.
-  // The Server MUST treat any other value as malformed and close the Network Connection
-  // [MQTT-3.10.1-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0b0000, 0b0001, 0b0011, 0b0100, 0b1000, 0b1010].forEach((invalidFlags) => {
-      const fixedHeader = createUnsubscribeFixedHeader(6, invalidFlags);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (< 5 declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4].forEach((invalidRemainingLength) => {
-      const fixedHeader = createUnsubscribeFixedHeader(invalidRemainingLength);
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
-        /header/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (<5 in reader)`, () => {
-    [0, 1, 2, 3, 4].forEach((remaining) => {
-      const fixedHeader = createUnsubscribeFixedHeader(remaining);
-      const readerMock = {
-        remaining: remaining,
-      } as unknown as IMQTTReaderV4;
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
-        /reader/
-      );
-    });
-  });
-
-  it(`throws an Error when remaining bytes length declared in fixed header not match remaining in reader`, () => {
-    [
-      {
-        declared: 5,
-        real: 6,
-      },
-      {
-        declared: 6,
-        real: 5,
-      },
-    ].forEach(({ declared, real }) => {
-      const fixedHeader = createUnsubscribeFixedHeader(declared);
-      const readerMock = {
-        remaining: real,
-      } as unknown as IMQTTReaderV4;
-
-      expect(() => parseUnsubscribePacketV4(fixedHeader, readerMock)).toThrow(
-        /remaining/
-      );
-    });
-  });
-
   it("correctly parses Identifier value", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
       const fixedHeader = createUnsubscribeFixedHeader(5);
       const readerMock = createUnsubscribeReaderMock(
-        [
-          5, // initial remaining value
-          3, // // value after reading identifier
-          0, // value after reading first topic filter
-        ],
+        [], // remaining values not needed
         identifier, // packet identifier
         ["/"] // topic filter: "test"
       );
@@ -145,11 +77,7 @@ describe("parseUnsubscribePacketV4", () => {
   it("throws an Error when Identifier is invalid", () => {
     const fixedHeader = createUnsubscribeFixedHeader(5);
     const readerMock = createUnsubscribeReaderMock(
-      [
-        5, // initial remaining value
-        3, // // value after reading identifier
-        0, // value after reading first topic filter
-      ],
+      [], // remaining values not needed
       0, // packet identifier
       ["/"] // topic filter: "test"
     );
@@ -165,7 +93,6 @@ describe("parseUnsubscribePacketV4", () => {
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
-        4, // // value after reading identifier
       ],
       1, // packet identifier
       [new Error("UTF-8")] // invalid UTF-8 topic
@@ -183,7 +110,6 @@ describe("parseUnsubscribePacketV4", () => {
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
-        4, // // value after reading identifier
       ],
       1, // packet identifier
       [] // empty topic filter list
@@ -198,10 +124,8 @@ describe("parseUnsubscribePacketV4", () => {
     const fixedHeader = createUnsubscribeFixedHeader(12);
     const readerMock = createUnsubscribeReaderMock(
       [
-        12, // initial remaining value
-        10, // // value after reading identifier
+        10, // // remaining value after reading identifier
         6, // value after reading first topic filter
-        0, // value after reading second topic filter
       ],
       1, // packet identifier
       ["t1", "t2/a"] // topic filter: "test"
@@ -218,7 +142,6 @@ describe("parseUnsubscribePacketV4", () => {
     const readerMock = createUnsubscribeReaderMock(
       [
         5, // initial remaining value
-        3, // // value after reading identifier
       ],
       1, // packet identifier
       [error] // topic1 filter throws an error
@@ -236,7 +159,6 @@ describe("parseUnsubscribePacketV4", () => {
       [
         8, // initial remaining value
         6, // value after reading identifier
-        3, // value after reading first topic filter
       ],
       1, // packet identifier
       ["/", error] // topic1 filter
@@ -253,8 +175,6 @@ describe("parseUnsubscribePacketV4", () => {
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
-        4, // value after reading identifier
-        0, // after parsing
       ],
       1, // packet identifier
       [
@@ -273,8 +193,6 @@ describe("parseUnsubscribePacketV4", () => {
     const readerMock = createUnsubscribeReaderMock(
       [
         6, // initial remaining value
-        4, // value after reading identifier
-        0, // after parsing
       ],
       1, // packet identifier
       [

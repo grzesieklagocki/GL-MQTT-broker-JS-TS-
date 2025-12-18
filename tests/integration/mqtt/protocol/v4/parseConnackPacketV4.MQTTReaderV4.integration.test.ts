@@ -49,49 +49,6 @@ describe("parseConnackPacketV4", () => {
     });
   });
 
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = createConnackFixedHeader(2, invalidFlags);
-      const remainingData = new Uint8Array([0x00, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 3, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = createConnackFixedHeader(invalidRemainingLength);
-      const remainingData = new Uint8Array([0x01, 0x00]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [
-      [], // empty buffer
-      [0xff], // one byte
-      [0x12, 0x23, 0x34], // three bytes
-      [0x12, 0x23, 0x01, 0x77], // four bytes
-    ].forEach((array) => {
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid remaining bytes count in reader/
-      );
-    });
-  });
-
   it(`correctly parses Session Present Flag`, () => {
     [
       { input: [0x00, 0x00], expected: false },

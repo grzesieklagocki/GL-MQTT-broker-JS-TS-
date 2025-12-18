@@ -1,7 +1,10 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
-import { createFixedHeader, createSubackFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
+import {
+  createFixedHeader,
+  createSubackFixedHeader,
+} from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -41,52 +44,6 @@ describe("parseSubackPacketV4", () => {
 
       expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet type/
-      );
-    });
-  });
-
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = createSubackFixedHeader(3, invalidFlags);
-      const remainingData = new Uint8Array([0x12, 0x34, 0x02]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2, 4, 5].forEach((invalidRemainingLength) => {
-      const fixedHeader = createSubackFixedHeader(
-        invalidRemainingLength,
-        0b0000
-      );
-      const remainingData = new Uint8Array([0x12, 0x34, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [
-      [], // empty buffer
-      [0xff], // only one byte
-      [0x12, 0x23], // two bytes
-      [0x12, 0x23, 0x01, 0x77], // four bytes
-    ].forEach((array) => {
-      const remainingData = new Uint8Array(array);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid remaining bytes count in reader/
       );
     });
   });

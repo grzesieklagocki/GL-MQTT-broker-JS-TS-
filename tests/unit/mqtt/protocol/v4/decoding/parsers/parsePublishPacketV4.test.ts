@@ -24,8 +24,7 @@ describe("parsePublishPacketV4", () => {
     const message = new Uint8Array([0, 1, 2]);
     const readerMock = createPublishReaderMock(
       [
-        9, // initial remaining value
-        5, // after reading topic name
+        5, // remaining after reading topic name
         3, // before read message
         0, // after parsing
       ],
@@ -61,8 +60,7 @@ describe("parsePublishPacketV4", () => {
     const message = new Uint8Array([0, 1, 2]);
     const readerMock = createPublishReaderMock(
       [
-        9, // initial remaining value
-        5, // after parsing topic name
+        5, // remaining after parsing topic name
         3, // before read message
         0, // after parsing
       ],
@@ -113,35 +111,6 @@ describe("parsePublishPacketV4", () => {
     });
   });
 
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2].forEach((invalidRemainingLength) => {
-      const fixedHeader = createPublishFixedHeader(
-        invalidRemainingLength, // remaining length
-        0b0000 // QoS 0
-      );
-
-      expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [0, 1, 2].forEach((remaining) => {
-      const fixedHeader = createPublishFixedHeader(
-        7, // remaining length
-        0b0000 // QoS 0
-      );
-      const readerMock = {
-        remaining: remaining,
-      } as unknown as IMQTTReaderV4;
-
-      expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet remaining length in reader/
-      );
-    });
-  });
-
   // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0) Control Packets MUST contain a non-zero 16-bit Packet Identifier
   // [MQTT-2.3.1-1]
   it(`throws an Error for zero packet identifier when QoS > 0`, () => {
@@ -151,11 +120,7 @@ describe("parsePublishPacketV4", () => {
         0b0110 & (qos << 1) // QoS 1 or 2
       );
       const readerMock = createPublishReaderMock(
-        [
-          7, // initial remaining value
-          4, // after reading topic name
-          0, // after parsing
-        ],
+        [], // remaining values not needed
         "t", // topic name
         0x0000 // packet identifier
       );
@@ -182,7 +147,6 @@ describe("parsePublishPacketV4", () => {
       [
         7, // initial remaining value
         4, // after parsing topic name
-        2, // after parsing
       ],
       "t", // topic name
       0xff, // packet identifier
@@ -201,49 +165,12 @@ describe("parsePublishPacketV4", () => {
     expect(readerMock.readOneByteInteger).not.toBeCalled(); // unused
   });
 
-  // The DUP flag MUST be set to 0 for all QoS 0 messages
-  // [MQTT-3.3.1-2]
-  it(`throws an Error for invalid DUP flag`, () => {
-    const fixedHeader = createPublishFixedHeader(
-      7, // remaining length
-      0b1000 // invalid DUP flag for QoS 0
-    );
-
-    const readerMock = {
-      remaining: 7,
-    } as unknown as IMQTTReaderV4;
-
-    expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(
-      /DUP flag/
-    );
-  });
-
-  // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
-  // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection
-  // [MQTT-3.3.1-4]
-  it(`throws an Error for invalid QoS flags`, () => {
-    const fixedHeader = createPublishFixedHeader(
-      7, // remaining length
-      0b0110 // // invalid QoS (0b11)
-    );
-    const readerMock = {
-      remaining: 7,
-    } as unknown as IMQTTReaderV4;
-
-    expect(() => parsePublishPacketV4(fixedHeader, readerMock)).toThrow(
-      /Invalid QoS flags/
-    );
-  });
-
   // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header.
   // It MUST be a UTF-8 encoded string
   // [MQTT-3.3.2-1]
   it(`throws an Error for invalid topic name`, () => {
     const readerMock = createPublishReaderMock(
-      [
-        8, // initial remaining value
-        0, // after parsing
-      ],
+      [], // remaining values not needed
       new AppError("UTF-8"), // invalid topic name
       0x0105, // packet identifier
       new Uint8Array() // message
@@ -264,10 +191,7 @@ describe("parsePublishPacketV4", () => {
   it(`throws an Error for topic name containing wildcard characters`, () => {
     ["t/+", "t/#", "+/t", "#/t", "t/#/t", "t/+/t"].forEach((invalidTopic) => {
       const readerMock = createPublishReaderMock(
-        [
-          8, // initial remaining value
-          0, // after parsing
-        ],
+        [], // remaining values not needed
         invalidTopic, // invalid topic name
         0x0105, // packet identifier
         new Uint8Array() // message
@@ -288,10 +212,7 @@ describe("parsePublishPacketV4", () => {
   // [MQTT-4.7.3-1]
   it(`throws an Error for zero-length topic name`, () => {
     const readerMock = createPublishReaderMock(
-      [
-        8, // initial remaining value
-        0, // after parsing
-      ],
+      [], //remaining values not needed
       "" // invalid topic name
     );
 
@@ -309,10 +230,7 @@ describe("parsePublishPacketV4", () => {
   // [MQTT-4.7.3-2]
   it(`throws an Error for topic name containing null character`, () => {
     const readerMock = createPublishReaderMock(
-      [
-        8, // initial remaining value
-        0, // after parsing
-      ],
+      [], // remaining values not needed
       new Error("null") // invalid topic name
     );
 

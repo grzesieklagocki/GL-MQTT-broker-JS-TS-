@@ -34,6 +34,8 @@ describe("parseConnectPacketV4", () => {
 
   // arrays with invalid UTF-8 sequences (for testing UTF-8 string parsing)
   const invalidUtf8Arrays = [
+    // Incomplete sequence (missing second byte)
+    [0x00],
     // Overlong encoding of '/'
     [0x00, 0x02, 0xc0, 0xaf], // U+002F '/' encoded as 0xC0 0xAF (invalid overlong form)
     // Surrogate half (UTF-16 range D800–DFFF)
@@ -133,43 +135,7 @@ describe("parseConnectPacketV4", () => {
     });
   });
 
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table.
-  // [MQTT-2.2.2-1]
-  it(`throws an Error for invalid flags`, () => {
-    [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80].forEach((invalidFlags) => {
-      const fixedHeader = createConnectFixedHeader(12, invalidFlags);
-      const reader = new MQTTReaderV4(array);
 
-      expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet flags/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (declared in fixed header)`, () => {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((invalidRemainingLength) => {
-      const fixedHeader = createConnectFixedHeader(invalidRemainingLength);
-      const reader = new MQTTReaderV4(array);
-
-      expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length/
-      );
-    });
-  });
-
-  it(`throws an Error for invalid remaining bytes count (in reader)`, () => {
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((remaining) => {
-      const array = new Uint8Array(remaining); // smaller than required
-      const reader = new MQTTReaderV4(array); // so reader has less bytes (remaining) than required (min 12)
-
-      expect(reader.remaining).toBe(remaining);
-
-      expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet remaining length in reader/
-      );
-    });
-  });
 
   // If the protocol name is incorrect the Server MAY disconnect the Client,
   // or it MAY continue processing the CONNECT packet in accordance with some other specification.
@@ -757,7 +723,7 @@ describe("parseConnectPacketV4", () => {
     const reader = new MQTTReaderV4(array);
 
     expect(() => parseConnectPacketV4(fixedHeader, reader)).toThrow(
-      /remaining length in reader/
+      /reading error/
     );
   });
 

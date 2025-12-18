@@ -1,11 +1,16 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
-import { ConnackPacketV4, ConnackReturnCodeV4, IMQTTReaderV4 } from "../../types";
+import {
+  ConnackPacketV4,
+  ConnackReturnCodeV4,
+  IMQTTReaderV4,
+} from "../../types";
 
 /**
  * Parses a CONNACK MQTT packet (for protocol version 3.1.1).
  *
- * Validates the packet type, flags, and remaining length before parsing the rest of the packet.
+ * Validates the packet type before parsing the rest of the packet.
+ * Flags and remaining length in fixed header must be validated before calling this function.
  * Parses and validates the session present flag and return code.
  * @param fixedHeader The fixed header of the MQTT packet.
  * @param reader The IMQTTReaderV4 instance to read packet data.
@@ -17,70 +22,41 @@ export function parseConnackPacketV4(
 ): ConnackPacketV4 {
   // validate fixed header
   _assertValidPacketId(fixedHeader.packetType);
-  _assertValidFlags(fixedHeader.flags);
-  _assertValidRemainingLength(fixedHeader.remainingLength, reader.remaining);
 
   // parse
   const firstByte = reader.readOneByteInteger();
-  _assertFirstByte(firstByte);
+  _assertValidFirstByte(firstByte);
   const sessionPresent = getSessionPresentFlag(firstByte);
 
   const returnCode = reader.readOneByteInteger();
   _assertValidReturnCode(returnCode);
 
   return {
-    typeId: PacketType.CONNACK,
+    typeId: fixedHeader.packetType,
     sessionPresentFlag: sessionPresent,
     connectReturnCode: returnCode,
   };
 }
 
 const getSessionPresentFlag = (byte: number) =>
-  (byte & 0x01) === 0x01 ? true : false;
+  byte === 0x01 ? true : false;
 
 //
 // assertions helpers
 //
 
 // only SUBACK is valid
-function _assertValidPacketId(id: PacketType): asserts id is PacketType.SUBACK {
+function _assertValidPacketId(
+  id: PacketType
+): asserts id is PacketType.CONNACK {
   if (id !== PacketType.CONNACK)
     throw new AppError(
       `Invalid packet type: ${id}, expected: ${PacketType.CONNACK}`
     );
 }
 
-// flags must be 0b0000
-// Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits, 
-// it is reserved for future use and MUST be set to the value listed in that table 
-// [MQTT-2.2.2-1]
-function _assertValidFlags(flags: number) {
-  if (flags !== 0b0000)
-    throw new AppError(
-      `Invalid packet flags in fixed header: 0b${flags
-        .toString(2)
-        .padStart(4, "0")}, should be 0b0000`
-    );
-}
-
-// remaining length must be 2
-function _assertValidRemainingLength(
-  declaredLength: number,
-  realLength: number
-) {
-  if (declaredLength !== 2)
-    throw new AppError(
-      `Invalid packet remaining length in fixed header: ${declaredLength}, should be 2`
-    );
-
-  if (realLength !== 2)
-    throw new AppError(
-      `Invalid remaining bytes count in reader: ${realLength}, should be 2`
-    );
-}
-
 // first byte must be 0x00 or 0x01
-function _assertFirstByte(byte: number) {
+function _assertValidFirstByte(byte: number) {
   if (byte !== 0x00 && byte !== 0x01)
     throw new AppError(
       `Invalid first byte: 0x${byte.toString(16)}, should be 0x00 or 0x01`
