@@ -31,3 +31,14 @@ export type FixedHeader = {
   flags: number;
   remainingLength: number;
 };
+
+export interface IFixedHeaderValidator {
+  assertValidPacketType(type: number): void;
+
+  assertValidFlags(packetType: PacketType, flags: number): void;
+
+  assertValidRemainingLength(
+    packetType: PacketType,
+    remainingLength: number
+  ): void;
+}
