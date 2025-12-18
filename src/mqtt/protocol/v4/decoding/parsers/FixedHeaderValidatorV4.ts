@@ -93,6 +93,7 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
       case PacketType.PINGREQ:
       case PacketType.PINGRESP:
       case PacketType.DISCONNECT:
+        // No Variable Header and Payload: 0 bytes
         return remainingLength === 0;
 
       case PacketType.CONNACK:
@@ -101,21 +102,46 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
       case PacketType.PUBREL:
       case PacketType.PUBCOMP:
       case PacketType.UNSUBACK:
+        // Packet Identifier: 2 bytes
         return remainingLength === 2;
 
       case PacketType.SUBACK:
+        // + Packet Identifier: 2 bytes
+        // + Return Code: 1 byte
+        // = 3 bytes
         return remainingLength === 3;
 
       case PacketType.PUBLISH:
+        //   Topic Name Length: 2 bytes
+        // + Topic1 Name: minimum 1 byte
+        // + Packet Identifier: minimum 0 bytes
+        // + Application Message: minimum 0 bytes
+        // = minimum 3 bytes
         return remainingLength >= 3;
 
       case PacketType.UNSUBSCRIBE:
+        //   Packet Identifier: 2 bytes
+        // + Topic1 Filter Length: 2 bytes
+        // + Topic1 Filter Data: minimum 1 byte
+        // = minimum 5 bytes
         return remainingLength >= 5;
 
       case PacketType.SUBSCRIBE:
+        //   Packet Identifier: 2 bytes
+        // + Topic1 Length: 2 bytes
+        // + Topic1 Data: minimum 1 byte
+        // + Topic1 QoS: minimum 1 byte
+        // = minimum 6 bytes
         return remainingLength >= 6;
 
       case PacketType.CONNECT:
+        //   Protocol Name Length: 2 bytes
+        // + Protocol Name: 4 bytes
+        // + Protocol Level: 1 byte
+        // + Connect Flags: 1 byte
+        // + Keep Alive: 2 bytes
+        // + Client Identifier: minimum 2 bytes
+        // = minimum 12 bytes
         return remainingLength >= 12;
     }
   }
