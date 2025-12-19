@@ -1,10 +1,7 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
-import {
-  createFixedHeader,
-  createPacketWithIdentifierFixedHeader,
-} from "tests/helpers/mqtt/protocol/createFixedHeader";
+import { createPacketWithIdentifierFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
