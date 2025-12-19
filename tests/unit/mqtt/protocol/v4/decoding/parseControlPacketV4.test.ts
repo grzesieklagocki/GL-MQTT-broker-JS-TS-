@@ -1,104 +1,170 @@
 import { FixedHeader, PacketType } from "@mqtt/protocol/shared/types";
 import { parseControlPacketV4 } from "@mqtt/protocol/v4/decoding/parseControlPacketV4";
-import {
-  ConnackPacketV4,
-  DisconnectPacketV4,
-  PubackPacketV4,
-  SubackPacketV4,
-} from "@src/mqtt/protocol/v4/types";
-import { describe, expect, it } from "vitest";
+import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
+import { describe, expect, it, vi } from "vitest";
+import * as connectParser from "@mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";
+import * as connackParser from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
+import * as publishParser from "@mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
+import * as withIdParser from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
+import * as subscribeParser from "@mqtt/protocol/v4/decoding/parsers/parseSubscribePacketV4";
+import * as subackParser from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
+import * as unsubscribeParser from "@mqtt/protocol/v4/decoding/parsers/parseUnsubscribePacketV4";
+import * as emptyParser from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
+import { MQTTReaderV4 } from "@src/mqtt/protocol/v4/decoding/MQTTReaderV4";
 
 describe("parseControlPacketV4", () => {
-  it("parse an empty control packet", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.DISCONNECT,
-      flags: 0,
-      remainingLength: 0,
+  describe("calls correct parser with correct arguments", () => {
+    // for easy access to parsers and method names
+    const parserInfo = {
+      connect: { parser: connectParser, methodName: "parseConnectPacketV4" },
+      connack: { parser: connackParser, methodName: "parseConnackPacketV4" },
+      publish: { parser: publishParser, methodName: "parsePublishPacketV4" },
+      withId: {
+        parser: withIdParser,
+        methodName: "parsePacketWithIdentifierV4",
+      },
+      subscribe: {
+        parser: subscribeParser,
+        methodName: "parseSubscribePacketV4",
+      },
+      suback: { parser: subackParser, methodName: "parseSubackPacketV4" },
+      unsubscribe: {
+        parser: unsubscribeParser,
+        methodName: "parseUnsubscribePacketV4",
+      },
+      empty: { parser: emptyParser, methodName: "parseEmptyPacketV4" },
     };
-    const remainingData = new Uint8Array();
 
-    const packet = parseControlPacketV4(
-      fixedHeader,
-      remainingData
-    ) as DisconnectPacketV4;
+    // tests for each packet type
+    [
+      {
+        packetType: PacketType.CONNECT,
+        parserInfo: parserInfo.connect,
+      },
+      {
+        packetType: PacketType.CONNACK,
+        parserInfo: parserInfo.connack,
+      },
+      {
+        packetType: PacketType.PUBLISH,
+        parserInfo: parserInfo.publish,
+      },
+      {
+        packetType: PacketType.PUBACK,
+        parserInfo: parserInfo.withId,
+      },
+      {
+        packetType: PacketType.PUBREC,
+        parserInfo: parserInfo.withId,
+      },
+      {
+        packetType: PacketType.PUBREL,
+        parserInfo: parserInfo.withId,
+      },
+      {
+        packetType: PacketType.PUBCOMP,
+        parserInfo: parserInfo.withId,
+      },
+      {
+        packetType: PacketType.SUBSCRIBE,
+        parserInfo: parserInfo.subscribe,
+      },
+      {
+        packetType: PacketType.SUBACK,
+        parserInfo: parserInfo.suback,
+      },
+      {
+        packetType: PacketType.UNSUBSCRIBE,
+        parserInfo: parserInfo.unsubscribe,
+      },
+      {
+        packetType: PacketType.UNSUBACK,
+        parserInfo: parserInfo.withId,
+      },
+      {
+        packetType: PacketType.PINGREQ,
+        parserInfo: parserInfo.empty,
+      },
+      {
+        packetType: PacketType.PINGRESP,
+        parserInfo: parserInfo.empty,
+      },
+      {
+        packetType: PacketType.DISCONNECT,
+        parserInfo: parserInfo.empty,
+      },
+    ].forEach(({ packetType, parserInfo }) => {
+      it(`calls ${parserInfo.methodName} for ${PacketType[packetType]} (${packetType})`, () => {
+        // spy on the parser method
+        const spy = vi
+          .spyOn(parserInfo.parser, parserInfo.methodName as never)
+          .mockImplementation((_header, _reader: any) => {
+            return { typeId: packetType } as any;
+          });
 
-    expect(packet.typeId).toBe(PacketType.DISCONNECT);
+        // create mocks
+        const fixedHeader = createFixedHeaderMock(packetType);
+        const remainingData = createIMQTTReaderV4Mock();
+
+        const packet = parseControlPacketV4(fixedHeader, remainingData);
+
+        // checks for correct parser call
+        expect(spy).toHaveBeenCalledExactlyOnceWith(fixedHeader, remainingData);
+        expect(packet.typeId).toBe(packetType);
+
+        spy.mockRestore();
+      });
+    });
   });
-  it("parse a control packet with identifier", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.PUBACK,
-      flags: 0,
-      remainingLength: 2,
-    };
-    const remainingData = new Uint8Array([0x01, 0x04]);
+  describe("Remaining Length validation", () => {
+    it("throws when Remaining Length declared in Fixed Header not matching Remaining Length in reader", () => {
+      [
+        [0, 1],
+        [1, 0],
+        [5, 3],
+        [10, 15],
+      ].forEach(([declaredLength, actualLength]) => {
+        const fixedHeader = createFixedHeaderMock(
+          PacketType.CONNECT,
+          declaredLength
+        );
+        const remainingData = createIMQTTReaderV4Mock(actualLength);
 
-    const packet = parseControlPacketV4(
-      fixedHeader,
-      remainingData
-    ) as PubackPacketV4;
+        expect(() => parseControlPacketV4(fixedHeader, remainingData)).toThrow(
+          /Remaining/
+        );
+      });
+    });
 
-    expect(packet.typeId).toBe(PacketType.PUBACK);
-    expect(packet.identifier).toBe(260);
-  });
-  it("parse SUBACK control packet", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.SUBACK,
-      flags: 0,
-      remainingLength: 3,
-    };
-    const remainingData = new Uint8Array([0x02, 0x10, 0x02]);
+    it("throws when after parsing still bytes remain in the reader", () => {
+      [1, 2, 5, 10].forEach((remaining) => {
+        const fixedHeader = createFixedHeaderMock(
+          PacketType.DISCONNECT,
+          remaining
+        );
+        const remainingData = createIMQTTReaderV4Mock(remaining);
 
-    const packet = parseControlPacketV4(
-      fixedHeader,
-      remainingData
-    ) as SubackPacketV4;
-
-    expect(packet.typeId).toBe(PacketType.SUBACK);
-    expect(packet.returnCode).toBe(0x02);
-    expect(packet.identifier).toBe(0x0210);
-  });
-  it("parse CONNACK control packet", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.CONNACK,
-      flags: 0,
-      remainingLength: 2,
-    };
-    const remainingData = new Uint8Array([0x01, 0x04]);
-
-    const packet = parseControlPacketV4(
-      fixedHeader,
-      remainingData
-    ) as ConnackPacketV4;
-
-    expect(packet.typeId).toBe(PacketType.CONNACK);
-    expect(packet.sessionPresentFlag).toBe(true);
-    expect(packet.connectReturnCode).toBe(0x04);
-  });
-  it("parse CONNACK control packet", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.CONNACK,
-      flags: 0,
-      remainingLength: 2,
-    };
-    const remainingData = new Uint8Array([0x01, 0x04]);
-
-    const packet = parseControlPacketV4(
-      fixedHeader,
-      remainingData
-    ) as ConnackPacketV4;
-
-    expect(packet.typeId).toBe(PacketType.CONNACK);
-    expect(packet.sessionPresentFlag).toBe(true);
-    expect(packet.connectReturnCode).toBe(0x04);
-  });
-  it("throws an Error CONNACK control packet", () => {
-    const fixedHeader: FixedHeader = {
-      packetType: PacketType.CONNACK,
-      flags: 0,
-      remainingLength: 2,
-    };
-    const remainingData = new Uint8Array([0x00, 0x06]);
-
-    expect(() => parseControlPacketV4(fixedHeader, remainingData)).toThrow();
+        expect(() => parseControlPacketV4(fixedHeader, remainingData)).toThrow(
+          /Bytes remain/
+        );
+      });
+    });
   });
 });
+
+//
+// helper functions
+//
+
+// creates a FixedHeader mock with given PacketType and Remaining Length
+function createFixedHeaderMock(type: PacketType, remaining = 0): FixedHeader {
+  return {
+    packetType: type,
+    remainingLength: remaining,
+  } as unknown as FixedHeader;
+}
+
+// creates a IMQTTReaderV4 mock with given remaining length
+function createIMQTTReaderV4Mock(remaining = 0): IMQTTReaderV4 {
+  return { remaining: remaining } as unknown as MQTTReaderV4;
+}

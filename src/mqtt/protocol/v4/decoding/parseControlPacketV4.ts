@@ -1,5 +1,4 @@
 import { FixedHeader, PacketType } from "../../shared/types";
-import { MQTTReaderV4 } from "./MQTTReaderV4";
 import { AnyPacketV4, IMQTTReaderV4 } from "../types";
 import { parseConnectPacketV4 } from "./parsers/parseConnectPacketV4";
 import { parseConnackPacketV4 } from "./parsers/parseConnackPacketV4";
@@ -22,17 +21,19 @@ type Parser = (fixedHeader: FixedHeader, reader: IMQTTReaderV4) => AnyPacketV4;
  */
 export function parseControlPacketV4(
   fixedHeader: FixedHeader,
-  remainingData: Uint8Array
+  remainingData: IMQTTReaderV4
 ): AnyPacketV4 {
-  _assertHasValidRemainingLength(fixedHeader, remainingData);
+  _assertHasValidRemainingLength(
+    fixedHeader.remainingLength,
+    remainingData.remaining
+  );
 
-  const reader = new MQTTReaderV4(remainingData);
   const packetType = fixedHeader.packetType;
   const parser = getParserFor(packetType);
 
-  const packet = parser(fixedHeader, reader);
+  const packet = parser(fixedHeader, remainingData);
 
-  _assertNoBytesLeftAfterParsingIn(reader);
+  _assertNoBytesLeftAfterParsingIn(remainingData);
 
   return packet;
 }
@@ -79,16 +80,16 @@ export function getParserFor(packetType: PacketType): Parser {
 }
 
 function _assertHasValidRemainingLength(
-  fixedHeader: FixedHeader,
-  remainingData: Uint8Array
+  inFixedHeader: number,
+  inReader: number
 ) {
-  if (fixedHeader.remainingLength !== remainingData.length)
+  if (inFixedHeader !== inReader)
     throw new AppError(
-      "Remaining bytes length is greater than declared in fixed header"
+      `Remaining length declared in fixed header (${inFixedHeader}) does not match actual remaining length (${inReader})`
     );
 }
 
-function _assertNoBytesLeftAfterParsingIn(reader: MQTTReaderV4) {
+function _assertNoBytesLeftAfterParsingIn(reader: IMQTTReaderV4) {
   if (reader.remaining !== 0)
     throw new AppError("Bytes remain in buffer after parsing");
 }
