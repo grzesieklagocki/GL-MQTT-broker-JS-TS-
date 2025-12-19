@@ -639,6 +639,47 @@ describe("FixedHeaderParserV4", () => {
         });
       });
     });
+
+    describe("Multiple Fixed Headers", () => {
+      it("parses multiple Fixed Headers using one parser (from multiple readers)", () => {
+        [
+          // Two zero Remaining Length control packets: PINGREQ, PINGRESP
+          [
+            [0b1100_0000, 0x00], // PINGREQ
+            [0b1101_0000, 0x00], // PINGRESP
+          ],
+          // Two non-zero Remaining Length control packets: PUBLISH (5), CONNECT (12)
+          [
+            [0b0011_0000, 5], // DISCONNECT
+            [0b0001_0000, 12], // CONNECT
+          ],
+          // Two 2-byte Remaining Length control packets: PUBLISH (128), CONNECT (128)
+          [
+            [0b0011_0000, 0x80, 0x01], // DISCONNECT
+            [0b0001_0000, 0x80, 0x01], // CONNECT
+          ],
+        ].forEach((chunks) => {
+          const parser = new FixedHeaderParserV4();
+
+          const reader1 = readerFrom(chunks[0]);
+          const reader2 = readerFrom(chunks[1]);
+
+          // First header: PINGREQ
+          const fixedHeader1 = parser.parse(reader1);
+          expect(fixedHeader1).not.toBeNull();
+          expect(fixedHeader1?.packetType).toBe(chunks[0][0] >> 4);
+          expect(fixedHeader1?.flags).toBe(chunks[0][0] & 0x0f);
+          expect(fixedHeader1?.remainingLength).toBe(chunks[0][1]);
+
+          // Second header: PINGRESP
+          const fixedHeader2 = parser.parse(reader2);
+          expect(fixedHeader2).not.toBeNull();
+          expect(fixedHeader2?.packetType).toBe(chunks[1][0] >> 4);
+          expect(fixedHeader1?.flags).toBe(chunks[1][0] & 0x0f);
+          expect(fixedHeader2?.remainingLength).toBe(chunks[1][1]);
+        });
+      });
+    });
   });
 });
 
