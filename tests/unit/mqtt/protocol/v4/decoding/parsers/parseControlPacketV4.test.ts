@@ -1,5 +1,5 @@
 import { FixedHeader, PacketType } from "@mqtt/protocol/shared/types";
-import { parseControlPacketV4 } from "@mqtt/protocol/v4/decoding/parseControlPacketV4";
+import { parseControlPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseControlPacketV4";
 import { IMQTTReaderV4 } from "@src/mqtt/protocol/v4/types";
 import { describe, expect, it, vi } from "vitest";
 import * as connectParser from "@mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";

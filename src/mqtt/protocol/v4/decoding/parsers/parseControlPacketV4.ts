@@ -1,13 +1,13 @@
-import { FixedHeader, PacketType } from "../../shared/types";
-import { AnyPacketV4, IMQTTReaderV4 } from "../types";
-import { parseConnectPacketV4 } from "./parsers/parseConnectPacketV4";
-import { parseConnackPacketV4 } from "./parsers/parseConnackPacketV4";
-import { parseEmptyPacketV4 } from "./parsers/parseEmptyPacketV4";
-import { parsePacketWithIdentifierV4 } from "./parsers/parsePacketWithIdentifierV4";
-import { parsePublishPacketV4 } from "./parsers/parsePublishPacketV4";
-import { parseSubackPacketV4 } from "./parsers/parseSubackPacketV4";
-import { parseSubscribePacketV4 } from "./parsers/parseSubscribePacketV4";
-import { parseUnsubscribePacketV4 } from "./parsers/parseUnsubscribePacketV4";
+import { FixedHeader, PacketType } from "../../../shared/types";
+import { AnyPacketV4, IMQTTReaderV4 } from "../../types";
+import { parseConnectPacketV4 } from "./parseConnectPacketV4";
+import { parseConnackPacketV4 } from "./parseConnackPacketV4";
+import { parseEmptyPacketV4 } from "./parseEmptyPacketV4";
+import { parsePacketWithIdentifierV4 } from "./parsePacketWithIdentifierV4";
+import { parsePublishPacketV4 } from "./parsePublishPacketV4";
+import { parseSubackPacketV4 } from "./parseSubackPacketV4";
+import { parseSubscribePacketV4 } from "./parseSubscribePacketV4";
+import { parseUnsubscribePacketV4 } from "./parseUnsubscribePacketV4";
 import { AppError } from "@src/AppError";
 
 type Parser = (fixedHeader: FixedHeader, reader: IMQTTReaderV4) => AnyPacketV4;

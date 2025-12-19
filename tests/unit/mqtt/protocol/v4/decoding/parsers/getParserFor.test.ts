@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { getParserFor } from "@mqtt/protocol/v4/decoding/parseControlPacketV4";
+import { getParserFor } from "@src/mqtt/protocol/v4/decoding/parsers/parseControlPacketV4";
 import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
 import { parseConnectPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnectPacketV4";
 import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
