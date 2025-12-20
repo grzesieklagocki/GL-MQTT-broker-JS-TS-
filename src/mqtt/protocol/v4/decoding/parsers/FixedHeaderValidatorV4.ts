@@ -9,16 +9,18 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
   // Validate Packet Type
   public assertValidPacketType(type: number): void {
     if (this.hasValidPacketType(type))
-      throw new AppError(`Malformed Fixed Header Packet Type: ${type}`);
+      throw new AppError(
+        `Unsupported Fixed Header Packet Type: ${PacketType[type]} (for MQTT 3.1.1)`
+      );
   }
 
   // Validate Flags based on Packet Type
   public assertValidFlags(packetType: PacketType, flags: number): void {
     if (!this.hasValidFlags(packetType, flags))
       throw new AppError(
-        `Malformed Fixed Header Flags: 0b{${flags
+        `Invalid Fixed Header Flags: 0b${flags
           .toString(2)
-          .padEnd(4, "0")}} for Packet Type ${packetType}`
+          .padEnd(4, "0")} for Packet Type: ${PacketType[packetType]}`
       );
   }
 
@@ -29,7 +31,7 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
   ): void {
     if (!this.hasValidRemainingLength(packetType, remainingLength))
       throw new Error(
-        `Invalid Fixed Header Remaining Length (${remainingLength}) for Packet Type ${PacketType[packetType]}`
+        `Invalid Fixed Header Remaining Length: ${remainingLength} for Packet Type: ${PacketType[packetType]}`
       );
   }
 
