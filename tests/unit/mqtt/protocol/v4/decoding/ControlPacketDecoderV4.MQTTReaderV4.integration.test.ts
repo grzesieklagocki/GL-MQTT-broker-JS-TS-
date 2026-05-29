@@ -1,6 +1,6 @@
 import { PacketType } from "@src/mqtt/protocol/shared/types";
 import { ControlPacketDecoderV4 } from "@src/mqtt/protocol/v4/decoding/ControlPacketDecoderV4";
-import { AnyPacketV4 } from "@src/mqtt/protocol/v4/types";
+import { AnyPacketV4, PublishPacketV4 } from "@src/mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 
 describe("ControlPacketDecoderV4.decode", () => {
@@ -299,7 +299,53 @@ describe("ControlPacketDecoderV4.decode", () => {
       testDecodingFromMultipleChunks(testCase);
     });
 
-    //it("decodes two packets with no payload in series", () => {});
+    it("decodes PUBLISH with Remaining Length encoded as 2-byte VBI (128) split in various ways", () => {
+      const { bytes, parsed } = createPublishPacket128();
+
+      // Break the packet into segments targeting the VBI:
+      // fullPacket = [firstByte, 0x80, 0x01, ...rest]
+      const firstByte = [bytes[0]];
+      const vbiByte1 = [bytes[1]]; // 0x80
+      const vbiByte2 = [bytes[2]]; // 0x01
+      const rest = bytes.slice(3);
+
+      const testCases: multipleChunksTestCase[] = [
+        // split: [firstByte], [vbi1], [vbi2 + rest]
+        {
+          input: [firstByte, vbiByte1, [vbiByte2[0], ...rest]],
+          expected: [[], [], [parsed]],
+        },
+        // split: [firstByte + vbi1], [vbi2], [rest]
+        {
+          input: [[firstByte[0], vbiByte1[0]], vbiByte2, rest],
+          expected: [[], [], [parsed]],
+        },
+        // split: [firstByte], [vbi1 + vbi2], [rest]
+        {
+          input: [firstByte, [vbiByte1[0], vbiByte2[0]], rest],
+          expected: [[], [], [parsed]],
+        },
+        // split with empty chunks in the middle
+        {
+          input: [firstByte, [], [vbiByte1[0]], [], [vbiByte2[0], ...rest]],
+          expected: [[], [], [], [], [parsed]],
+        },
+      ];
+
+      testCases.forEach((testCase) => testDecodingFromMultipleChunks(testCase));
+    });
+
+    it("decodes PUBLISH (Remaining Length=128, 2-byte VBI) when split into 1-byte chunks", () => {
+      const { bytes, parsed } = createPublishPacket128();
+      const input = bytes.map((b) => [b]); // 1 byte per chunk
+      const expected: AnyPacketV4[][] = bytes.map(() => []);
+      const lastIndex = expected.length - 1;
+      expected[lastIndex] = [parsed];
+
+      const testCase: multipleChunksTestCase = { input, expected };
+
+      testDecodingFromMultipleChunks(testCase);
+    });
   });
 });
 
@@ -314,7 +360,6 @@ function testDecoding(
   decoder: ControlPacketDecoderV4 = new ControlPacketDecoderV4()
 ): void {
   const chunk = new Uint8Array(dataChunk);
-
   const packets = decoder.decode(chunk);
 
   expect(packets).toStrictEqual(expected);
@@ -327,9 +372,41 @@ function testDecodingFromMultipleChunks(testCase: multipleChunksTestCase) {
   const decoder = new ControlPacketDecoderV4();
 
   for (let i = 0; i < testCase.input.length; i++)
-    testDecoding(
-      testCase.input[i],
-      testCase.expected[i] as AnyPacketV4[],
-      decoder
-    );
+    testDecoding(testCase.input[i], testCase.expected[i], decoder);
+}
+
+// creates a PUBLISH packet with Remaining Length = 128 (encoded as 2-byte VBI)
+function createPublishPacket128(): {
+  bytes: any[];
+  parsed: PublishPacketV4;
+} {
+  // Fixed header byte for PUBLISH: 0b0011_0000
+  // flags: dup=false qos=0 retain=false -> 0b0011_0000
+  const firstByte = 0b0011_0000;
+
+  // Remaining Length = 128 => VBI: 0x80 0x01
+  const remainingLength = [0x80, 0x01];
+
+  // Variable header:
+  // Topic length = 1, topic = "a"
+  const topic = [0x61]; // "a"
+  const variableHeader = [0x00, topic.length, topic]; // 0x00 0x01 0x61
+
+  const payloadLength = 128 - variableHeader.length;
+  const payload = new Array(payloadLength).fill(0x78); // "x"
+
+  const bytes = [firstByte, ...remainingLength, ...variableHeader, ...payload];
+  const parsed: AnyPacketV4 = {
+    typeId: PacketType.PUBLISH,
+    flags: {
+      dup: false,
+      qosLevel: 0,
+      retain: false,
+    },
+    identifier: undefined,
+    topicName: "a",
+    applicationMessage: new Uint8Array(payload),
+  };
+
+  return { bytes, parsed };
 }

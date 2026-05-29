@@ -5,8 +5,8 @@ import { FixedHeaderParserV4 } from "./parsers/FixedHeaderParserV4";
 import { parseControlPacketV4 } from "./parsers/parseControlPacketV4";
 
 export class ControlPacketDecoderV4 {
-  // buffer to store remaining data for the current packet
-  private remainingDataBuffer: Uint8Array;
+  // buffer to store data between calls
+  private buffer: Uint8Array;
 
   // fixed header of the current packet
   private fixedHeader: FixedHeader;
@@ -24,7 +24,7 @@ export class ControlPacketDecoderV4 {
     // Initialize internal state
     this.fixedHeader = {} as any;
     this.fixedHeaderParser = new FixedHeaderParserV4();
-    this.remainingDataBuffer = new Uint8Array();
+    this.buffer = new Uint8Array();
     this.isFixedHeaderDecoded = false;
   }
 
@@ -34,8 +34,10 @@ export class ControlPacketDecoderV4 {
    * @returns An array of decoded MQTT packets or null if no packets were decoded.
    */
   public decode(chunk: Uint8Array): AnyPacketV4[] {
+    if (chunk.length === 0) return [];
+
     const reader = this.getReader(chunk); // append new data chunk to existing buffer
-    this.resetBuffer(); // data from buffer is already in the reader, can clear bu
+    this.resetBuffer(); // data from buffer is already in the reader, can clear buffer
 
     const packets: AnyPacketV4[] = []; // for decoded packets
 
@@ -59,7 +61,7 @@ export class ControlPacketDecoderV4 {
 
   // creates a MQTTReaderV4 with the current buffer and the new chunk
   private getReader(chunk: Uint8Array): MQTTReaderV4 {
-    const array = new Uint8Array([...this.remainingDataBuffer, ...chunk]);
+    const array = new Uint8Array([...this.buffer, ...chunk]);
     const reader = new MQTTReaderV4(array);
 
     return reader;
@@ -74,7 +76,7 @@ export class ControlPacketDecoderV4 {
     const fixedHeader = this.fixedHeaderParser.parse(reader);
 
     if (fixedHeader) {
-      // if Fixed Header is fully parsed
+      // if Fixed Header is parsed
       // store it and mark as decoded
       this.fixedHeader = fixedHeader;
       this.isFixedHeaderDecoded = true;
@@ -94,7 +96,7 @@ export class ControlPacketDecoderV4 {
 
   // parse the complete Control Packet
   private parsePacket(): AnyPacketV4 {
-    const reader = new MQTTReaderV4(this.remainingDataBuffer);
+    const reader = new MQTTReaderV4(this.buffer);
     const packet = parseControlPacketV4(this.fixedHeader, reader);
 
     return packet;
@@ -111,21 +113,13 @@ export class ControlPacketDecoderV4 {
 
   // gets the number of bytes left to complete the packet
   private get remainingBytesCount(): number {
-    if (this.fixedHeader)
-      return (
-        // (bytes left) = (total bytes needed) - (bytes already received)
-        this.fixedHeader?.remainingLength - this.remainingDataBuffer.length
-      );
-
-    throw Error("Fixed header is not decoded yet");
+    // (bytes left) = (total bytes needed) - (bytes already received)
+    return this.fixedHeader.remainingLength - this.buffer.length;
   }
 
   // appends bytes to the internal buffer
   private appendToBuffer(bytes: Uint8Array): void {
-    this.remainingDataBuffer = new Uint8Array([
-      ...this.remainingDataBuffer,
-      ...bytes,
-    ]);
+    this.buffer = new Uint8Array([...this.buffer, ...bytes]);
   }
 
   //
@@ -145,6 +139,6 @@ export class ControlPacketDecoderV4 {
 
   // resets the internal data buffer
   private resetBuffer(): void {
-    this.remainingDataBuffer = new Uint8Array();
+    this.buffer = new Uint8Array();
   }
 }
