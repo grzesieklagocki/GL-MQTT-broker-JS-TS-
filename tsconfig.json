@@ -109,7 +109,8 @@
     "skipLibCheck": true /* Skip type checking all .d.ts files. */,
     "paths": {
       "@src/*": ["./src/*"],
-      "@mqtt/*": ["./src/mqtt/*"]
+      "@mqtt/*": ["./src/mqtt/*"],
+      "@tests/*": ["./tests/*"]
     }
   }
 }

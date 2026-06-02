@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       "@src": path.resolve(__dirname, "./src"),
       "@mqtt": path.resolve(__dirname, "./src/mqtt"),
+      "@tests": path.resolve(__dirname, "./tests"),
     },
   },
   test: {

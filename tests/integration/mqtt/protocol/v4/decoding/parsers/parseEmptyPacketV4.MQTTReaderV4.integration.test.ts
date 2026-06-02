@@ -1,7 +1,7 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
-import { createEmptyPacketFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
+import { createEmptyPacketFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
