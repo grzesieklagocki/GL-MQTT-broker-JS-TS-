@@ -32,6 +32,12 @@ export type FixedHeader = {
   remainingLength: number;
 };
 
+export type FixedHeaderFlags = {
+  dup: boolean;
+  qos: number;
+  retain: boolean;
+};
+
 export interface IFixedHeaderValidator {
   assertValidPacketType(type: number): void;
 

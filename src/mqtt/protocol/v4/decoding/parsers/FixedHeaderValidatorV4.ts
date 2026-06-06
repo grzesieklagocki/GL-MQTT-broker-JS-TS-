@@ -1,4 +1,5 @@
 import { AppError } from "@src/AppError";
+import { parseFixedHeaderFlags } from "@src/mqtt/protocol/shared/FixedHeaderFlagsParser";
 import {
   IFixedHeaderValidator,
   PacketType,
@@ -41,15 +42,14 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
     );
   }
 
-  private parseQoS = (flags: number) => (flags & 0b0110) >> 1;
-  private parseDup = (flags: number) => (flags & 0b1000) >> 3;
-
   private hasValidFlags(packetType: PacketType, flags: number): boolean {
     if (packetType == PacketType.PUBLISH) {
-      const qos = this.parseQoS(flags);
+      const flagsParsed = parseFixedHeaderFlags(flags);
+
+      const qos = flagsParsed.qos;
       this._assertValidQoS(qos);
 
-      const dup = this.parseDup(flags);
+      const dup = flagsParsed.dup;
       this._assertValidDup(dup, qos);
 
       return true;
@@ -80,8 +80,8 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
 
   // The DUP flag MUST be set to 0 for all QoS 0 messages
   // [MQTT-3.3.1-2]
-  private _assertValidDup(dup: number, qos: QoS) {
-    if (qos === 0 && dup !== 0)
+  private _assertValidDup(dup: boolean, qos: QoS) {
+    if (qos === 0 && dup === true)
       throw new AppError(
         `The DUP Flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]`
       );
