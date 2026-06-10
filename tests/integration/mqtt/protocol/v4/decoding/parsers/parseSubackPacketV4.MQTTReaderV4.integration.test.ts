@@ -1,10 +1,11 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseSubackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseSubackPacketV4";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { SubackPacketV4 } from "@src/mqtt/protocol/v4/types";
 import {
   createFixedHeader,
   createSubackFixedHeader,
-} from "tests/helpers/mqtt/protocol/createFixedHeader";
+} from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -17,35 +18,9 @@ describe("parseSubackPacketV4", () => {
   it(`parses SUBACK packet`, () => {
     const remainingData = new Uint8Array([0x12, 0x34, 0x80]);
     const reader = new MQTTReaderV4(remainingData);
-    const packet = parseSubackPacketV4(fixedHeader, reader);
+    const packet = parsePacketV4(fixedHeader, reader);
 
     expect(packet.typeId).toBe(PacketType.SUBACK);
-  });
-
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.CONNACK,
-      PacketType.PUBLISH,
-      PacketType.PUBACK,
-      PacketType.PUBREC,
-      PacketType.PUBREL,
-      PacketType.PUBCOMP,
-      PacketType.SUBSCRIBE,
-      PacketType.UNSUBSCRIBE,
-      PacketType.UNSUBACK,
-      PacketType.PINGREQ,
-      PacketType.PINGRESP,
-      PacketType.DISCONNECT,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 3);
-      const remainingData = new Uint8Array([0x12, 0x34, 0x01]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
-    });
   });
 
   it("correctly parses Identifier value", () => {
@@ -58,7 +33,7 @@ describe("parseSubackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parseSubackPacketV4(fixedHeader, reader);
+      const packet = parsePacketV4(fixedHeader, reader) as SubackPacketV4;
 
       expect(packet.identifier).toBe(expected);
     });
@@ -73,7 +48,7 @@ describe("parseSubackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parseSubackPacketV4(fixedHeader, reader);
+      const packet = parsePacketV4(fixedHeader, reader) as SubackPacketV4;
 
       expect(packet.returnCode).toBe(expected);
     });
@@ -86,7 +61,7 @@ describe("parseSubackPacketV4", () => {
       const remainingData = new Uint8Array([0x12, 0x34, invalidReturnCode]);
       const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseSubackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
         /Invalid SUBACK return code/
       );
     });

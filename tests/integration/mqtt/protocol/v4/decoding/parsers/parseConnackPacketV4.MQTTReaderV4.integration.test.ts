@@ -1,10 +1,8 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
-import {
-  createConnackFixedHeader,
-  createFixedHeader,
-} from "tests/helpers/mqtt/protocol/createFixedHeader";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { ConnackPacketV4 } from "@src/mqtt/protocol/v4/types";
+import { createConnackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -18,35 +16,9 @@ describe("parseConnackPacketV4", () => {
   it(`parses CONNACK packet`, () => {
     const remainingData = new Uint8Array([0x00, 0x00]);
     const reader = new MQTTReaderV4(remainingData);
-    const packet = parseConnackPacketV4(fixedHeader, reader);
+    const packet = parsePacketV4(fixedHeader, reader);
 
     expect(packet.typeId).toBe(PacketType.CONNACK);
-  });
-
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.PUBLISH,
-      PacketType.PUBACK,
-      PacketType.PUBREC,
-      PacketType.PUBREL,
-      PacketType.PUBCOMP,
-      PacketType.SUBSCRIBE,
-      PacketType.SUBACK,
-      PacketType.UNSUBSCRIBE,
-      PacketType.UNSUBACK,
-      PacketType.PINGREQ,
-      PacketType.PINGRESP,
-      PacketType.DISCONNECT,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 2);
-      const remainingData = new Uint8Array([0x01, 0x00]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
-    });
   });
 
   it(`correctly parses Session Present Flag`, () => {
@@ -56,7 +28,7 @@ describe("parseConnackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parseConnackPacketV4(fixedHeader, reader);
+      const packet = parsePacketV4(fixedHeader, reader) as ConnackPacketV4;
 
       expect(packet.sessionPresentFlag).toBe(expected);
     });
@@ -67,7 +39,7 @@ describe("parseConnackPacketV4", () => {
       const remainingData = new Uint8Array([invalidFirstByte, 0x00]);
       const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
         /Invalid first byte/
       );
     });
@@ -84,7 +56,7 @@ describe("parseConnackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parseConnackPacketV4(fixedHeader, reader);
+      const packet = parsePacketV4(fixedHeader, reader) as ConnackPacketV4;
 
       expect(packet.connectReturnCode).toBe(expected);
     });
@@ -96,7 +68,7 @@ describe("parseConnackPacketV4", () => {
         const remainingData = new Uint8Array([0x00, invalidReturnCode]);
         const reader = new MQTTReaderV4(remainingData);
 
-        expect(() => parseConnackPacketV4(fixedHeader, reader)).toThrow(
+        expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
           /Invalid CONNACK return code/
         );
       }

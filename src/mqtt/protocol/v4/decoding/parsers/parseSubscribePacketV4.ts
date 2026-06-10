@@ -1,7 +1,6 @@
 import { AppError } from "@src/AppError";
-import { FixedHeader, PacketType, QoS } from "../../../shared/types";
+import { PacketType, QoS } from "../../../shared/types";
 import { IMQTTReaderV4, SubscribePacketV4, SubscriptionV4 } from "../../types";
-import { parseIdentifier } from "./parseIdentifier";
 import { parseTopicFilter } from "./parseTopic";
 
 /**
@@ -10,25 +9,19 @@ import { parseTopicFilter } from "./parseTopic";
  * Validates the packet type before parsing the rest of the packet.
  * Flags and remaining length in fixed header must be validated before calling this function.
  * Parses and validates the identifier and subscription list.
- * @param fixedHeader The fixed header of the MQTT packet.
+ * @param identifier The packet identifier parsed from the variable header.
  * @param reader The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed SUBSCRIBE packet.
  */
 export function parseSubscribePacketV4(
-  fixedHeader: FixedHeader,
+  identifier: number,
   reader: IMQTTReaderV4
 ): SubscribePacketV4 {
-  // validate fixed header
-  _assertValidPacketId(fixedHeader.packetType);
-
   // parse
-
-  const identifier = parseIdentifier(reader);
-
   const subscriptionList = parseSubscriptionList(reader);
 
   return {
-    typeId: fixedHeader.packetType,
+    typeId: PacketType.SUBSCRIBE,
     identifier: identifier,
     subscriptionList: subscriptionList,
   };
@@ -62,16 +55,6 @@ function parseQoS(reader: IMQTTReaderV4): QoS {
 //
 // assertions helpers
 //
-
-// only SUBSCRIBE is valid
-function _assertValidPacketId(
-  id: PacketType
-): asserts id is PacketType.SUBSCRIBE {
-  if (id !== PacketType.SUBSCRIBE)
-    throw new AppError(
-      `Invalid packet type: ${id}, expected: ` + `${PacketType.SUBSCRIBE}`
-    );
-}
 
 // subscription list must contain at least one subscription
 function _assertValidSubscriptionList(list: SubscriptionV4[]) {

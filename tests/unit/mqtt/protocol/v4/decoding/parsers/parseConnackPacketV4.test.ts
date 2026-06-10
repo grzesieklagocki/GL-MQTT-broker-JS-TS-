@@ -1,19 +1,13 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { parseConnackPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseConnackPacketV4";
-import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
+import { ConnackPacketV4, IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createConnackReaderMock } from "./mocks";
-import {
-  createConnackFixedHeader,
-  createFixedHeader,
-} from "tests/helpers/mqtt/protocol/createFixedHeader";
+import { createConnackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
 
 describe("parseConnackPacketV4", () => {
   // commonly used fixed header for CONNACK packet
   const fixedHeader = createConnackFixedHeader(2);
-
-  // commonly used reader mock for CONNACK packet
-  const readerMock = {} as unknown as IMQTTReaderV4;
 
   it(`parse CONNACK packet`, () => {
     const readerMock = createConnackReaderMock(
@@ -22,33 +16,9 @@ describe("parseConnackPacketV4", () => {
       0x05 //connect return code
     );
 
-    const packet = parseConnackPacketV4(fixedHeader, readerMock);
+    const packet = parsePacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.CONNACK);
-  });
-
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.PUBLISH,
-      PacketType.PUBACK,
-      PacketType.PUBREC,
-      PacketType.PUBREL,
-      PacketType.PUBCOMP,
-      PacketType.SUBSCRIBE,
-      PacketType.SUBACK,
-      PacketType.UNSUBSCRIBE,
-      PacketType.UNSUBACK,
-      PacketType.PINGREQ,
-      PacketType.PINGRESP,
-      PacketType.DISCONNECT,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 2);
-
-      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid packet type/
-      );
-    });
   });
 
   it(`correctly parses Session Present Flag`, () => {
@@ -62,7 +32,7 @@ describe("parseConnackPacketV4", () => {
         0x05 //connect return code
       );
 
-      const packet = parseConnackPacketV4(fixedHeader, readerMock);
+      const packet = parsePacketV4(fixedHeader, readerMock) as ConnackPacketV4;
 
       expect(packet.sessionPresentFlag).toBe(expected);
     });
@@ -76,7 +46,7 @@ describe("parseConnackPacketV4", () => {
         0x00 //connect return code
       );
 
-      expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid first byte/
       );
     });
@@ -90,7 +60,7 @@ describe("parseConnackPacketV4", () => {
         validReturnCode //connect return code
       );
 
-      const packet = parseConnackPacketV4(fixedHeader, readerMock);
+      const packet = parsePacketV4(fixedHeader, readerMock) as ConnackPacketV4;
 
       expect(packet.connectReturnCode).toBe(validReturnCode);
     });
@@ -105,7 +75,7 @@ describe("parseConnackPacketV4", () => {
           invalidReturnCode //connect return code)
         );
 
-        expect(() => parseConnackPacketV4(fixedHeader, readerMock)).toThrow(
+        expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
           /Invalid CONNACK return code/
         );
       }

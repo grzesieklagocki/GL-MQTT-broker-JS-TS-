@@ -1,7 +1,5 @@
-import { AppError } from "@src/AppError";
-import { FixedHeader, PacketType } from "../../../shared/types";
+import { PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, UnsubscribePacketV4 } from "../../types";
-import { parseIdentifier } from "./parseIdentifier";
 import { parseTopicFilter } from "./parseTopic";
 
 /**
@@ -10,25 +8,18 @@ import { parseTopicFilter } from "./parseTopic";
  * Validates the packet type before parsing the rest of the packet.
  * Flags and remaining length in fixed header must be validated before calling this function.
  * Parses and validates the identifier and topic filter list.
- * @param fixedHeader The fixed header of the MQTT packet.
+ * @param identifier The packet identifier parsed from the variable header.
  * @param reader The IMQTTReaderV4 instance to read packet data.
  * @returns The parsed UNSUBSCRIBE packet.
  */
 export function parseUnsubscribePacketV4(
-  fixedHeader: FixedHeader,
+  identifier: number,
   reader: IMQTTReaderV4
 ): UnsubscribePacketV4 {
-  // validate fixed header
-  _assertValidPacketId(fixedHeader.packetType);
-
-  // parse
-
-  const identifier = parseIdentifier(reader);
-
   const topicFilterList = parseTopicFilterList(reader);
 
   return {
-    typeId: fixedHeader.packetType,
+    typeId: PacketType.UNSUBSCRIBE,
     identifier: identifier,
     topicFilterList: topicFilterList,
   };
@@ -47,18 +38,4 @@ function parseTopicFilterList(reader: IMQTTReaderV4) {
   }
 
   return topicFilterList;
-}
-
-//
-// assertions helpers
-//
-
-// only UNSUBSCRIBE is valid
-function _assertValidPacketId(
-  id: PacketType
-): asserts id is PacketType.UNSUBSCRIBE {
-  if (id !== PacketType.UNSUBSCRIBE)
-    throw new AppError(
-      `Invalid packet type: ${id}, expected: ` + `${PacketType.UNSUBSCRIBE}`
-    );
 }

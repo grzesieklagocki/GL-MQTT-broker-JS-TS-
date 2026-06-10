@@ -1,6 +1,6 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseEmptyPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseEmptyPacketV4";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
 import { createEmptyPacketFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
@@ -15,34 +15,10 @@ describe("parseEmptyPacketV4", () => {
         const fixedHeader = createEmptyPacketFixedHeader(validPacketType);
         const remainingData = new Uint8Array();
         const reader = new MQTTReaderV4(remainingData);
-        const packet = parseEmptyPacketV4(fixedHeader, reader);
+        const packet = parsePacketV4(fixedHeader, reader);
 
         expect(packet.typeId).toBe(validPacketType);
       }
     );
-  });
-
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.CONNACK,
-      PacketType.PUBLISH,
-      PacketType.PUBACK,
-      PacketType.PUBREC,
-      PacketType.PUBREL,
-      PacketType.PUBCOMP,
-      PacketType.SUBSCRIBE,
-      PacketType.SUBACK,
-      PacketType.UNSUBSCRIBE,
-      PacketType.UNSUBACK,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader = createEmptyPacketFixedHeader(invalidPacketType);
-      const remainingData = new Uint8Array();
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parseEmptyPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
-    });
   });
 });

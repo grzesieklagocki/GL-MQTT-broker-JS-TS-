@@ -1,7 +1,7 @@
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType, PacketWithIdentifier } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketWithIdentifierV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketWithIdentifierV4";
-import { createPacketWithIdentifierFixedHeader } from "tests/helpers/mqtt/protocol/createFixedHeader";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { createPacketWithIdentifierFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
 //
@@ -23,35 +23,9 @@ describe("parsePacketWithIdentifierV4", () => {
       );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketWithIdentifierV4(fixedHeader, reader);
+      const packet = parsePacketV4(fixedHeader, reader);
 
       expect(packet.typeId).toBe(validPacketType);
-    });
-  });
-
-  // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits,
-  // it is reserved for future use and MUST be set to the value listed in that table
-  // [MQTT-2.2.2-1]
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.CONNACK,
-      PacketType.PUBLISH,
-      PacketType.SUBSCRIBE,
-      PacketType.SUBACK,
-      PacketType.UNSUBSCRIBE,
-      PacketType.PINGREQ,
-      PacketType.PINGRESP,
-      PacketType.DISCONNECT,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader =
-        createPacketWithIdentifierFixedHeader(invalidPacketType);
-      const remainingData = new Uint8Array([0x12, 0x34]);
-      const reader = new MQTTReaderV4(remainingData);
-
-      expect(() => parsePacketWithIdentifierV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
     });
   });
 
@@ -68,7 +42,10 @@ describe("parsePacketWithIdentifierV4", () => {
       );
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketWithIdentifierV4(fixedHeader, reader);
+      const packet = parsePacketV4(
+        fixedHeader,
+        reader
+      ) as PacketWithIdentifier<PacketType.PUBACK>;
 
       expect(packet.identifier).toBe(expected);
     });

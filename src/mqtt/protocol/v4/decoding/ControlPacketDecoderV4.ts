@@ -2,7 +2,7 @@ import { FixedHeader } from "../../shared/types";
 import { AnyPacketV4 } from "../types";
 import { MQTTReaderV4 } from "./MQTTReaderV4";
 import { FixedHeaderParserV4 } from "./parsers/FixedHeaderParserV4";
-import { parseControlPacketV4 } from "./parsers/parseControlPacketV4";
+import { parsePacketV4 } from "./parsers/parsePacketV4";
 
 export class ControlPacketDecoderV4 {
   // buffer to store data between calls
@@ -97,7 +97,7 @@ export class ControlPacketDecoderV4 {
   // parse the complete Control Packet
   private parsePacket(): AnyPacketV4 {
     const reader = new MQTTReaderV4(this.buffer);
-    const packet = parseControlPacketV4(this.fixedHeader, reader);
+    const packet = parsePacketV4(this.fixedHeader, reader);
 
     return packet;
   }

@@ -1,11 +1,12 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { describe, it, expect } from "vitest";
-import { parsePublishPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePublishPacketV4";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import {
   createFixedHeader,
   createPublishFixedHeader,
-} from "tests/helpers/mqtt/protocol/createFixedHeader";
+} from "@tests/helpers/mqtt/protocol/createFixedHeader";
+import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { PublishPacketV4 } from "@src/mqtt/protocol/v4/types";
 
 //
 // integration tests for parsePublishPacketV4 using MQTTReaderV4 with data buffers
@@ -45,7 +46,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePublishPacketV4(fixedHeader, reader);
+    const packet = parsePacketV4(fixedHeader, reader) as PublishPacketV4;
 
     expect(packet.typeId).toBe(PacketType.PUBLISH);
 
@@ -56,30 +57,6 @@ describe("parsePublishPacketV4", () => {
     expect(packet.topicName).toBe("t1");
     expect(packet.identifier).toBe(0x0105);
     expect(packet.applicationMessage).toEqual(message);
-  });
-
-  it(`throws an Error for other packet types`, () => {
-    [
-      PacketType.CONNECT,
-      PacketType.CONNACK,
-      PacketType.PUBACK,
-      PacketType.PUBREC,
-      PacketType.PUBREL,
-      PacketType.PUBCOMP,
-      PacketType.SUBACK,
-      PacketType.SUBSCRIBE,
-      PacketType.UNSUBSCRIBE,
-      PacketType.UNSUBACK,
-      PacketType.PINGREQ,
-      PacketType.PINGRESP,
-      PacketType.DISCONNECT,
-    ].forEach((invalidPacketType) => {
-      const fixedHeader = createFixedHeader(invalidPacketType, 0b0000, 3);
-
-      expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
-        /Invalid packet type/
-      );
-    });
   });
 
   // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0) Control Packets MUST contain a non-zero 16-bit Packet Identifier
@@ -101,7 +78,7 @@ describe("parsePublishPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet identifier/
       );
     });
@@ -132,7 +109,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(/topic/);
+    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
   });
 
   // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters
@@ -152,9 +129,7 @@ describe("parsePublishPacketV4", () => {
         0b0000 // flags
       );
 
-      expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
-        /wildcard/
-      );
+      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/wildcard/);
     });
   });
 
@@ -175,7 +150,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
       /Invalid topic length/
     );
   });
@@ -197,6 +172,6 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePublishPacketV4(fixedHeader, reader)).toThrow(/topic/);
+    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
   });
 });
