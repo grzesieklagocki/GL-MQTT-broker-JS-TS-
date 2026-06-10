@@ -9,6 +9,12 @@ import { parseUnsubscribePacketV4 } from "./parseUnsubscribePacketV4";
 import { parseSubackPacketV4 } from "./parseSubackPacketV4";
 import { parseIdentifier } from "./parseIdentifier";
 
+/**
+ * Parses MQTT packet from the given fixed header and reader.
+ * @param fixedHeader - The fixed header of the MQTT packet.
+ * @param reader - The reader to read the variable header and payload of the MQTT packet.
+ * @returns The parsed MQTT packet as an AnyPacketV4.
+ */
 export function parsePacketV4(
   fixedHeader: FixedHeader,
   reader?: IMQTTReaderV4
