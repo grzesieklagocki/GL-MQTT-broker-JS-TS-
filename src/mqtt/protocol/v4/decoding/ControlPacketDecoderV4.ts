@@ -6,7 +6,7 @@ import { parsePacketV4 } from "./parsers/parsePacketV4";
 
 export class ControlPacketDecoderV4 {
   // buffer to store data between calls
-  private buffer: Uint8Array;
+  private buffer: BinaryBuffer;
 
   // fixed header of the current packet
   private fixedHeader: FixedHeader;
@@ -24,20 +24,20 @@ export class ControlPacketDecoderV4 {
     // Initialize internal state
     this.fixedHeader = {} as any;
     this.fixedHeaderParser = new FixedHeaderParserV4();
-    this.buffer = new Uint8Array();
+    this.buffer = new BinaryBuffer();
     this.isFixedHeaderDecoded = false;
   }
 
   /**
    * Decodes multiple MQTT packets from the given chunks.
-   * @param chunks - An array of Uint8Array chunks representing MQTT packets.
+   * @param chunk - A Uint8Array containing the bytes to decode.
    * @returns An array of decoded MQTT packets or null if no packets were decoded.
    */
   public decode(chunk: Uint8Array): AnyPacketV4[] {
     if (chunk.length === 0) return [];
 
-    const reader = this.getReader(chunk); // append new data chunk to existing buffer
-    this.resetBuffer(); // data from buffer is already in the reader, can clear buffer
+    this.buffer.write(chunk); // append new data to the buffer
+    const reader = this.getReader(); // create a reader from the buffer data
 
     const packets: AnyPacketV4[] = []; // for decoded packets
 
@@ -45,7 +45,7 @@ export class ControlPacketDecoderV4 {
       if (!this.isFixedHeaderDecoded) {
         this.parseFixedHeader(reader);
       } else {
-        this.parseRemainingLength(reader);
+        this.parseRest(reader);
       }
 
       if (this.isPacketReady) {
@@ -59,9 +59,9 @@ export class ControlPacketDecoderV4 {
     return packets;
   }
 
-  // creates a MQTTReaderV4 with the current buffer and the new chunk
-  private getReader(chunk: Uint8Array): MQTTReaderV4 {
-    const array = new Uint8Array([...this.buffer, ...chunk]);
+  // creates a MQTTReaderV4 from buffer
+  private getReader(): MQTTReaderV4 {
+    const array = this.buffer.read();
     const reader = new MQTTReaderV4(array);
 
     return reader;
@@ -83,20 +83,20 @@ export class ControlPacketDecoderV4 {
     }
   }
 
-  // parse Remaining Length and append bytes to the buffer
-  private parseRemainingLength(reader: MQTTReaderV4): void {
+  // parse rest of the packet and append bytes to the buffer
+  private parseRest(reader: MQTTReaderV4): void {
     // number of bytes to read to complete the packet
     const count = Math.min(this.remainingBytesCount, reader.remaining);
 
     if (count > 0) {
       const bytes = reader.readBytes(count);
-      this.appendToBuffer(bytes);
+      this.buffer.write(bytes);
     }
   }
 
   // parse the complete Control Packet
   private parsePacket(): AnyPacketV4 {
-    const reader = new MQTTReaderV4(this.buffer);
+    const reader = new MQTTReaderV4(this.buffer.read());
     const packet = parsePacketV4(this.fixedHeader, reader);
 
     return packet;
@@ -114,12 +114,7 @@ export class ControlPacketDecoderV4 {
   // gets the number of bytes left to complete the packet
   private get remainingBytesCount(): number {
     // (bytes left) = (total bytes needed) - (bytes already received)
-    return this.fixedHeader.remainingLength - this.buffer.length;
-  }
-
-  // appends bytes to the internal buffer
-  private appendToBuffer(bytes: Uint8Array): void {
-    this.buffer = new Uint8Array([...this.buffer, ...bytes]);
+    return this.fixedHeader.remainingLength - this.buffer.remaining;
   }
 
   //
@@ -128,17 +123,36 @@ export class ControlPacketDecoderV4 {
 
   // resets the internal state after a packet is fully decoded
   private resetState(): void {
-    this.resetFixedHeader();
-    this.resetBuffer();
-  }
-
-  // resets the fixed header state
-  private resetFixedHeader(): void {
     this.isFixedHeaderDecoded = false;
   }
+}
 
-  // resets the internal data buffer
-  private resetBuffer(): void {
-    this.buffer = new Uint8Array();
+class BinaryBuffer {
+  private array: Uint8Array = new Uint8Array();
+
+  constructor() {}
+
+  // returns the number of bytes in the buffer
+  public get remaining() {
+    return this.array.length;
+  }
+
+  // returns the data in the buffer
+  public read(): Uint8Array {
+    const array = this.array;
+
+    this.reset();
+
+    return array;
+  }
+
+  // appends new bytes to the buffer
+  public write(bytes: Uint8Array): void {
+    this.array = new Uint8Array([...this.array, ...bytes]);
+  }
+
+  // resets the buffer to an empty state
+  private reset(): void {
+    this.array = new Uint8Array();
   }
 }
