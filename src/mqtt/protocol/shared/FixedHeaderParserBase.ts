@@ -1,9 +1,12 @@
 import { AppError } from "@src/AppError";
 import { PacketType, FixedHeader, IFixedHeaderValidator } from "./types";
 
-type SimpleReader = { remaining: number; readOneByteInteger(): number };
+export interface ISimpleReader {
+  remaining: number;
+  readOneByteInteger(): number;
+}
 
-export abstract class FixedHeaderParserBase<Reader extends SimpleReader> {
+export abstract class FixedHeaderParserBase {
   // number of processed bytes for Remaining Length
   private bytesRead = 0;
 
@@ -30,7 +33,7 @@ export abstract class FixedHeaderParserBase<Reader extends SimpleReader> {
    * @returns FixedHeader or null if more bytes are needed
    * @throws AppError if Fixed Header is malformed
    */
-  public parse(reader: Reader): FixedHeader | null {
+  public parse(reader: ISimpleReader): FixedHeader | null {
     while (reader.remaining > 0) {
       const byte = reader.readOneByteInteger();
 
