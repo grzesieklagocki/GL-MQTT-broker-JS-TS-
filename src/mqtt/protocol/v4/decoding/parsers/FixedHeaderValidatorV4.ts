@@ -9,9 +9,9 @@ import {
 export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
   // Validate Packet Type
   public assertValidPacketType(type: number): void {
-    if (this.hasValidPacketType(type))
+    if (!this.hasValidPacketType(type))
       throw new AppError(
-        `Unsupported Fixed Header Packet Type: ${PacketType[type]} (for MQTT 3.1.1)`
+        `Unsupported Fixed Header Packet Type: ${type} (${PacketType[type]}) (for MQTT 3.1.1)`
       );
   }
 
@@ -38,7 +38,7 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
 
   private hasValidPacketType(packetType: number): boolean {
     return (
-      packetType < PacketType.CONNECT || packetType > PacketType.DISCONNECT
+      packetType >= PacketType.CONNECT && packetType <= PacketType.DISCONNECT
     );
   }
 
