@@ -1,10 +1,5 @@
 import { AppError } from "@src/AppError";
-import { PacketType, FixedHeader, IFixedHeaderValidator } from "./types";
-
-export interface ISimpleReader {
-  remaining: number;
-  readOneByteInteger(): number;
-}
+import { PacketType, FixedHeader, IFixedHeaderValidator, ISimpleReader } from "./types";
 
 export abstract class FixedHeaderParserBase {
   // number of processed bytes for Remaining Length

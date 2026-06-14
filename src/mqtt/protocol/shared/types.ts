@@ -48,3 +48,8 @@ export interface IFixedHeaderValidator {
     remainingLength: number
   ): void;
 }
+
+export interface ISimpleReader {
+  remaining: number;
+  readOneByteInteger(): number;
+}
