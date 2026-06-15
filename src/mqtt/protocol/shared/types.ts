@@ -1,3 +1,5 @@
+import { AnyPacketV4 } from "../v4/types";
+
 export enum PacketType {
   CONNECT = 1, // Client request to connect to Server
   CONNACK = 2, // Connect acknowledgment
@@ -25,6 +27,8 @@ export type ControlPacket<T extends PacketType> = {
 export type PacketWithIdentifier<T extends PacketType> = ControlPacket<T> & {
   identifier: number;
 };
+
+export type AnyPacket = AnyPacketV4;
 
 export type FixedHeader = {
   packetType: PacketType;
