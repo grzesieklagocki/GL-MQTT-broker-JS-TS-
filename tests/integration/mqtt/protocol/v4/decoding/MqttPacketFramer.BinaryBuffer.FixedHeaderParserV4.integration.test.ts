@@ -1,6 +1,6 @@
 import { BinaryBuffer } from "@mqtt/protocol/shared/BinaryBuffer";
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MqttPacketFramer } from "@src/mqtt/protocol/shared/MqttPacketFramer";
+import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
 import { beforeEach, describe, expect, it } from "vitest";
 
