@@ -1,4 +1,3 @@
-import { BinaryBuffer } from "@mqtt/protocol/shared/BinaryBuffer";
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
@@ -103,4 +102,4 @@ describe("MQTTPacketFramer with BinaryBuffer and FixedHeaderParserV4", () => {
 // Helpers
 
 const createMqttPacketFramer = () =>
-  new MqttPacketFramer(new BinaryBuffer(), new FixedHeaderParserV4());
+  new MqttPacketFramer(new FixedHeaderParserV4());

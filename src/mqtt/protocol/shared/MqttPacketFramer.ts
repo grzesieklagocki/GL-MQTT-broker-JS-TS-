@@ -5,6 +5,7 @@ import {
   IFixedHeaderParser,
   IMqttPacketFramer,
 } from "./types";
+import { BinaryBuffer } from "./BinaryBuffer";
 
 // Class responsible for framing MQTT packets from a stream of bytes,
 // handling the parsing of fixed headers and buffering of incoming data.
@@ -27,11 +28,12 @@ export class MqttPacketFramer implements IMqttPacketFramer {
 
   /**
    * Creates an instance of MqttPacketFramer with the provided binary buffer.
-   * @param buffer The binary buffer used for reading and writing MQTT packet data.
+   * @param fixedHeaderParser The parser used to parse the fixed header of MQTT packets.
+   * @param buffer (optional) The binary buffer used for reading and writing MQTT packet data. If not provided, a new BinaryBuffer instance will be used.
    */
   public constructor(
-    private readonly buffer: IBinaryBuffer,
-    private readonly fixedHeaderParser: IFixedHeaderParser
+    private readonly fixedHeaderParser: IFixedHeaderParser,
+    private readonly buffer: IBinaryBuffer = new BinaryBuffer()
   ) {
     // Initialize internal state
     this.fixedHeader = {} as any;
