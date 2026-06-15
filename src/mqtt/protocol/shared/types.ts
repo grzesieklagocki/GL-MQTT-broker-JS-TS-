@@ -53,3 +53,23 @@ export interface ISimpleReader {
   remaining: number;
   readOneByteInteger(): number;
 }
+
+export interface IFixedHeaderParser {
+  parse(reader: ISimpleReader): FixedHeader | null;
+}
+
+export interface IBinaryBuffer {
+  get remaining(): number;
+
+  readOneByteInteger(): number;
+  read(n: number): Uint8Array;
+
+  write(bytes: Uint8Array): void;
+}
+
+export interface IMqttPacketFramer {
+  get hasPacket(): boolean;
+
+  write(bytes: Uint8Array): void;
+  readPacket(): [fixedHeader: FixedHeader, restOfPacket?: Uint8Array];
+}
