@@ -70,7 +70,14 @@ export type ConnectionPayloadV4 = {
 };
 
 // 2. CONNACK
-export type ConnackReturnCodeV4 = 0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05;
+export enum ConnackReturnCodeV4 {
+  CONNECTION_ACCEPTED = 0x00,
+  CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION = 0x01,
+  CONNECTION_REFUSED_IDENTIFIER_REJECTED = 0x02,
+  CONNECTION_REFUSED_SERVER_UNAVAILABLE = 0x03,
+  CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD = 0x04,
+  CONNECTION_REFUSED_NOT_AUTHORIZED = 0x05,
+}
 
 export type ConnackPacketV4 = ControlPacket<PacketType.CONNACK> & {
   sessionPresentFlag: boolean;
@@ -112,7 +119,12 @@ export type SubscribePacketV4 = PacketWithIdentifier<PacketType.SUBSCRIBE> & {
 };
 
 // 9. SUBACK
-export type SubackReturnCodeV4 = QoS | 0x80;
+export enum SubackReturnCodeV4 {
+  SUCCESS_MAXIMUM_QOS_0 = 0x00,
+  SUCCESS_MAXIMUM_QOS_1 = 0x01,
+  SUCCESS_MAXIMUM_QOS_2 = 0x02,
+  FAILURE = 0x80,
+}
 
 export type SubackPacketV4 = PacketWithIdentifier<PacketType.SUBACK> & {
   returnCode: SubackReturnCodeV4;
