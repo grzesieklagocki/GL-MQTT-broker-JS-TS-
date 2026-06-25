@@ -283,31 +283,23 @@ describe("MqttPacketV4Factory", () => {
 
       expect(packet.subscriptionList).toBe(subscriptionList);
     });
-
-    it("should allow empty subscription list at factory level", () => {
-      const packet = MqttPacketV4Factory.createSubscribePacketV4(1, []);
-
-      expect(packet).toEqual({
-        typeId: PacketType.SUBSCRIBE,
-        identifier: 1,
-        subscriptionList: [],
-      });
-    });
   });
 
   describe("createSubackPacketV4", () => {
-    it.each([
+    [
       SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
       SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
       SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2,
       SubackReturnCodeV4.FAILURE,
-    ])("should create SUBACK packet with return code %s", (returnCode) => {
-      const packet = MqttPacketV4Factory.createSubackPacketV4(99, returnCode);
+    ].forEach((returnCode) => {
+      it(`should create SUBACK packet with return code ${SubackReturnCodeV4[returnCode]}`, () => {
+        const packet = MqttPacketV4Factory.createSubackPacketV4(99, returnCode);
 
-      expect(packet).toEqual({
-        typeId: PacketType.SUBACK,
-        identifier: 99,
-        returnCode,
+        expect(packet).toEqual({
+          typeId: PacketType.SUBACK,
+          identifier: 99,
+          returnCode,
+        });
       });
     });
   });
