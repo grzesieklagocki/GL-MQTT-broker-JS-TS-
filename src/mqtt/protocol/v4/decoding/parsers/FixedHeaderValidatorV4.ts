@@ -109,10 +109,8 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
 
       case PacketType.SUBACK:
         // + Packet Identifier: 2 bytes
-        // + Return Code: 1 byte
+        // + Return Codes: minimum 1 byte
         // = 3 bytes
-        return remainingLength === 3;
-
       case PacketType.PUBLISH:
         //   Topic Name Length: 2 bytes
         // + Topic1 Name: minimum 1 byte

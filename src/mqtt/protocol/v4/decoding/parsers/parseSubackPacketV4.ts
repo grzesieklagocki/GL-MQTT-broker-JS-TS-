@@ -16,19 +16,51 @@ export function parseSubackPacketV4(
   identifier: number,
   reader: IMQTTReaderV4
 ): SubackPacketV4 {
-  const returnCode = reader.readOneByteInteger();
-  _assertValidReturnCode(returnCode);
+  const returnCodeList = parseReturnCodeList(reader);
 
   return {
     typeId: PacketType.SUBACK,
     identifier: identifier,
-    returnCode: returnCode,
+    returnCodeList: returnCodeList,
   };
+}
+
+//
+// parsers helpers
+//
+
+function parseReturnCodeList(reader: IMQTTReaderV4): SubackReturnCodeV4[] {
+  const returnCodeList: SubackReturnCodeV4[] = [];
+
+  while (reader.remaining > 0) {
+    const returnCode = parseReturnCode(reader);
+
+    returnCodeList.push(returnCode);
+  }
+
+  _assertValidReturnCodeList(returnCodeList);
+
+  return returnCodeList;
+}
+
+function parseReturnCode(reader: IMQTTReaderV4): SubackReturnCodeV4 {
+  const returnCode = reader.readOneByteInteger();
+  _assertValidReturnCode(returnCode);
+
+  return returnCode;
 }
 
 //
 // assertions helpers
 //
+
+// return code list must contain at least one code
+function _assertValidReturnCodeList(list: SubackReturnCodeV4[]) {
+  if (list.length < 1)
+    throw new AppError(
+      `Invalid return code list length: ${list.length}, should be at least 1`
+    );
+}
 
 // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
 // [MQTT-3.9.3-2]
@@ -36,10 +68,10 @@ function _assertValidReturnCode(
   returnCode: number
 ): asserts returnCode is SubackReturnCodeV4 {
   if (
-    returnCode !== 0x00 &&
-    returnCode !== 0x01 &&
-    returnCode !== 0x02 &&
-    returnCode !== 0x80
+    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0 &&
+    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1 &&
+    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2 &&
+    returnCode !== SubackReturnCodeV4.FAILURE
   )
     throw new AppError(`Invalid SUBACK return code: ${returnCode}`);
 }

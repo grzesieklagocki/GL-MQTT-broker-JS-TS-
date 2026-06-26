@@ -1,7 +1,10 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
-import { SubackPacketV4 } from "@src/mqtt/protocol/v4/types";
+import {
+  SubackPacketV4,
+  SubackReturnCodeV4,
+} from "@src/mqtt/protocol/v4/types";
 import {
   createFixedHeader,
   createSubackFixedHeader,
@@ -39,31 +42,128 @@ describe("parseSubackPacketV4", () => {
     });
   });
 
-  it("correctly parses all Return Code values", () => {
-    [
-      { input: [0x00, 0x01, 0x00], expected: 0x00 },
-      { input: [0x00, 0xff, 0x01], expected: 0x01 },
-      { input: [0x01, 0x04, 0x02], expected: 0x02 },
-      { input: [0x12, 0x34, 0x80], expected: 0x80 },
-    ].forEach(({ input, expected }) => {
-      const remainingData = new Uint8Array(input);
-      const reader = new MQTTReaderV4(remainingData);
-      const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
+  it("correctly parses a single Return Code as an array", () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBACK,
+      flags: 0,
+      remainingLength: 3,
+    };
 
-      expect(packet.returnCode).toBe(expected);
+    const remainingData = new Uint8Array([
+      0x12,
+      0x34, // Packet Identifier
+      0x01, // Return Code
+    ]);
+
+    const reader = new MQTTReaderV4(remainingData);
+
+    const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
+
+    expect(packet).toEqual({
+      typeId: PacketType.SUBACK,
+      identifier: 0x1234,
+      returnCodeList: [SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1],
     });
   });
 
-  // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
-  // [MQTT-3.9.3-2]
-  it(`throws an Error for invalid Return Code values`, () => {
-    [0x03, 0x04, 0x05, 0x7f, 0x81, 0xfe, 0xff].forEach((invalidReturnCode) => {
-      const remainingData = new Uint8Array([0x12, 0x34, invalidReturnCode]);
+  it("correctly parses multiple Return Codes", () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBACK,
+      flags: 0,
+      remainingLength: 6,
+    };
+
+    const remainingData = new Uint8Array([
+      0x12,
+      0x34, // Packet Identifier
+
+      0x01, // Success - Maximum QoS 1
+      0x00, // Success - Maximum QoS 0
+      0x80, // Failure
+      0x02, // Success - Maximum QoS 2
+    ]);
+
+    const reader = new MQTTReaderV4(remainingData);
+
+    const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
+
+    expect(packet.identifier).toBe(0x1234);
+    expect(packet.returnCodeList).toEqual([
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+      SubackReturnCodeV4.FAILURE,
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2,
+    ]);
+  });
+
+  it("correctly parses all valid Return Code values individually", () => {
+    const cases = [
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2,
+      SubackReturnCodeV4.FAILURE,
+    ];
+
+    cases.forEach((returnCode) => {
+      const fixedHeader = {
+        packetType: PacketType.SUBACK,
+        flags: 0,
+        remainingLength: 3,
+      };
+
+      const remainingData = new Uint8Array([0x12, 0x34, returnCode]);
+
+      const reader = new MQTTReaderV4(remainingData);
+
+      const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
+
+      expect(packet.returnCodeList).toEqual([returnCode]);
+    });
+  });
+
+  it("throws an Error if any Return Code is invalid", () => {
+    const invalidReturnCodes = [0x03, 0x04, 0x05, 0x7f, 0x81, 0xfe, 0xff];
+
+    invalidReturnCodes.forEach((invalidReturnCode) => {
+      const fixedHeader = {
+        packetType: PacketType.SUBACK,
+        flags: 0,
+        remainingLength: 5,
+      };
+
+      const remainingData = new Uint8Array([
+        0x12,
+        0x34, // Packet Identifier
+
+        0x00, // valid
+        invalidReturnCode, // invalid
+        0x01, // valid, but parser should fail before accepting packet
+      ]);
+
       const reader = new MQTTReaderV4(remainingData);
 
       expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Invalid SUBACK return code/
       );
     });
+  });
+
+  it("throws an Error when SUBACK contains no Return Codes", () => {
+    const fixedHeader = {
+      packetType: PacketType.SUBACK,
+      flags: 0,
+      remainingLength: 2,
+    };
+
+    const remainingData = new Uint8Array([
+      0x12,
+      0x34, // Packet Identifier only, no Return Codes
+    ]);
+
+    const reader = new MQTTReaderV4(remainingData);
+
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
+      /Invalid return code list length/
+    );
   });
 });

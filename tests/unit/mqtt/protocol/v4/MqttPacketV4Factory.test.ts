@@ -286,21 +286,50 @@ describe("MqttPacketV4Factory", () => {
   });
 
   describe("createSubackPacketV4", () => {
-    [
-      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
-      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
-      SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2,
-      SubackReturnCodeV4.FAILURE,
-    ].forEach((returnCode) => {
-      it(`should create SUBACK packet with return code ${SubackReturnCodeV4[returnCode]}`, () => {
-        const packet = MqttPacketV4Factory.createSubackPacketV4(99, returnCode);
+    it("should create SUBACK packet with a single return code", () => {
+      const packet = MqttPacketV4Factory.createSubackPacketV4(99, [
+        SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+      ]);
 
-        expect(packet).toEqual({
-          typeId: PacketType.SUBACK,
-          identifier: 99,
-          returnCode,
-        });
+      expect(packet).toEqual({
+        typeId: PacketType.SUBACK,
+        identifier: 99,
+        returnCodeList: [SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1],
       });
+    });
+
+    it("should create SUBACK packet with multiple return codes", () => {
+      const returnCodeList = [
+        SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+        SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2,
+        SubackReturnCodeV4.FAILURE,
+      ];
+
+      const packet = MqttPacketV4Factory.createSubackPacketV4(
+        99,
+        returnCodeList
+      );
+
+      expect(packet).toEqual({
+        typeId: PacketType.SUBACK,
+        identifier: 99,
+        returnCodeList,
+      });
+    });
+
+    it("should preserve return codes array reference", () => {
+      const returnCodeList = [
+        SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        SubackReturnCodeV4.FAILURE,
+      ];
+
+      const packet = MqttPacketV4Factory.createSubackPacketV4(
+        99,
+        returnCodeList
+      );
+
+      expect(packet.returnCodeList).toBe(returnCodeList);
     });
   });
 

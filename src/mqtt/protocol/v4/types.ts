@@ -127,7 +127,7 @@ export enum SubackReturnCodeV4 {
 }
 
 export type SubackPacketV4 = PacketWithIdentifier<PacketType.SUBACK> & {
-  returnCode: SubackReturnCodeV4;
+  returnCodeList: SubackReturnCodeV4[];
 };
 
 // 10. UNSUBSCRIBE

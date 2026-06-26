@@ -389,8 +389,8 @@ describe("FixedHeaderParserV4", () => {
           [0b0111_0000, [0, 1, 3, 4]],
           // 8) SUBSCRIBE (at least 6 bytes)
           [0b1000_0010, [0, 1, 2, 3, 4, 5]],
-          // 9) SUBACK (3 bytes)
-          [0b1001_0000, [0, 1, 2, 4, 5]],
+          // 9) SUBACK (at least 3 bytes)
+          [0b1001_0000, [0, 1, 2]],
           // 10) UNSUBSCRIBE (at least 5 bytes)
           [0b1010_0010, [0, 1, 2, 3, 4]],
           // 11) UNSUBACK (2 bytes)

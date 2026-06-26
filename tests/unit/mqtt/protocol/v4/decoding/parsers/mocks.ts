@@ -18,13 +18,13 @@ export function createConnackReaderMock(
 
 // Create a mock reader for SUBACK packets
 export function createSubackReaderMock(
-  remaining: number,
+  remaining: number[],
   identifier: number,
-  returnCode: number
+  returnCodes: number[]
 ) {
   return createIMQTTReaderV4Mock(
-    [remaining],
-    [returnCode],
+    remaining,
+    returnCodes,
     [identifier],
     [] // not used in SUBACK packets
   );

@@ -132,12 +132,12 @@ export class MqttPacketV4Factory {
    */
   public static createSubackPacketV4(
     identifier: number,
-    returnCode: SubackReturnCodeV4
+    returnCodes: SubackReturnCodeV4[]
   ): SubackPacketV4 {
     return {
       typeId: PacketType.SUBACK,
       identifier: identifier,
-      returnCode: returnCode,
+      returnCodeList: returnCodes,
     };
   }
 

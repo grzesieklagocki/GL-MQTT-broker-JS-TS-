@@ -46,7 +46,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         {
           typeId: PacketType.SUBACK,
           identifier: 10,
-          returnCode: 0x00,
+          returnCodeList: [0x00],
         },
       ] as AnyPacketV4[]);
 
@@ -149,7 +149,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         {
           typeId: PacketType.SUBACK,
           identifier: 10,
-          returnCode: 0x00,
+          returnCodeList: [0x00],
         },
         {
           typeId: PacketType.PUBLISH,
@@ -247,7 +247,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
           {
             typeId: PacketType.SUBACK,
             identifier: 2,
-            returnCode: 0x01,
+            returnCodeList: [0x01],
           },
         ],
         [],
