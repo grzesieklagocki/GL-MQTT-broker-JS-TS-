@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { createConnectReaderMock } from "./mocks";
 import { AppError } from "@src/AppError";
 import { createConnectFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseConnectPacketV4", () => {
   // commonly used fixed header for CONNECT packet
@@ -26,7 +26,10 @@ describe("parseConnectPacketV4", () => {
       password // password
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as ConnectPacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as ConnectPacketV4;
 
     expect(packet.typeId).toBe(PacketType.CONNECT);
 
@@ -67,7 +70,7 @@ describe("parseConnectPacketV4", () => {
       "id" // client id
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       /Invalid protocol name/
     );
 
@@ -91,7 +94,7 @@ describe("parseConnectPacketV4", () => {
         "id" // client id
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid protocol level/
       );
 
@@ -114,7 +117,7 @@ describe("parseConnectPacketV4", () => {
         invalidFlags // flags
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
         /reserved flag/
       );
 
@@ -139,7 +142,7 @@ describe("parseConnectPacketV4", () => {
       new AppError("Missing Will Topic") // will topic
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       "Missing Will Topic"
     );
 
@@ -161,7 +164,7 @@ describe("parseConnectPacketV4", () => {
       new AppError("Missing Will Message") // will message
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       "Missing Will Message"
     );
 
@@ -188,7 +191,7 @@ describe("parseConnectPacketV4", () => {
 
     // if will flag is not set, parsing function not read will topic and will message
     // and they should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/unread/);
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -207,7 +210,9 @@ describe("parseConnectPacketV4", () => {
         invalidWillQoS << 4 // Will Flag not set
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/Will QoS/);
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+        /Will QoS/
+      );
 
       expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -226,7 +231,7 @@ describe("parseConnectPacketV4", () => {
       0b00011100 // Will Flag set, QoS 3
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -244,7 +249,9 @@ describe("parseConnectPacketV4", () => {
       0b00100000 // Will Flag not set, Will Retain Flag set
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/Will Retain/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      /Will Retain/
+    );
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -269,7 +276,7 @@ describe("parseConnectPacketV4", () => {
 
     // if user name flag is not set, parsing function not read user name
     // and it should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/unread/);
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -292,7 +299,9 @@ describe("parseConnectPacketV4", () => {
       new AppError("User Name")
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow("User Name");
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      "User Name"
+    );
 
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, user name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -314,7 +323,7 @@ describe("parseConnectPacketV4", () => {
 
     // if password flag is not set, parsing function not read password
     // and it should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/unread/);
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -338,7 +347,9 @@ describe("parseConnectPacketV4", () => {
       new AppError("Password")
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow("Password");
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      "Password"
+    );
 
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, user name
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -357,7 +368,7 @@ describe("parseConnectPacketV4", () => {
     );
 
     expect(() => {
-      parsePacketV4(fixedHeader, readerMock);
+      parseMqttPacketV4(fixedHeader, readerMock);
     }).toThrowError("MQTT-3.1.2-22");
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
@@ -390,7 +401,10 @@ describe("parseConnectPacketV4", () => {
       password // password
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as ConnectPacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as ConnectPacketV4;
 
     expect(packet.payload.clientIdentifier).toBe(clientId);
     expect(packet.payload.willTopic).toBe(willTopic);
@@ -422,7 +436,7 @@ describe("parseConnectPacketV4", () => {
     // parseConnectPacketV4 not validate UTF-8 encoding by itself
     // provided IMQTTReaderV4 is responsible for decoding UTF-8 strings
     // simulate that it throws an error when reading client id
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/Id/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/Id/);
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -449,7 +463,9 @@ describe("parseConnectPacketV4", () => {
         invalidId // client id
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/Client Id/);
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+        /Client Id/
+      );
 
       expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -471,7 +487,9 @@ describe("parseConnectPacketV4", () => {
       "" // client id
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/ClientId/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      /ClientId/
+    );
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -496,7 +514,9 @@ describe("parseConnectPacketV4", () => {
     // parseConnectPacketV4 not validate UTF-8 encoding by itself
     // provided IMQTTReaderV4 is responsible for decoding UTF-8 strings
     // simulate that it throws an error when reading will topic
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/Will Topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      /Will Topic/
+    );
 
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
@@ -523,7 +543,9 @@ describe("parseConnectPacketV4", () => {
     // parseConnectPacketV4 not validate UTF-8 encoding by itself
     // provided IMQTTReaderV4 is responsible for decoding UTF-8 strings
     // simulate that it throws an error when reading will topic
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/User Name/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      /User Name/
+    );
 
     expect(readerMock.readString).toHaveBeenCalledTimes(3); // protocol name, client id, will topic
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags

@@ -3,7 +3,7 @@ import { IMQTTReaderV4, UnsubscribePacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createUnsubscribeReaderMock, getErrorMock } from "./mocks";
 import { createUnsubscribeFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseUnsubscribePacketV4", () => {
   // commonly used fixed header for UNSUBSCRIBE packet
@@ -22,7 +22,7 @@ describe("parseUnsubscribePacketV4", () => {
       ["test"] // topic filter: "test"
     );
 
-    const packet = parsePacketV4(
+    const packet = parseMqttPacketV4(
       fixedHeader,
       readerMock
     ) as UnsubscribePacketV4;
@@ -41,7 +41,7 @@ describe("parseUnsubscribePacketV4", () => {
         ["/"] // topic filter: "test"
       );
 
-      const packet = parsePacketV4(
+      const packet = parseMqttPacketV4(
         fixedHeader,
         readerMock
       ) as UnsubscribePacketV4;
@@ -61,7 +61,7 @@ describe("parseUnsubscribePacketV4", () => {
       ["/"] // topic filter: "test"
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrowError(
       /non-zero/
     );
   });
@@ -77,7 +77,7 @@ describe("parseUnsubscribePacketV4", () => {
       [new Error("UTF-8")] // invalid UTF-8 topic
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
   });
 
   // [MQTT-3.10.3-2]
@@ -92,7 +92,9 @@ describe("parseUnsubscribePacketV4", () => {
       [] // empty topic filter list
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrowError(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrowError(
+      /topic/
+    );
   });
 
   it("correctly parses list of two topic filters", () => {
@@ -106,7 +108,7 @@ describe("parseUnsubscribePacketV4", () => {
       ["t1", "t2/a"] // topic filter: "test"
     );
 
-    const packet = parsePacketV4(
+    const packet = parseMqttPacketV4(
       fixedHeader,
       readerMock
     ) as UnsubscribePacketV4;
@@ -125,7 +127,7 @@ describe("parseUnsubscribePacketV4", () => {
       [error] // topic1 filter throws an error
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/topic/);
   });
 
   it(`throws an Error for invalid second topic filter`, () => {
@@ -140,7 +142,7 @@ describe("parseUnsubscribePacketV4", () => {
       ["/", error] // topic1 filter
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/topic/);
   });
 
   // All Topic Names and Topic Filters MUST be at least one character long.
@@ -156,7 +158,7 @@ describe("parseUnsubscribePacketV4", () => {
       ]
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       /Invalid topic length/
     );
   });
@@ -174,6 +176,6 @@ describe("parseUnsubscribePacketV4", () => {
       ]
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/null/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/null/);
   });
 });

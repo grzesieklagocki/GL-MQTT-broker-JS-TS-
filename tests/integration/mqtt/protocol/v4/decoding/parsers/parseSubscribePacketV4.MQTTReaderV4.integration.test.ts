@@ -1,6 +1,6 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { SubscribePacketV4 } from "@src/mqtt/protocol/v4/types";
 import { createSubscribeFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
@@ -26,7 +26,7 @@ describe("parseSubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePacketV4(fixedHeader, reader) as SubscribePacketV4;
+    const packet = parseMqttPacketV4(fixedHeader, reader) as SubscribePacketV4;
 
     expect(packet.typeId).toBe(PacketType.SUBSCRIBE);
     expect(packet.identifier).toBe(0x0105);
@@ -50,7 +50,10 @@ describe("parseSubscribePacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      const packet = parsePacketV4(fixedHeader, reader) as SubscribePacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        reader
+      ) as SubscribePacketV4;
 
       expect(packet.identifier).toBe(identifier);
     });
@@ -76,7 +79,7 @@ describe("parseSubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePacketV4(fixedHeader, reader) as SubscribePacketV4;
+    const packet = parseMqttPacketV4(fixedHeader, reader) as SubscribePacketV4;
 
     expect(packet.subscriptionList).toEqual([
       ["t1", 1],
@@ -129,7 +132,7 @@ describe("parseSubscribePacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/topic/);
     });
   });
 
@@ -157,7 +160,7 @@ describe("parseSubscribePacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/topic/);
     });
   });
 
@@ -178,7 +181,7 @@ describe("parseSubscribePacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/QoS/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/QoS/);
     });
   });
 
@@ -206,7 +209,7 @@ describe("parseSubscribePacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/QoS/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/QoS/);
     });
   });
 
@@ -232,7 +235,7 @@ describe("parseSubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
       /topic length/
     );
   });
@@ -257,7 +260,7 @@ describe("parseSubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
       /topic length/
     );
   });
@@ -278,6 +281,6 @@ describe("parseSubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(/topic/);
   });
 });

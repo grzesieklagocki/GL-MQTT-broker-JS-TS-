@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { createPublishReaderMock } from "./mocks";
 import { AppError } from "@src/AppError";
 import { createPublishFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parsePublishPacketV4", () => {
   // commonly used fixed header for PUBLISH packet
@@ -27,7 +27,10 @@ describe("parsePublishPacketV4", () => {
       message // message
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as PublishPacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as PublishPacketV4;
 
     expect(packet.typeId).toBe(PacketType.PUBLISH);
 
@@ -63,7 +66,10 @@ describe("parsePublishPacketV4", () => {
       message // message
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as PublishPacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as PublishPacketV4;
 
     expect(packet.typeId).toBe(PacketType.PUBLISH);
 
@@ -95,7 +101,7 @@ describe("parsePublishPacketV4", () => {
         0x0000 // packet identifier
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid packet identifier/
       );
 
@@ -125,7 +131,7 @@ describe("parsePublishPacketV4", () => {
 
     // if qos is 0, identifier is not read,
     // so two bytes should remain in reader
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/unread/);
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // topic name
     expect(readerMock.readTwoByteInteger).not.toBeCalled(); // identifier
@@ -144,7 +150,7 @@ describe("parsePublishPacketV4", () => {
       new Uint8Array() // message
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // topic name
     expect(readerMock.readTwoByteInteger).not.toBeCalled(); // identifier
@@ -163,7 +169,9 @@ describe("parsePublishPacketV4", () => {
         new Uint8Array() // message
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/wildcard/);
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+        /wildcard/
+      );
 
       expect(readerMock.readString).toHaveBeenCalledOnce(); // topic name
       expect(readerMock.readTwoByteInteger).not.toBeCalled(); // identifier
@@ -180,7 +188,7 @@ describe("parsePublishPacketV4", () => {
       "" // invalid topic name
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       /Invalid topic length/
     );
 
@@ -198,6 +206,6 @@ describe("parsePublishPacketV4", () => {
       new Error("null") // invalid topic name
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/null/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/null/);
   });
 });

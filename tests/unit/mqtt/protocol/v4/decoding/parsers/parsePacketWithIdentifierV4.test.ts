@@ -1,6 +1,6 @@
 import { PacketType, PacketWithIdentifier } from "@mqtt/protocol/shared/types";
 import { IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { createPacketWithIdentifierFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect, vi } from "vitest";
 
@@ -22,7 +22,7 @@ describe("parsePacketWithIdentifierV4", () => {
         readTwoByteInteger: vi.fn().mockReturnValue(0x1234),
       } as unknown as IMQTTReaderV4;
 
-      const packet = parsePacketV4(fixedHeader, readerMock);
+      const packet = parseMqttPacketV4(fixedHeader, readerMock);
 
       expect(packet.typeId).toBe(validPacketType);
       expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
@@ -39,7 +39,7 @@ describe("parsePacketWithIdentifierV4", () => {
         readTwoByteInteger: vi.fn().mockReturnValue(identifier),
       } as unknown as IMQTTReaderV4;
 
-      const packet = parsePacketV4(
+      const packet = parseMqttPacketV4(
         fixedHeader,
         readerMock
       ) as PacketWithIdentifier<PacketType.PUBACK>;
@@ -58,7 +58,7 @@ describe("parsePacketWithIdentifierV4", () => {
       readTwoByteInteger: vi.fn().mockReturnValue(0),
     } as unknown as IMQTTReaderV4;
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrowError(
       /non-zero/
     );
   });

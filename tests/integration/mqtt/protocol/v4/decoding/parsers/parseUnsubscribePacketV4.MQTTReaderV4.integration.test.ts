@@ -1,6 +1,6 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { UnsubscribePacketV4 } from "@src/mqtt/protocol/v4/types";
 import {
   createFixedHeader,
@@ -24,7 +24,10 @@ describe("parseUnsubscribePacketV4", () => {
       0x74, 0x65, 0x73, 0x74,
     ]);
     const reader = new MQTTReaderV4(remainingData);
-    const packet = parsePacketV4(fixedHeader, reader) as UnsubscribePacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      reader
+    ) as UnsubscribePacketV4;
 
     expect(packet.typeId).toBe(PacketType.UNSUBSCRIBE);
     expect(packet.identifier).toBe(0x0105);
@@ -50,7 +53,10 @@ describe("parseUnsubscribePacketV4", () => {
         ],
       ]);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(fixedHeader, reader) as UnsubscribePacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        reader
+      ) as UnsubscribePacketV4;
 
       expect(packet.identifier).toBe(expected);
     });
@@ -93,7 +99,10 @@ describe("parseUnsubscribePacketV4", () => {
       const fixedHeader = createUnsubscribeFixedHeader(2 + input.length);
       const remainingData = new Uint8Array([0xfc, 0x45, ...input]);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(fixedHeader, reader) as UnsubscribePacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        reader
+      ) as UnsubscribePacketV4;
 
       expect(packet.topicFilterList).toEqual(expected);
     });
@@ -125,7 +134,7 @@ describe("parseUnsubscribePacketV4", () => {
       const remainingData = new Uint8Array([0xfc, 0x45, ...topicFilter]);
       const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/topic/);
     });
   });
 
@@ -147,7 +156,7 @@ describe("parseUnsubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
       /topic length/
     );
   });
@@ -167,7 +176,7 @@ describe("parseUnsubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
       /topic length/
     );
   });
@@ -186,6 +195,6 @@ describe("parseUnsubscribePacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(remainingData);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrowError(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(/topic/);
   });
 });

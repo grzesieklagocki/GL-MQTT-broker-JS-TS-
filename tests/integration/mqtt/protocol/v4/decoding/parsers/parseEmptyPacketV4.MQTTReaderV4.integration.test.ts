@@ -1,6 +1,6 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { createEmptyPacketFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
@@ -15,7 +15,7 @@ describe("parseEmptyPacketV4", () => {
         const fixedHeader = createEmptyPacketFixedHeader(validPacketType);
         const remainingData = new Uint8Array();
         const reader = new MQTTReaderV4(remainingData);
-        const packet = parsePacketV4(fixedHeader, reader);
+        const packet = parseMqttPacketV4(fixedHeader, reader);
 
         expect(packet.typeId).toBe(validPacketType);
       }

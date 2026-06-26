@@ -5,7 +5,7 @@ import {
   createFixedHeader,
   createPublishFixedHeader,
 } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { PublishPacketV4 } from "@src/mqtt/protocol/v4/types";
 
 //
@@ -46,7 +46,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePacketV4(fixedHeader, reader) as PublishPacketV4;
+    const packet = parseMqttPacketV4(fixedHeader, reader) as PublishPacketV4;
 
     expect(packet.typeId).toBe(PacketType.PUBLISH);
 
@@ -78,7 +78,7 @@ describe("parsePublishPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Invalid packet identifier/
       );
     });
@@ -109,7 +109,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/topic/);
   });
 
   // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters
@@ -129,7 +129,7 @@ describe("parsePublishPacketV4", () => {
         0b0000 // flags
       );
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/wildcard/);
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/wildcard/);
     });
   });
 
@@ -150,7 +150,7 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Invalid topic length/
     );
   });
@@ -172,6 +172,6 @@ describe("parsePublishPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/topic/);
   });
 });

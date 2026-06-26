@@ -1,6 +1,6 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { SubackPacketV4 } from "@src/mqtt/protocol/v4/types";
 import {
   createFixedHeader,
@@ -18,7 +18,7 @@ describe("parseSubackPacketV4", () => {
   it(`parses SUBACK packet`, () => {
     const remainingData = new Uint8Array([0x12, 0x34, 0x80]);
     const reader = new MQTTReaderV4(remainingData);
-    const packet = parsePacketV4(fixedHeader, reader);
+    const packet = parseMqttPacketV4(fixedHeader, reader);
 
     expect(packet.typeId).toBe(PacketType.SUBACK);
   });
@@ -33,7 +33,7 @@ describe("parseSubackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(fixedHeader, reader) as SubackPacketV4;
+      const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
 
       expect(packet.identifier).toBe(expected);
     });
@@ -48,7 +48,7 @@ describe("parseSubackPacketV4", () => {
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(fixedHeader, reader) as SubackPacketV4;
+      const packet = parseMqttPacketV4(fixedHeader, reader) as SubackPacketV4;
 
       expect(packet.returnCode).toBe(expected);
     });
@@ -61,7 +61,7 @@ describe("parseSubackPacketV4", () => {
       const remainingData = new Uint8Array([0x12, 0x34, invalidReturnCode]);
       const reader = new MQTTReaderV4(remainingData);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Invalid SUBACK return code/
       );
     });

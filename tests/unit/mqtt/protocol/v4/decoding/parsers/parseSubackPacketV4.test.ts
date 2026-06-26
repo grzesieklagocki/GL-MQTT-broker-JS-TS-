@@ -3,7 +3,7 @@ import { IMQTTReaderV4, SubackPacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect, vi } from "vitest";
 import { createSubackReaderMock } from "./mocks";
 import { createSubackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseSubackPacketV4", () => {
   // commonly used fixed header for SUBACK packet
@@ -16,7 +16,7 @@ describe("parseSubackPacketV4", () => {
       0x80 // return code
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock);
+    const packet = parseMqttPacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.SUBACK);
   });
@@ -29,7 +29,10 @@ describe("parseSubackPacketV4", () => {
         0x00 // return code
       );
 
-      const packet = parsePacketV4(fixedHeader, readerMock) as SubackPacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        readerMock
+      ) as SubackPacketV4;
 
       expect(packet.identifier).toBe(identifier);
       expect(readerMock.readTwoByteInteger).toHaveBeenCalledExactlyOnceWith();
@@ -43,7 +46,7 @@ describe("parseSubackPacketV4", () => {
       readTwoByteInteger: vi.fn().mockReturnValue(0),
     } as unknown as IMQTTReaderV4;
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrowError(
       /non-zero/
     );
   });
@@ -58,7 +61,10 @@ describe("parseSubackPacketV4", () => {
         validReturnCode // return code
       );
 
-      const packet = parsePacketV4(fixedHeader, readerMock) as SubackPacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        readerMock
+      ) as SubackPacketV4;
 
       expect(packet.returnCode).toBe(validReturnCode);
     });
@@ -72,7 +78,7 @@ describe("parseSubackPacketV4", () => {
         invalidReturnCode // return code
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid SUBACK return code/
       );
     });

@@ -3,7 +3,7 @@ import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
 import { FixedHeader, PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
-import { parsePacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { AnyPacketV4, PublishPacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, expect, it } from "vitest";
 
@@ -326,7 +326,7 @@ function createDecoderV4(): {
   const decoder = new MqttPacketDecoder(
     new MqttPacketFramer(new FixedHeaderParserV4()),
     (fixedHeader, restOfPacket) =>
-      parsePacketV4(
+      parseMqttPacketV4(
         fixedHeader,
         restOfPacket ? new MQTTReaderV4(restOfPacket) : undefined
       )

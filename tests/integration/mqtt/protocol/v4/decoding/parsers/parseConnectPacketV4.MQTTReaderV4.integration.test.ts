@@ -5,7 +5,7 @@ import {
   createConnectFixedHeader,
   createFixedHeader,
 } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { ConnectPacketV4 } from "@src/mqtt/protocol/v4/types";
 
 //
@@ -89,7 +89,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePacketV4(fixedHeader, reader) as ConnectPacketV4;
+    const packet = parseMqttPacketV4(fixedHeader, reader) as ConnectPacketV4;
 
     expect(packet.typeId).toBe(PacketType.CONNECT);
 
@@ -134,7 +134,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Invalid protocol name/
     );
   });
@@ -167,7 +167,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Invalid protocol level/
       );
     });
@@ -201,7 +201,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /reserved flag/
       );
     });
@@ -241,7 +241,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Data reading error/ // parser tries to read will topic but it's missing
     );
   });
@@ -277,7 +277,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Data reading error/
     );
   });
@@ -322,7 +322,7 @@ describe("parseConnectPacketV4", () => {
 
     // if will flag is not set, parsing function not read will topic and will message
     // and they should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/unread/);
   });
 
   // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00).
@@ -352,9 +352,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
-        /Will QoS/
-      );
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/Will QoS/);
     });
   });
 
@@ -384,7 +382,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/QoS/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/QoS/);
   });
 
   // If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0.
@@ -413,9 +411,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
-      /Will Retain/
-    );
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/Will Retain/);
   });
 
   // If the User Name Flag is set to 0, a user name MUST NOT be present in the payload.
@@ -454,7 +450,7 @@ describe("parseConnectPacketV4", () => {
 
     // if user name flag is not set, parsing function not read user name
     // and it should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/unread/);
   });
 
   // If the User Name Flag is set to 1, a user name MUST be present in the payload.
@@ -486,7 +482,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Data reading error/
     );
   });
@@ -532,7 +528,7 @@ describe("parseConnectPacketV4", () => {
 
     // if password flag is not set, parsing function not read password
     // and it should remain in the reader
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(/unread/);
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(/unread/);
   });
 
   // If the Password Flag is set to 1, a password MUST be present in the payload.
@@ -570,7 +566,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /Data reading error/
     );
   });
@@ -602,7 +598,7 @@ describe("parseConnectPacketV4", () => {
     const reader = new MQTTReaderV4(array);
 
     expect(() => {
-      parsePacketV4(fixedHeader, reader);
+      parseMqttPacketV4(fixedHeader, reader);
     }).toThrowError("MQTT-3.1.2-22");
   });
 
@@ -668,7 +664,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    const packet = parsePacketV4(fixedHeader, reader) as ConnectPacketV4;
+    const packet = parseMqttPacketV4(fixedHeader, reader) as ConnectPacketV4;
 
     expect(packet.payload.clientIdentifier).toBe(clientId);
     expect(packet.payload.willTopic).toBe(willTopic);
@@ -696,7 +692,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /reading error/
     );
   });
@@ -727,7 +723,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Data reading error/
       );
     });
@@ -773,7 +769,7 @@ describe("parseConnectPacketV4", () => {
         ]);
         const reader = new MQTTReaderV4(array);
 
-        expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+        expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
           /Client Id/
         );
       }
@@ -806,7 +802,7 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
       /MQTT-3.1.3-7/
     );
   });
@@ -850,7 +846,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Data reading error/
       );
     });
@@ -898,7 +894,7 @@ describe("parseConnectPacketV4", () => {
       ]);
       const reader = new MQTTReaderV4(array);
 
-      expect(() => parsePacketV4(fixedHeader, reader)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
         /Data reading error/
       );
     });

@@ -3,7 +3,7 @@ import { IMQTTReaderV4, SubscribePacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createSubscribeReaderMock, getErrorMock } from "./mocks";
 import { createSubscribeFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseSubscribePacketV4", () => {
   // commonly used fixed header for SUBSCRIBE packet
@@ -20,7 +20,10 @@ describe("parseSubscribePacketV4", () => {
       [["test", 1]] // subscription list
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as SubscribePacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as SubscribePacketV4;
 
     expect(packet.typeId).toBe(PacketType.SUBSCRIBE);
     expect(packet.identifier).toBe(0x0105);
@@ -38,7 +41,7 @@ describe("parseSubscribePacketV4", () => {
         [["/", 0]] // first subscription: "/", qos: 0
       );
 
-      const packet = parsePacketV4(
+      const packet = parseMqttPacketV4(
         fixedHeader,
         readerMock
       ) as SubscribePacketV4;
@@ -57,7 +60,7 @@ describe("parseSubscribePacketV4", () => {
       [["/", 0]] // first subscription: "/", qos: 0
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrowError(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrowError(
       /non-zero/
     );
   });
@@ -77,7 +80,10 @@ describe("parseSubscribePacketV4", () => {
       ]
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock) as SubscribePacketV4;
+    const packet = parseMqttPacketV4(
+      fixedHeader,
+      readerMock
+    ) as SubscribePacketV4;
 
     expect(packet.subscriptionList).toEqual([
       ["t1", 1],
@@ -96,7 +102,7 @@ describe("parseSubscribePacketV4", () => {
       [[error, 0]] // topic1 throws an error
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/topic/);
   });
 
   it(`throws an Error for invalid second topic`, () => {
@@ -114,7 +120,7 @@ describe("parseSubscribePacketV4", () => {
       ]
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/topic/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/topic/);
   });
 
   // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection
@@ -130,7 +136,7 @@ describe("parseSubscribePacketV4", () => {
         [["/", invalidQoS as QoS]] // qos of first subscription throws an error
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
     });
   });
 
@@ -150,7 +156,7 @@ describe("parseSubscribePacketV4", () => {
         ] // qos of second subscription throws an error
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/QoS/);
     });
   });
 
@@ -165,7 +171,7 @@ describe("parseSubscribePacketV4", () => {
       [[new Error("UTF-8"), 0]] // invalid UTF-8 topic
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/UTF-8/);
   });
 
   // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.
@@ -177,7 +183,7 @@ describe("parseSubscribePacketV4", () => {
       1, // packet identifier
       [] // empty subscription list
     );
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       /subscription list length/
     );
   });
@@ -198,7 +204,7 @@ describe("parseSubscribePacketV4", () => {
       ]
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
       /Invalid topic length/
     );
   });
@@ -219,6 +225,6 @@ describe("parseSubscribePacketV4", () => {
       ]
     );
 
-    expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(/null/);
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(/null/);
   });
 });

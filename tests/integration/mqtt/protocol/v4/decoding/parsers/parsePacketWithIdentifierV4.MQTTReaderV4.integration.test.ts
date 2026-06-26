@@ -1,6 +1,6 @@
 import { PacketType, PacketWithIdentifier } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { createPacketWithIdentifierFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
@@ -23,7 +23,7 @@ describe("parsePacketWithIdentifierV4", () => {
       );
       const remainingData = new Uint8Array([0x12, 0x34]);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(fixedHeader, reader);
+      const packet = parseMqttPacketV4(fixedHeader, reader);
 
       expect(packet.typeId).toBe(validPacketType);
     });
@@ -42,7 +42,7 @@ describe("parsePacketWithIdentifierV4", () => {
       );
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);
-      const packet = parsePacketV4(
+      const packet = parseMqttPacketV4(
         fixedHeader,
         reader
       ) as PacketWithIdentifier<PacketType.PUBACK>;

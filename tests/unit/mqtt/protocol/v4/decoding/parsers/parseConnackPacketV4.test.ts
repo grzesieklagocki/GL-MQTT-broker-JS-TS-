@@ -3,7 +3,7 @@ import { ConnackPacketV4, IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createConnackReaderMock } from "./mocks";
 import { createConnackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parsePacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parsePacketV4";
+import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseConnackPacketV4", () => {
   // commonly used fixed header for CONNACK packet
@@ -16,7 +16,7 @@ describe("parseConnackPacketV4", () => {
       0x05 //connect return code
     );
 
-    const packet = parsePacketV4(fixedHeader, readerMock);
+    const packet = parseMqttPacketV4(fixedHeader, readerMock);
 
     expect(packet.typeId).toBe(PacketType.CONNACK);
   });
@@ -32,7 +32,10 @@ describe("parseConnackPacketV4", () => {
         0x05 //connect return code
       );
 
-      const packet = parsePacketV4(fixedHeader, readerMock) as ConnackPacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        readerMock
+      ) as ConnackPacketV4;
 
       expect(packet.sessionPresentFlag).toBe(expected);
     });
@@ -46,7 +49,7 @@ describe("parseConnackPacketV4", () => {
         0x00 //connect return code
       );
 
-      expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
         /Invalid first byte/
       );
     });
@@ -60,7 +63,10 @@ describe("parseConnackPacketV4", () => {
         validReturnCode //connect return code
       );
 
-      const packet = parsePacketV4(fixedHeader, readerMock) as ConnackPacketV4;
+      const packet = parseMqttPacketV4(
+        fixedHeader,
+        readerMock
+      ) as ConnackPacketV4;
 
       expect(packet.connectReturnCode).toBe(validReturnCode);
     });
@@ -75,7 +81,7 @@ describe("parseConnackPacketV4", () => {
           invalidReturnCode //connect return code)
         );
 
-        expect(() => parsePacketV4(fixedHeader, readerMock)).toThrow(
+        expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
           /Invalid CONNACK return code/
         );
       }
