@@ -4,7 +4,9 @@ import { ISimpleReader } from "./types";
 export class BinaryBuffer implements ISimpleReader {
   private array: Uint8Array = new Uint8Array();
 
-  // returns the number of bytes in the buffer
+  /**
+   * Returns the number of bytes currently stored in the buffer.
+   */
   public get remaining() {
     return this.array.length;
   }
