@@ -40,14 +40,14 @@ export class DataWriter extends Uint8ArrayCollectionBase {
   }
 
   /**
-   * Exports buffer as `ArrayBuffer`.
+   * Exports buffer as `Uint8Array`.
    * After calling this method writing (calling `write` method) will be not possible (will throw `Error`s)
-   * @returns An `ArrayBuffer` of written bytes
+   * @returns An `Uint8Array` of written bytes
    */
-  public toArrayBuffer(): ArrayBuffer {
+  public toUint8Array(): Uint8Array {
     this.isExported = true;
 
-    return this.array.buffer as ArrayBuffer;
+    return this.array;
   }
 
   /**
