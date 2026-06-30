@@ -10,10 +10,16 @@ export abstract class MQTTReaderBase extends DataReader {
     super(array);
   }
 
-  // Reads a One Byte Integer from the MQTT packet.
+  /**
+   * Reads a One Byte Integer from the MQTT packet.
+   * @returns The decoded One Byte Integer value.
+   */
   public readOneByteInteger = () => this.read(1)[0];
 
-  // Reads a Two Byte Integer from the MQTT packet.
+  /**
+   * Reads a Two Byte Integer from the MQTT packet.
+   * @returns The decoded Two Byte Integer value.
+   */
   public readTwoByteInteger(): number {
     const msb = this.readOneByteInteger();
     const lsb = this.readOneByteInteger();
@@ -23,7 +29,10 @@ export abstract class MQTTReaderBase extends DataReader {
     return value;
   }
 
-  // Reads a Variable Byte Integer from the MQTT packet.
+  /**
+   * Reads a Variable Byte Integer from the MQTT packet.
+   * @returns The decoded Variable Byte Integer value.
+   */
   public readVariableByteInteger(): number {
     let multiplier = 1;
     let value = 0;
@@ -51,7 +60,10 @@ export abstract class MQTTReaderBase extends DataReader {
     throw new AppError("Malformed Variable Byte Integer: too many bytes");
   }
 
-  // Reads binary data from the MQTT packet prefixed with its length (encoded as a two-byte integer).
+  /**
+   * Reads binary data from the MQTT packet prefixed with its length (encoded as a two-byte integer).
+   * @returns A Uint8Array containing the binary data read from the packet.
+   */
   public readBinaryData = () => this.readData((data) => data);
 
   /**

@@ -18,7 +18,7 @@ export class DataReader extends Uint8ArrayCollectionBase {
   }
 
   /**
-   * Reads bytes from the buffer.
+   * Reads the specified number of bytes from the buffer and returns them as a new Uint8Array.
    *
    * @param bytesCount - Number of bytes to read
    * @throws If there is not enough bytes in the buffer.
@@ -36,6 +36,10 @@ export class DataReader extends Uint8ArrayCollectionBase {
     return bytes;
   }
 
+  /**
+   * Asserts that the specified number of bytes can be read from the buffer.
+   * @param bytesCount Number of bytes to check.
+   */
   private _assertCanRead(bytesCount: number) {
     if (!this.canRead(bytesCount))
       throw new AppError(
