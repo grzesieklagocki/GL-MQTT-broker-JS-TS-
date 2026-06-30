@@ -11,6 +11,17 @@ export class MqttWriterV4 extends DataWriter {
   }
 
   /**
+   * Writes binary data to the buffer, prefixed with its length as a Two Byte Integer.
+   * @param bytes The binary data to be written to the buffer, provided as a Uint8Array.
+   */
+  public writeBinaryData(bytes: Uint8Array): void {
+    // write prefixed length
+    this.writeTwoByteInteger(bytes.length);
+    // write data
+    if (bytes.length > 0) this.write(bytes);
+  }
+
+  /**
    * Writes a One Byte Integer to the buffer.
    * @param value The value to be written as a One Byte Integer. Must be between 0 and 255 (0xff).
    * @throws If the value is outside the valid range for a One Byte Integer.
