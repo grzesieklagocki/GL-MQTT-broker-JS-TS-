@@ -10,7 +10,7 @@ describe("MqttWriterV4", () => {
       { input: 0x70, expected: [0x70] },
       { input: 0xff, expected: [0xff] },
     ].forEach(({ input, expected }) => {
-      it(`encodes ${input} to ${expected}`, () => {
+      it(`writes ${input} as [${expected}]`, () => {
         const writer = new MqttWriterV4(expected.length);
 
         writer.writeOneByteInteger(input);
@@ -28,7 +28,7 @@ describe("MqttWriterV4", () => {
       { input: 0x0d0e, expected: [0x0d, 0x0e] },
       { input: 0xffff, expected: [0xff, 0xff] },
     ].forEach(({ input, expected }) => {
-      it(`encodes ${input} to ${expected}`, () => {
+      it(`writes ${input} to [${expected}]`, () => {
         const writer = new MqttWriterV4(expected.length);
 
         writer.writeTwoByteInteger(input);
@@ -55,7 +55,7 @@ describe("MqttWriterV4", () => {
       { input: 0x00200000, expected: [0x80, 0x80, 0x80, 0x01] },
       { input: 0x0fffffff, expected: [0xff, 0xff, 0xff, 0x7f] },
     ].forEach(({ input, expected }) => {
-      it(`encodes ${input} to ${expected}`, () => {
+      it(`writes ${input} as [${expected}]`, () => {
         const writer = new MqttWriterV4(expected.length);
 
         writer.writeVariableByteInteger(input);

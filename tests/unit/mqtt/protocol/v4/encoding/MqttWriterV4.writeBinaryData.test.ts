@@ -19,7 +19,7 @@ describe("MqttWriterV4", () => {
         expected: [0x01, 0x04, ...Array.from({ length: 260 }, (_, i) => i)],
       },
     ].forEach(({ input, expected }) => {
-      it(`decodes ${input} to ${expected}`, () => {
+      it(`writes [${input}] as [${expected}]`, () => {
         const writer = new MqttWriterV4(expected.length);
         const data = new Uint8Array(input);
 
