@@ -1,6 +1,6 @@
 import { AppError } from "@src/AppError";
 import { DataWriter } from "../../shared/DataWriter";
-import { encodeStringUtf8 } from "./encodeString";
+import { encodeStringUtf8 } from "./encodeStringUtf8";
 
 export class MqttWriterV4 extends DataWriter {
   /**

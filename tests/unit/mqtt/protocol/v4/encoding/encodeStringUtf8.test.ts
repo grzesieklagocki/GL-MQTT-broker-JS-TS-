@@ -1,5 +1,5 @@
 import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
-import { encodeStringUtf8 } from "@src/mqtt/protocol/v4/encoding/encodeString";
+import { encodeStringUtf8 } from "@src/mqtt/protocol/v4/encoding/encodeStringUtf8";
 import { describe, expect, it } from "vitest";
 
 describe("encodeStringUtf8()", () => {
