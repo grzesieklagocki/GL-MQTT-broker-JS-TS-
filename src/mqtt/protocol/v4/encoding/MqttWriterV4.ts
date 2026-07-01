@@ -1,5 +1,6 @@
 import { AppError } from "@src/AppError";
 import { DataWriter } from "../../shared/DataWriter";
+import { encodeStringUtf8 } from "./encodeString";
 
 export class MqttWriterV4 extends DataWriter {
   /**
@@ -27,8 +28,7 @@ export class MqttWriterV4 extends DataWriter {
    */
   public writeString(str: string) {
     // encode string to bytes
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
+    const data = encodeStringUtf8(str);
 
     // write as binary data with prefixed length
     this.writeBinaryData(data);
