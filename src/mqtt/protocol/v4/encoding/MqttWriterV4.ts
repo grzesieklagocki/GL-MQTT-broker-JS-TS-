@@ -22,6 +22,19 @@ export class MqttWriterV4 extends DataWriter {
   }
 
   /**
+   * Writes a string to the buffer, prefixed with its length as a Two Byte Integer.
+   * @param str The string to be written to the buffer.
+   */
+  public writeString(str: string) {
+    // encode string to bytes
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+
+    // write as binary data with prefixed length
+    this.writeBinaryData(data);
+  }
+
+  /**
    * Writes a One Byte Integer to the buffer.
    * @param value The value to be written as a One Byte Integer. Must be between 0 and 255 (0xff).
    * @throws If the value is outside the valid range for a One Byte Integer.
