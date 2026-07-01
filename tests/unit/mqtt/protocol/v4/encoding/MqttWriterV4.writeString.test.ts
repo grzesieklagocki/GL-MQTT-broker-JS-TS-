@@ -1,4 +1,5 @@
-import { MqttWriterV4 } from "@src/mqtt/protocol/v4/encoding/MqttWriterV4";
+import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
+import { MqttWriterV4 } from "@mqtt/protocol/v4/encoding/MqttWriterV4";
 import { describe, expect, it } from "vitest";
 
 describe("MqttWriterV4", () => {
@@ -45,6 +46,9 @@ describe("MqttWriterV4", () => {
         const array = writer.toUint8Array();
 
         expect(array).toStrictEqual(Uint8Array.from(expected));
+
+        // check that the string can be decoded back to the original input
+        expect(Uint8ArrayToUtf8String(array.slice(2))).toBe(input);
       });
     });
   });
