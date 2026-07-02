@@ -46,17 +46,11 @@ export function parsePublishPacketV4(
   };
 }
 
-// parsers helpers
-
-const parseRetain = (flags: number) => flags & 0b0001;
-const parseQoS = (flags: number) => (flags & 0b0110) >> 1;
-const parseDup = (flags: number) => (flags & 0b1000) >> 3;
-
 // Parses the flags from the fixed header
 function parseFlags(flags: number): PublishFlagsV4 {
-  const retain = parseRetain(flags);
-  const qos = parseQoS(flags);
-  const dup = parseDup(flags);
+  const retain = flags & 0b0001;
+  const qos = (flags & 0b0110) >> 1;
+  const dup = (flags & 0b1000) >> 3;
 
   return {
     retain: retain === 1 ? true : false,
