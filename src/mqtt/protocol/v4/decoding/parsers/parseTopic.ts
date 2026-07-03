@@ -1,5 +1,5 @@
 import { AppError } from "@src/AppError";
-import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
+import { containsWildcard, Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 import { IMQTTReaderV4 } from "../../types";
 
 /**
@@ -56,6 +56,3 @@ function _assertValidTopicName(topicName: string) {
       `Invalid topic filter: ${topicName}. The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
     );
 }
-
-const containsWildcard = (topicName: string) =>
-  topicName.includes("+") || topicName.includes("#");

@@ -1,5 +1,8 @@
 import { AppError } from "@src/AppError";
 
+export const containsWildcard = (topicName: string) =>
+  topicName.includes("+") || topicName.includes("#");
+
 /**
  * Converts a `Uint8Array` to a JavaScript `string` and validates it
  * Rules come from UTF‑8 (RFC 3629) and MQTT 5.0 (sections 1.5.4 and 5.4.9).
