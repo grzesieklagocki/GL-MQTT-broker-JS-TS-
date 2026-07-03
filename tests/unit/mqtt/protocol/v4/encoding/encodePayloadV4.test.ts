@@ -349,6 +349,30 @@ describe("encodePayloadV4", () => {
         ]
       );
     });
+
+    // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
+    // [MQTT-3.8.3-1]
+    it("should throw AppError for SUBSCRIBE packet with empty topic filter", () => {
+      [[""], ["topic", ""]].forEach((topics) => {
+        const packet = MqttPacketV4Factory.createSubscribePacketV4(
+          0x0001, // identifier
+          topics.map((topic) => [topic, 0])
+        );
+
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-1/);
+      });
+    });
+
+    // [MQTT-3.8.3-3]
+    // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation.
+    it("should throw AppError for SUBSCRIBE packet with no subscriptions", () => {
+      const packet = MqttPacketV4Factory.createSubscribePacketV4(
+        0x0001, // identifier
+        [] // no subscriptions
+      );
+
+      expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-3/);
+    });
   });
 
   describe("SUBACK", () => {
