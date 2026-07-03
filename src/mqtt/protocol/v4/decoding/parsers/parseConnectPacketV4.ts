@@ -189,11 +189,7 @@ function _assertValidConnectionPayload(
 ) {
   // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
   // [MQTT-3.1.3-7]
-  if (
-    payload.clientIdentifier !== undefined &&
-    payload.clientIdentifier.length === 0 &&
-    !flags.cleanSession
-  )
+  if (payload.clientIdentifier.length === 0 && !flags.cleanSession)
     throw new AppError(
       `If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].`
     );

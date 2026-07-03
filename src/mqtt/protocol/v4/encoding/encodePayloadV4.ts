@@ -129,9 +129,7 @@ const encodeEmpty = () => new Uint8Array();
 const getEncodedConnectPayload = (
   payload: ConnectionPayloadV4
 ): EncodedConnectPayloadV4 => {
-  const clientIdentifierEncoded = payload.clientIdentifier
-    ? encodeStringUtf8(payload.clientIdentifier)
-    : encodeEmpty();
+  const clientIdentifierEncoded = encodeStringUtf8(payload.clientIdentifier);
 
   const userNameEncoded = payload.userName
     ? encodeStringUtf8(payload.userName)

@@ -62,7 +62,7 @@ export type ConnectFlagsV4 = {
 };
 
 export type ConnectionPayloadV4 = {
-  clientIdentifier?: string;
+  clientIdentifier: string;
   willTopic?: string;
   willMessage?: Uint8Array;
   userName?: string;

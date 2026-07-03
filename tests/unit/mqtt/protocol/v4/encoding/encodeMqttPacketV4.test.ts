@@ -149,7 +149,7 @@ describe("encodeMqttPacketV4", () => {
       const packet = MqttPacketV4Factory.createConnectPacketV4(
         flags,
         60, // keepAlive
-        {} // empty payload (zero-byte client identifier, no other fields)
+        { clientIdentifier: "" } // zero-byte client identifier, no other fields
       );
 
       const result = encodeMqttPacketV4(packet);
