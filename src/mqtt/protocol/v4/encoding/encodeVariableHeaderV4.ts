@@ -1,3 +1,4 @@
+import { AppError } from "@src/AppError";
 import { PacketType } from "../../shared/types";
 import {
   AnyPacketV4,
@@ -8,6 +9,7 @@ import {
 } from "../types";
 import { encodeStringUtf8 } from "./encodeStringUtf8";
 import { MqttWriterV4 } from "./MqttWriterV4";
+import { containsWildcard } from "../../shared/Utf8Conversion";
 
 /**
  * Encodes the variable header of an MQTT 3.1.1 packet into a Uint8Array.
@@ -58,6 +60,8 @@ const encodeConnackVariableHeader = (packet: ConnackPacketV4): Uint8Array =>
  * @returns A Uint8Array representing the encoded variable header of the PUBLISH packet.
  */
 const encodePublishVariableHeader = (packet: PublishPacketV4): Uint8Array => {
+  _assertValidPublishPacketV4(packet);
+
   const encodedTopic = encodeStringUtf8(packet.topicName);
 
   const identifierLength = packet.identifier ? 2 : 0;
@@ -129,3 +133,49 @@ const connectFlagsToNumber = (flags: ConnectFlagsV4): number => {
     (cleanSession << 1)
   );
 };
+
+/**
+ * Asserts that the given PUBLISH packet is valid according to MQTT v4 specs.
+ * @param packet - The PUBLISH packet to validate.
+ * @throws AppError if the packet is invalid.
+ */
+function _assertValidPublishPacketV4(packet: PublishPacketV4) {
+  if (packet.flags.qosLevel === 0) {
+    // A PUBLISH Packet MUST NOT contain a Packet Identifier if its QoS value is set to 0.
+    // [MQTT-2.3.1-5]
+    if (packet.identifier !== undefined)
+      throw new AppError(
+        "QoS 0 messages MUST NOT contain a Packet Identifier [MQTT-2.3.1-5]"
+      );
+
+    // The DUP flag MUST be set to 0 for all QoS 0 messages.
+    // [MQTT-3.3.1-2]
+    if (packet.flags.dup === true) {
+      throw new AppError(
+        "The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]"
+      );
+    }
+  }
+
+  const qos = packet.flags.qosLevel;
+
+  // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
+  // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
+  // [MQTT-3.3.1-4]
+  if (qos !== 0x00 && qos !== 0x01 && qos !== 0x02)
+    throw new AppError(
+      `A PUBLISH Packet MUST NOT have both QoS bits set to 1 [MQTT-3.3.1-4]`
+    );
+
+  // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
+  // [MQTT-3.3.2-1]
+  if (packet.topicName.length === 0)
+    throw new AppError(`The Topic Name cannot be empty [MQTT-3.3.2-1]`);
+
+  // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.
+  // [MQTT-3.3.2-2]
+  if (containsWildcard(packet.topicName))
+    throw new AppError(
+      `The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
+    );
+}
