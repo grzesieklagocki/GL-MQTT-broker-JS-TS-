@@ -288,7 +288,7 @@ describe("encodeFixedHeaderV4()", () => {
         remainingLength: 268435456,
       };
 
-      expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow();
+      expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow(/Length/);
     });
 
     it("should throw when Remaining Length is not an integer", () => {

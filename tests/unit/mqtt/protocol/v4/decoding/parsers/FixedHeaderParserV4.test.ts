@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { createFixedHeaderReaderV4Mock } from "./mocks";
 
 describe("FixedHeaderParserV4", () => {
-  describe("parse", () => {
+  describe("parse()", () => {
     it("takes only Fixed Header bytes from reader", () => {
       [
         { packet: [0b1100_0000, 0x00] }, // PINGREQ packet with remaining length 0

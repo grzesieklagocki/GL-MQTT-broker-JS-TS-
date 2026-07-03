@@ -68,11 +68,11 @@ export class MqttWriterV4 extends DataWriter {
 
   /**
    * Writes a Variable Byte Integer to the buffer.
-   * @param value The value to be written as a Variable Byte Integer. Must be between 0 and 268435455 (0xffff_ff7f).
+   * @param value The value to be written as a Variable Byte Integer. Must be between 0 and 268435455 (0x0fff_ffff).
    * @throws If the value is outside the valid range for a Variable Byte Integer.
    */
   public writeVariableByteInteger(value: number): void {
-    if (value < 0 || value > 0xff_ff_ff_7f)
+    if (value < 0 || value > 0x0fff_ffff)
       throw new AppError(
         "Value must be between 0 and 268435455 for Variable Byte Integer"
       );

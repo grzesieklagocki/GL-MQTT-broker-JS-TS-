@@ -91,6 +91,8 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
     packetType: PacketType,
     remainingLength: number
   ): boolean {
+    if (remainingLength > 0x0fff_ffff) return false;
+
     switch (packetType) {
       case PacketType.PINGREQ:
       case PacketType.PINGRESP:
@@ -108,9 +110,9 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
         return remainingLength === 2;
 
       case PacketType.SUBACK:
-        // + Packet Identifier: 2 bytes
-        // + Return Codes: minimum 1 byte
-        // = 3 bytes
+      // + Packet Identifier: 2 bytes
+      // + Return Codes: minimum 1 byte
+      // = 3 bytes
       case PacketType.PUBLISH:
         //   Topic Name Length: 2 bytes
         // + Topic1 Name: minimum 1 byte
