@@ -154,17 +154,17 @@ export class MqttPacketV4Factory {
   /**
    * Creates a SUBACK packet with the specified identifier and return code.
    * @param identifier - The identifier for the SUBACK packet, used to match the corresponding SUBSCRIBE request.
-   * @param returnCode - The return code for the SUBACK packet, indicating the result of the subscription request.
+   * @param returnCodeList - An array of SubackReturnCodeV4 values representing the return codes for each subscription in the SUBSCRIBE request.
    * @returns A SUBACK packet object with the specified identifier and return code.
    */
   public static createSubackPacketV4(
     identifier: number,
-    returnCodes: SubackReturnCodeV4[]
+    returnCodeList: SubackReturnCodeV4[]
   ): SubackPacketV4 {
     return {
       typeId: PacketType.SUBACK,
       identifier: identifier,
-      returnCodeList: returnCodes,
+      returnCodeList: returnCodeList,
     };
   }
 
