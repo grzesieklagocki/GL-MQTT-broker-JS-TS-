@@ -104,6 +104,8 @@ const encodeSubscribePayload = (packet: SubscribePacketV4): Uint8Array => {
  * @returns A Uint8Array representing the encoded payload of the UNSUBSCRIBE packet.
  */
 const encodeUnsubscribePayload = (packet: UnsubscribePacketV4): Uint8Array => {
+  _assertValidUnsubscribePacket(packet);
+
   const topicFilterList = getEncodedTopicFilterList(packet.topicFilterList);
 
   // calculate total payload length
@@ -265,6 +267,30 @@ function _assertValidSubscribePacket(packet: SubscribePacketV4) {
         "Invalid subscription: Topic Filter must be at least one character long [MQTT-3.8.3-1]"
       );
   });
+}
+
+/**
+ * Asserts that an UNSUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
+ * @param packet - The UNSUBSCRIBE packet to validate.
+ * @throws AppError if the packet is invalid.
+ */
+function _assertValidUnsubscribePacket(packet: UnsubscribePacketV4) {
+  // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
+  // [MQTT-3.10.3-1]
+  packet.topicFilterList.forEach((topic) => {
+    if (topic.length === 0)
+      throw new AppError(
+        "Invalid topic filter: Topic Filter must be at least one character long [MQTT-3.10.3-1]"
+      );
+  });
+
+  // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
+  // An UNSUBSCRIBE packet with no payload is a protocol violation.
+  // [MQTT-3.10.3-2]
+  if (packet.topicFilterList.length === 0)
+    throw new AppError(
+      "The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter. An UNSUBSCRIBE packet with no payload is a protocol violation [MQTT-3.10.3-2]"
+    );
 }
 
 //

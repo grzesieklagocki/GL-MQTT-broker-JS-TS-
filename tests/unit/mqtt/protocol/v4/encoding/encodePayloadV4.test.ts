@@ -479,5 +479,27 @@ describe("encodePayloadV4", () => {
         ]
       );
     });
+
+    // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
+    // [MQTT-3.10.3-1]
+    it("should throw AppError for SUBSCRIBE packet with empty topic filter", () => {
+      [[""], ["topic", ""]].forEach((topics) => {
+        const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
+          0x0001, // identifier
+          topics
+        );
+
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-1/);
+      });
+    });
+
+    // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
+    // An UNSUBSCRIBE packet with no payload is a protocol violation.
+    // [MQTT-3.10.3-2]
+    it("should throw AppError for UNSUBSCRIBE packet with empty topic filter", () => {
+      const packet = MqttPacketV4Factory.createUnsubscribePacketV4(0x4321, []);
+
+      expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-2/);
+    });
   });
 });
