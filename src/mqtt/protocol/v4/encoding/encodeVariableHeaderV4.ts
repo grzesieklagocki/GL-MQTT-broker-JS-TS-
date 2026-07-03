@@ -6,8 +6,6 @@ import {
   ConnectFlagsV4,
   ConnectPacketV4,
   PublishPacketV4,
-  SubackPacketV4,
-  SubackReturnCodeV4,
 } from "../types";
 import { encodeStringUtf8 } from "./encodeStringUtf8";
 import { MqttWriterV4 } from "./MqttWriterV4";
@@ -30,9 +28,7 @@ export function encodeVariableHeaderV4(packet: AnyPacketV4): Uint8Array {
       return encodePublishVariableHeader(packet);
     case PacketType.CONNECT:
       return encodeConnectVariableHeader(packet);
-
     default:
-      if (packet.typeId === PacketType.SUBACK) _assertValidSubackPacket(packet);
       return encodeIdentifier(packet.identifier);
   }
 }
@@ -138,6 +134,10 @@ const connectFlagsToNumber = (flags: ConnectFlagsV4): number => {
   );
 };
 
+//
+// assertions
+//
+
 /**
  * Asserts that the given PUBLISH packet is valid according to MQTT v4 specs.
  * @param packet - The PUBLISH packet to validate.
@@ -182,23 +182,4 @@ function _assertValidPublishPacketV4(packet: PublishPacketV4) {
     throw new AppError(
       `The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
     );
-}
-
-/**
- * Asserts that the given SUBACK packet is valid according to MQTT v4 specs.
- * @param packet - The SUBACK packet to validate.
- * @throws AppError if the packet is invalid.
- */
-function _assertValidSubackPacket(packet: SubackPacketV4) {
-  packet.returnCodeList.forEach((returnCode) => {
-    if (
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0 &&
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1 &&
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2 &&
-      returnCode !== SubackReturnCodeV4.FAILURE
-    )
-      throw new AppError(
-        `Invalid return code in SUBACK packet: ${returnCode}. Valid return codes are: 0x00, 0x01, 0x02, 0x80 [MQTT-3.9.3-2]`
-      );
-  });
 }

@@ -6,6 +6,7 @@ import {
   ConnectPacketV4,
   PublishPacketV4,
   SubackPacketV4,
+  SubackReturnCodeV4,
   SubscribePacketV4,
   SubscriptionV4,
   UnsubscribePacketV4,
@@ -68,8 +69,11 @@ const encodePublishPayload = (packet: PublishPacketV4): Uint8Array =>
  * @param packet - The SUBACK packet to encode.
  * @returns A Uint8Array representing the encoded payload of the SUBACK packet.
  */
-const encodeSubackPayload = (packet: SubackPacketV4): Uint8Array =>
-  new Uint8Array(packet.returnCodeList);
+const encodeSubackPayload = (packet: SubackPacketV4): Uint8Array => {
+  _assertValidSubackPacket(packet);
+
+  return new Uint8Array(packet.returnCodeList);
+};
 
 /**
  * Encodes the payload for a SUBSCRIBE packet.
@@ -216,6 +220,29 @@ const writeSubscription = (
   writer.writeBinaryData(subscription.topicFilterEncoded);
   writer.writeOneByteInteger(subscription.qos);
 };
+
+//
+// assertions
+//
+
+/**
+ * Asserts that the given SUBACK packet is valid according to MQTT v4 specs.
+ * @param packet - The SUBACK packet to validate.
+ * @throws AppError if the packet is invalid.
+ */
+function _assertValidSubackPacket(packet: SubackPacketV4) {
+  packet.returnCodeList.forEach((returnCode) => {
+    if (
+      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0 &&
+      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1 &&
+      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2 &&
+      returnCode !== SubackReturnCodeV4.FAILURE
+    )
+      throw new AppError(
+        `Invalid return code in SUBACK packet: ${returnCode}. Valid return codes are: 0x00, 0x01, 0x02, 0x80 [MQTT-3.9.3-2]`
+      );
+  });
+}
 
 /**
  * Asserts that a SUBSCRIBE packet is valid according to MQTT 3.1.1 specification.

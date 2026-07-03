@@ -480,25 +480,6 @@ describe("encodeVariableHeaderV4", () => {
 
       expectBytes(result, [0x12, 0x34]);
     });
-
-    // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
-    // [MQTT-3.9.3-2]
-    it("should throw if SUBACK packet has invalid return code [MQTT-3.9.3-2]", () => {
-      [
-        [0x03],
-        [0x0c, 0x13],
-        [0x02, 0x81, 0x01],
-        [0x01, 0x01, 0x02, 0x79],
-        [0x00, 0x02, 0x01, 0xff, 0x00],
-      ].forEach((returnCodeList) => {
-        const packet = MqttPacketV4Factory.createSubackPacketV4(
-          0x1234,
-          returnCodeList
-        );
-
-        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.9\.3-2/);
-      });
-    });
   });
 
   describe("UNSUBSCRIBE", () => {
