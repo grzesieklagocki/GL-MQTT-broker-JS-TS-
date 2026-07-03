@@ -3,6 +3,7 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   SimplePacketV4Type,
+  Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { encodePayloadV4 } from "@mqtt/protocol/v4/encoding/encodePayloadV4";
 import {
@@ -61,23 +62,10 @@ describe("encodePayloadV4", () => {
 
   describe("CONNECT", () => {
     it("should encode CONNECT payload with only Client Identifier", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        60, // keepAlive
+        "id" // clientIdentifier
       );
 
       const result = encodePayloadV4(packet);
@@ -92,25 +80,20 @@ describe("encodePayloadV4", () => {
     });
 
     it("should encode CONNECT payload with Client Identifier and Will fields", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 1,
-        willFlag: true,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        willTopic: "status",
-        willMessage: new Uint8Array([0x6f, 0x66, 0x66]), // "off"
+      const will: Will = {
+        topic: "status",
+        message: new Uint8Array([0x6f, 0x66, 0x66]), // "off"
+        qos: 1,
+        retain: false,
       };
 
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        60, // keepAlive
+        "id", // clientIdentifier
+        undefined, // userName
+        undefined, // password
+        will
       );
 
       const result = encodePayloadV4(packet);
@@ -131,24 +114,11 @@ describe("encodePayloadV4", () => {
     });
 
     it("should encode CONNECT payload with User Name", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: true,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        userName: "user",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        60, // keepAlive
+        "id", // clientIdentifier
+        "user" // userName
       );
 
       const result = encodePayloadV4(packet);
@@ -166,25 +136,12 @@ describe("encodePayloadV4", () => {
     });
 
     it("should encode CONNECT payload with User Name and Password", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: true,
-        password: true,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        userName: "user",
-        password: new Uint8Array([0xbb]),
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        60, // keepAlive
+        "id", // clientIdentifier
+        "user", // userName
+        new Uint8Array([0xbb]) // password
       );
 
       const result = encodePayloadV4(packet);
@@ -205,27 +162,20 @@ describe("encodePayloadV4", () => {
     });
 
     it("should encode CONNECT payload with Will, User Name and Password in correct order", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: true,
-        password: true,
-        willRetain: false,
-        willQoS: 1,
-        willFlag: true,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        willTopic: "/",
-        willMessage: new Uint8Array([0xfc]),
-        userName: "user",
-        password: new Uint8Array([0xbb]),
+      const will: Will = {
+        topic: "/",
+        message: new Uint8Array([0xfc]),
+        qos: 1,
+        retain: false,
       };
 
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        220,
-        payload
+        true, // cleanSession
+        220, // keepAlive
+        "id", // clientIdentifier
+        "user", // userName
+        new Uint8Array([0xbb]), // password
+        will
       );
 
       const result = encodePayloadV4(packet);
@@ -251,24 +201,11 @@ describe("encodePayloadV4", () => {
       );
     });
 
-    it("should encode UTF-8 Client Identifier using byte length", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "ąć",
-      };
-
+    it("should encode UTF-8 Client Identifier with polish letters", () => {
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        220, // keepAlive
+        "ąć" // clientIdentifier
       );
 
       const result = encodePayloadV4(packet);

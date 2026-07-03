@@ -1,4 +1,4 @@
-import { PacketType } from "../shared/types";
+import { PacketType, QoS } from "../shared/types";
 import {
   ConnackPacketV4,
   ConnackReturnCodeV4,
@@ -48,16 +48,43 @@ export class MqttPacketV4Factory {
 
   /**
    * Creates a CONNECT packet with the specified flags, keep-alive value, and connection payload.
-   * @param flags - The connection flags for the CONNECT packet.
-   * @param keepAlive - The keep-alive time value for the CONNECT packet.
-   * @param payload - The connection payload for the CONNECT packet.
+   * @param clientIdentifier - The client identifier for the CONNECT packet.
+   * @param userName - The username for the CONNECT packet.
+   * @param password - The password for the CONNECT packet.
+   * @param will - The will message for the CONNECT packet, including topic, message, QoS, and retain flag.
+   * @param cleanSession - A boolean indicating whether to start a clean session (true) or not (false).
+   * @param keepAlive - The keep-alive value for the CONNECT packet (in seconds).
    * @returns A CONNECT packet object with the specified flags, keep-alive value, and connection payload.
    */
   public static createConnectPacketV4(
-    flags: ConnectFlagsV4,
+    cleanSession: boolean,
     keepAlive: number,
-    payload: ConnectionPayloadV4
+    clientIdentifier: string,
+    userName?: string,
+    password?: Uint8Array,
+    will?: Will
   ): ConnectPacketV4 {
+    const flags: ConnectFlagsV4 = {
+      userName: userName === undefined ? false : true,
+      password: password === undefined ? false : true,
+      willRetain: will ? will.retain : false,
+      willQoS: will ? will.qos : 0,
+      willFlag: will
+        ? will.message === undefined || will.topic === undefined
+          ? false
+          : true
+        : false,
+      cleanSession: cleanSession,
+    };
+
+    const payload: ConnectionPayloadV4 = {
+      clientIdentifier: clientIdentifier,
+      willTopic: will ? will.topic : undefined,
+      willMessage: will ? will.message : undefined,
+      userName: userName,
+      password: password,
+    };
+
     return {
       typeId: PacketType.CONNECT,
       protocol: { name: "MQTT", level: 4 },
@@ -178,3 +205,10 @@ export type PacketWithIdentifierV4Type =
   | PacketType.PUBREL
   | PacketType.PUBCOMP
   | PacketType.UNSUBACK;
+
+export type Will = {
+  topic: string;
+  message: Uint8Array;
+  qos: QoS;
+  retain: boolean;
+};

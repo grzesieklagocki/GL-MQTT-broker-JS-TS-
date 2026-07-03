@@ -4,6 +4,7 @@ import {
   MqttPacketV4Factory,
   PacketWithIdentifierV4Type,
   SimplePacketV4Type,
+  Will,
 } from "@src/mqtt/protocol/v4/MqttPacketV4Factory";
 import {
   ConnackReturnCodeV4,
@@ -72,10 +73,22 @@ describe("MqttPacketV4Factory", () => {
         password: new Uint8Array([0x01, 0x02, 0x03]),
       };
 
+      const will: Will = {
+        topic: payload.willTopic as string,
+        message: payload.willMessage as Uint8Array,
+        qos: flags.willQoS,
+        retain: false,
+      };
+
+      const keepAlive = 60;
+
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        keepAlive, // keepAlive
+        payload.clientIdentifier, // clientIdentifier
+        payload.userName as string, // userName
+        payload.password as Uint8Array, // password
+        will
       );
 
       expect(packet).toEqual({
@@ -85,55 +98,71 @@ describe("MqttPacketV4Factory", () => {
           level: 4,
         },
         flags,
-        keepAlive: 60,
+        keepAlive: keepAlive,
         payload,
       });
     });
 
-    it("should preserve payload", () => {
+    it("should create CONNECT packet with undefined optional fields", () => {
       const flags: ConnectFlagsV4 = {
         userName: false,
         password: false,
         willRetain: false,
         willQoS: 0,
         willFlag: false,
-        cleanSession: true,
+        cleanSession: false,
       };
 
       const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "client-1",
+        clientIdentifier: "client-2",
       };
 
+      const keepAlive = 30;
+
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        30,
-        payload
+        false, // cleanSession
+        keepAlive, // keepAlive
+        payload.clientIdentifier // clientIdentifier
       );
 
-      expect(packet.payload).toBe(payload);
+      expect(packet).toEqual({
+        typeId: PacketType.CONNECT,
+        protocol: {
+          name: "MQTT",
+          level: 4,
+        },
+        flags,
+        keepAlive: keepAlive,
+        payload,
+      });
     });
+    // should correctly set flags
 
-    it("should preserve flags", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "client-1",
+    it("should correctly set flags based on provided parameters", () => {
+      const will: Will = {
+        topic: "status/client-3",
+        message: new Uint8Array([0x01, 0x02]),
+        qos: 2,
+        retain: true,
       };
 
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        30,
-        payload
+        true, // cleanSession
+        120, // keepAlive
+        "client-3", // clientIdentifier
+        "user3", // userName
+        new Uint8Array([0xaa, 0xbb]), // password
+        will
       );
 
-      expect(packet.flags).toBe(flags);
+      expect(packet.flags).toEqual({
+        userName: true,
+        password: true,
+        willRetain: true,
+        willQoS: 2,
+        willFlag: true,
+        cleanSession: true,
+      });
     });
   });
 

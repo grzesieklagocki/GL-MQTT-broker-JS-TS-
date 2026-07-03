@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { encodeMqttPacketV4 } from "@mqtt/protocol/v4/encoding/encodeMqttPacketV4";
-import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import {
+  MqttPacketV4Factory,
+  Will,
+} from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   ConnackReturnCodeV4,
-  ConnectFlagsV4,
-  ConnectionPayloadV4,
   PublishFlagsV4,
   SubackReturnCodeV4,
   SubscriptionV4,
@@ -137,19 +138,10 @@ describe("encodeMqttPacketV4", () => {
 
   describe("CONNECT", () => {
     it("should encode minimal CONNECT packet", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
+        true, // cleanSession
         60, // keepAlive
-        { clientIdentifier: "" } // zero-byte client identifier, no other fields
+        "" // zero-byte client identifier
       );
 
       const result = encodeMqttPacketV4(packet);
@@ -183,27 +175,20 @@ describe("encodeMqttPacketV4", () => {
     });
 
     it("should encode CONNECT packet with will, username and password", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: true,
-        password: true,
-        willRetain: false,
-        willQoS: 1,
-        willFlag: true,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        willTopic: "/",
-        willMessage: new Uint8Array([0xfc]),
-        userName: "user",
-        password: new Uint8Array([0xbb]),
+      const will: Will = {
+        topic: "/",
+        message: new Uint8Array([0xfc]),
+        qos: 1,
+        retain: false,
       };
 
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
+        true, // cleanSession
         220, // keepAlive
-        payload
+        "id", // clientIdentifier
+        "user", // userName
+        new Uint8Array([0xbb]), // password
+        will
       );
 
       const result = encodeMqttPacketV4(packet);

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { PacketType } from "@src/mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   PacketWithIdentifierV4Type,
   SimplePacketV4Type,
-} from "@src/mqtt/protocol/v4/MqttPacketV4Factory";
+} from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { encodeVariableHeaderV4 } from "@src/mqtt/protocol/v4/encoding/encodeVariableHeaderV4";
 import {
   ConnackReturnCodeV4,
@@ -13,7 +13,7 @@ import {
   PublishFlagsV4,
   SubackReturnCodeV4,
   SubscriptionV4,
-} from "@src/mqtt/protocol/v4/types";
+} from "@mqtt/protocol/v4/types";
 
 const expectBytes = (actual: Uint8Array, expected: number[]) => {
   expect([...actual]).toEqual(expected);
@@ -106,9 +106,9 @@ describe("encodeVariableHeaderV4", () => {
       };
 
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        60,
-        payload
+        true, // cleanSession
+        60, // keepAlive
+        "id"
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -132,27 +132,12 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode CONNECT variable header with will, username and password flags", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: true,
-        password: true,
-        willRetain: false,
-        willQoS: 1,
-        willFlag: true,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-        willTopic: "/",
-        willMessage: new Uint8Array([0xfc]),
-        userName: "user",
-        password: new Uint8Array([0xbb]),
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
+        true,
         220,
-        payload
+        "id",
+        "user",
+        new Uint8Array([0xbb])
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -167,9 +152,9 @@ describe("encodeVariableHeaderV4", () => {
           0x04,
 
           // Connect Flags:
-          // username=1, password=1, willRetain=0, willQoS=01,
-          // willFlag=1, cleanSession=1, reserved=0
-          0b11001110,
+          // username=1, password=1, willRetain=0, willQoS=00,
+          // willFlag=0, cleanSession=1, reserved=0
+          0b11000010,
 
           // Keep Alive = 220
           0x00, 0xdc,
@@ -178,23 +163,10 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode CONNECT variable header with clean session false", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: false,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "persistent-client",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        30,
-        payload
+        false, // cleanSession
+        30, // keepAlive
+        "persistent-client" // clientIdentifier
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -206,23 +178,10 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode CONNECT variable header with keep alive 0", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        0,
-        payload
+        true, // cleanSession
+        0, // keepAlive
+        "id" // clientIdentifier
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -234,23 +193,10 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode CONNECT variable header with maximum keep alive", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
-        flags,
-        0xffff,
-        payload
+        true, // cleanSession
+        0xffff, // keepAlive
+        "id" // clientIdentifier
       );
 
       const result = encodeVariableHeaderV4(packet);
