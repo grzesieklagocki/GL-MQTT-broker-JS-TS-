@@ -65,22 +65,24 @@ export class MqttPacketV4Factory {
     will?: Will
   ): ConnectPacketV4 {
     const flags: ConnectFlagsV4 = {
-      userName: userName === undefined ? false : true,
-      password: password === undefined ? false : true,
-      willRetain: will ? will.retain : false,
-      willQoS: will ? will.qos : 0,
-      willFlag: will
-        ? will.message === undefined || will.topic === undefined
-          ? false
-          : true
-        : false,
+      userName: userName !== undefined,
+      password: password !== undefined,
+      willRetain: false,
+      willQoS: 0,
+      willFlag: false,
       cleanSession: cleanSession,
     };
 
+    if (will) {
+      flags.willFlag = true;
+      flags.willRetain = will.retain;
+      flags.willQoS = will.qos;
+    }
+
     const payload: ConnectionPayloadV4 = {
       clientIdentifier: clientIdentifier,
-      willTopic: will ? will.topic : undefined,
-      willMessage: will ? will.message : undefined,
+      willTopic: will?.topic,
+      willMessage: will?.message,
       userName: userName,
       password: password,
     };
@@ -229,7 +231,7 @@ export type PacketWithIdentifierV4Type =
 
 export type Will = {
   topic: string;
-  message: Uint8Array;
+  message?: Uint8Array;
   qos: QoS;
   retain: boolean;
 };
