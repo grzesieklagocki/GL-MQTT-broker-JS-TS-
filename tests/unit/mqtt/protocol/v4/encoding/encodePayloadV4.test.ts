@@ -222,16 +222,9 @@ describe("encodePayloadV4", () => {
 
   describe("PUBLISH", () => {
     it("should encode PUBLISH payload with application message", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x10, 0x20, 0x30]),
-        flags,
-        "a"
+        "a", // topic name
+        new Uint8Array([0x10, 0x20, 0x30]) // message
       );
 
       const result = encodePayloadV4(packet);
@@ -240,16 +233,8 @@ describe("encodePayloadV4", () => {
     });
 
     it("should encode empty PUBLISH payload", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([]),
-        flags,
-        "a"
+        "a" // topic name
       );
 
       const result = encodePayloadV4(packet);
@@ -258,17 +243,11 @@ describe("encodePayloadV4", () => {
     });
 
     it("should preserve binary PUBLISH payload bytes", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 1,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x00, 0xff, 0x80, 0x7f]),
-        flags,
-        "binary",
-        0x1234
+        "binary", // topic name
+        new Uint8Array([0x00, 0xff, 0x80, 0x7f]), // message
+        MqttPacketV4Factory.createPublishFlagsV4(1), // qos 1
+        0x1234 // identifier
       );
 
       const result = encodePayloadV4(packet);

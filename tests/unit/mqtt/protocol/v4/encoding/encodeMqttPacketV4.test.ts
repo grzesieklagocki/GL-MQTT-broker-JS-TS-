@@ -285,16 +285,9 @@ describe("encodeMqttPacketV4", () => {
 
   describe("PUBLISH", () => {
     it("should encode QoS 0 PUBLISH without packet identifier", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x10, 0x20]),
-        flags,
-        "a"
+        "a", // topic
+        new Uint8Array([0x10, 0x20]) // message
       );
 
       const result = encodeMqttPacketV4(packet);
@@ -315,17 +308,11 @@ describe("encodeMqttPacketV4", () => {
     });
 
     it("should encode QoS 1 PUBLISH with packet identifier", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 1,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x10, 0x20]),
-        flags,
-        "a",
-        0x1234
+        "a", // topic
+        new Uint8Array([0x10, 0x20]), // message
+        MqttPacketV4Factory.createPublishFlagsV4(1), // qos 1
+        0x1234 // identifier
       );
 
       const result = encodeMqttPacketV4(packet);
@@ -350,17 +337,17 @@ describe("encodeMqttPacketV4", () => {
     });
 
     it("should encode QoS 2 PUBLISH with DUP and RETAIN flags", () => {
-      const flags: PublishFlagsV4 = {
-        dup: true,
-        qosLevel: 2,
-        retain: true,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        2, // qos
+        true, // retain
+        true // dup
+      );
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0xaa]),
-        flags,
-        "t/a",
-        0x0001
+        "t/a", // topic
+        new Uint8Array([0xaa]), // message
+        flags, // qos 2, retain=true, dup=true
+        0x0001 // identifier
       );
 
       const result = encodeMqttPacketV4(packet);
@@ -386,16 +373,15 @@ describe("encodeMqttPacketV4", () => {
     });
 
     it("should encode PUBLISH with empty payload", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: true,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        0, //qos
+        true // retain
+      );
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([]),
-        flags,
-        "a"
+        "a", // topic
+        undefined, // message
+        flags // retain=true
       );
 
       const result = encodeMqttPacketV4(packet);
@@ -579,9 +565,9 @@ describe("encodeMqttPacketV4", () => {
       const payload = new Uint8Array(125).fill(0xaa);
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
+        "a",
         payload,
-        flags,
-        "a"
+        flags
       );
 
       const result = encodeMqttPacketV4(packet);

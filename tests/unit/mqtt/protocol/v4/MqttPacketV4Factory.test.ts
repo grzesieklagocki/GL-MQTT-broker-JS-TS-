@@ -197,50 +197,45 @@ describe("MqttPacketV4Factory", () => {
 
   describe("createPublishPacketV4", () => {
     it("should create PUBLISH packet without identifier", () => {
+      const topic = "test/topic";
       const applicationMessage = new Uint8Array([0x01, 0x02, 0x03]);
-
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(); // default flags (qos 0, retain false, dup false)
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        applicationMessage,
-        flags,
-        "test/topic"
+        topic,
+        applicationMessage
       );
 
       expect(packet).toEqual({
         typeId: PacketType.PUBLISH,
         flags,
         identifier: undefined,
-        topicName: "test/topic",
+        topicName: topic,
         applicationMessage,
       });
     });
 
     it("should create PUBLISH packet with identifier", () => {
+      const topic = "sensors/temperature";
       const applicationMessage = new Uint8Array([0xaa, 0xbb]);
-
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 1,
-        retain: true,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        1, // qos
+        true // retain
+      );
+      const identifier = 42;
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
+        topic,
         applicationMessage,
         flags,
-        "sensors/temperature",
-        42
+        identifier
       );
 
       expect(packet).toEqual({
         typeId: PacketType.PUBLISH,
         flags,
-        identifier: 42,
-        topicName: "sensors/temperature",
+        identifier: identifier,
+        topicName: topic,
         applicationMessage,
       });
     });
@@ -248,16 +243,9 @@ describe("MqttPacketV4Factory", () => {
     it("should preserve application message reference", () => {
       const applicationMessage = new Uint8Array([0x10, 0x20]);
 
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        applicationMessage,
-        flags,
-        "test/topic"
+        "test/topic", // topic
+        applicationMessage
       );
 
       expect(packet.applicationMessage).toBe(applicationMessage);
@@ -266,16 +254,16 @@ describe("MqttPacketV4Factory", () => {
     it("should preserve flags reference", () => {
       const applicationMessage = new Uint8Array([0x10, 0x20]);
 
-      const flags: PublishFlagsV4 = {
-        dup: true,
-        qosLevel: 2,
-        retain: true,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        2, // qos
+        true, // retain
+        true // dup
+      );
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
+        "test/topic",
         applicationMessage,
         flags,
-        "test/topic",
         10
       );
 

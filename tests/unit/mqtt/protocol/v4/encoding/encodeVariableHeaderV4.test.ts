@@ -283,16 +283,9 @@ describe("encodeVariableHeaderV4", () => {
 
   describe("PUBLISH", () => {
     it("should encode PUBLISH variable header for QoS 0 without identifier", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x10, 0x20]),
-        flags,
-        "a"
+        "a", // topic
+        new Uint8Array([0x10, 0x20]) // message
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -307,17 +300,11 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode PUBLISH variable header for QoS 1 with identifier", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 1,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0x10, 0x20]),
-        flags,
-        "a",
-        0x1234
+        "a", // topic
+        new Uint8Array([0x10, 0x20]), // message
+        MqttPacketV4Factory.createPublishFlagsV4(1), // qos 1
+        0x1234 // identifier
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -335,17 +322,11 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode PUBLISH variable header for QoS 2 with identifier", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 2,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([0xaa]),
-        flags,
-        "t/a",
-        0x0001
+        "t/a", // topic
+        new Uint8Array([0xaa]), // message
+        MqttPacketV4Factory.createPublishFlagsV4(2), // qos 2
+        0x0001 // identifier
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -363,16 +344,8 @@ describe("encodeVariableHeaderV4", () => {
     });
 
     it("should encode UTF-8 topic name", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array([]),
-        flags,
-        "ąć"
+        "ąć" // topic
       );
 
       const result = encodeVariableHeaderV4(packet);
@@ -389,16 +362,10 @@ describe("encodeVariableHeaderV4", () => {
     // A PUBLISH Packet MUST NOT contain a Packet Identifier if its QoS value is set to 0.
     // [MQTT-2.3.1-5]
     it("should throw if PUBLISH packet has QoS 0 and identifier [MQTT-2.3.1-5]", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array(),
-        flags,
         "topic",
+        undefined, // message
+        MqttPacketV4Factory.createPublishFlagsV4(), // default flags, qos 0
         0xdd
       );
 
@@ -408,16 +375,16 @@ describe("encodeVariableHeaderV4", () => {
     // The DUP flag MUST be set to 0 for all QoS 0 messages.
     // [MQTT-3.3.1-2]
     it("should throw if PUBLISH packet has QoS 0 and DUP flag is set [MQTT-3.3.1-2]", () => {
-      const flags: PublishFlagsV4 = {
-        dup: true,
-        qosLevel: 0,
-        retain: false,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        0, // qos
+        false, // retain
+        true // dup
+      );
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array(),
-        flags,
-        "topic"
+        "topic",
+        undefined, // message
+        flags // dup=true
       );
 
       expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.1-2/);
@@ -427,16 +394,16 @@ describe("encodeVariableHeaderV4", () => {
     // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
     // [MQTT-3.3.1-4]
     it("should throw if PUBLISH packet has QoS 3 [MQTT-3.3.1-4]", () => {
-      const flags: PublishFlagsV4 = {
-        dup: true,
-        qosLevel: 0b11 as QoS,
-        retain: false,
-      };
+      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
+        0b11 as QoS, // invalid qos
+        false, // retain
+        true // dup
+      );
 
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array(),
-        flags,
-        "topic"
+        "topic",
+        undefined, // message
+        flags // invalid qos (3)
       );
 
       expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.1-4/);
@@ -445,16 +412,8 @@ describe("encodeVariableHeaderV4", () => {
     // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
     // [MQTT-3.3.2-1]
     it("should throw if PUBLISH packet has empty topic name [MQTT-3.3.2-1]", () => {
-      const flags: PublishFlagsV4 = {
-        dup: false,
-        qosLevel: 0,
-        retain: false,
-      };
-
       const packet = MqttPacketV4Factory.createPublishPacketV4(
-        new Uint8Array(),
-        flags,
-        ""
+        "" // topic
       );
 
       expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.2-1/);
@@ -464,17 +423,7 @@ describe("encodeVariableHeaderV4", () => {
     // [MQTT-3.3.2-2]
     it("should throw if PUBLISH packet has topic name with wildcard [MQTT-3.3.2-2]", () => {
       ["+", "#", "a/+/b", "c/#"].forEach((topic) => {
-        const flags: PublishFlagsV4 = {
-          dup: false,
-          qosLevel: 0,
-          retain: false,
-        };
-
-        const packet = MqttPacketV4Factory.createPublishPacketV4(
-          new Uint8Array(),
-          flags,
-          topic
-        );
+        const packet = MqttPacketV4Factory.createPublishPacketV4(topic);
 
         expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.2-2/);
       });

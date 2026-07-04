@@ -113,21 +113,21 @@ export class MqttPacketV4Factory {
 
   /**
    * Creates a PUBLISH packet with the specified application message, flags, topic name, and optional identifier.
-   * @param applicationMessage - The application message to be published in the PUBLISH packet.
-   * @param flags - The flags for the PUBLISH packet, including QoS level, retain flag, and duplicate flag.
    * @param topicName - The topic name to which the application message will be published.
+   * @param applicationMessage - The application message to be published in the PUBLISH packet.
+   * @param flags - The flags for the PUBLISH packet, including QoS level, retain flag, and duplicate flag. Defaults to QoS 0, retain false, and dup false.
    * @param identifier - An optional identifier for the PUBLISH packet, used for QoS levels 1 and 2.
    * @returns A PUBLISH packet object with the specified application message, flags, topic name, and optional identifier.
    */
   public static createPublishPacketV4(
-    applicationMessage: Uint8Array,
-    flags: PublishFlagsV4,
     topicName: string,
+    applicationMessage?: Uint8Array,
+    flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(),
     identifier?: number
   ): PublishPacketV4 {
     return {
       typeId: PacketType.PUBLISH,
-      flags,
+      flags: flags,
       identifier: identifier,
       topicName: topicName,
       applicationMessage,
@@ -184,6 +184,27 @@ export class MqttPacketV4Factory {
       topicFilterList: topicFilterList,
     };
   }
+
+  /**
+   * Creates a PublishFlagsV4 object with the specified QoS level, retain flag, and duplicate flag.
+   * @param qos - The Quality of Service (QoS) level for the PUBLISH packet (0, 1, or 2). Defaults to 0.
+   * @param retain - A boolean indicating whether the PUBLISH packet should be retained (true) or not (false). Defaults to false.
+   * @param dup - A boolean indicating whether the PUBLISH packet is a duplicate (true) or not (false). Defaults to false.
+   * @returns A PublishFlagsV4 object with the specified QoS level, retain flag, and duplicate flag.
+   */
+  static createPublishFlagsV4 = (
+    qos: QoS = 0,
+    retain: boolean = false,
+    dup: boolean = false
+  ): PublishFlagsV4 => {
+    {
+      return {
+        qosLevel: qos,
+        retain: retain,
+        dup: dup,
+      } satisfies PublishFlagsV4;
+    }
+  };
 }
 
 // types for packets without variable header and payload
