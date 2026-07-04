@@ -56,15 +56,15 @@ describe("encodeVariableHeaderV4", () => {
       });
     });
 
-    it("should encode packet identifier 0x0000", () => {
+    it("should encode packet identifier 0x0001", () => {
       const packet = MqttPacketV4Factory.createPacketWithIdentifierV4(
         PacketType.PUBACK,
-        0
+        0x0001
       );
 
       const result = encodeVariableHeaderV4(packet);
 
-      expectBytes(result, [0x00, 0x00]);
+      expectBytes(result, [0x00, 0x01]);
     });
 
     it("should encode packet identifier 0xa3c9", () => {
@@ -87,6 +87,35 @@ describe("encodeVariableHeaderV4", () => {
       const result = encodeVariableHeaderV4(packet);
 
       expectBytes(result, [0xff, 0xff]);
+    });
+
+    // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0) Control Packets MUST contain a non-zero 16-bit Packet Identifier.
+    // [MQTT-2.3.1-1]
+    it("should throw if packet identifier is 0 [MQTT-2.3.1-1]", () => {
+      const packet = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        PacketType.PUBACK,
+        0x0000
+      );
+
+      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-2\.3\.1-1/);
+    });
+
+    it("should throw if packet identifier is negative", () => {
+      const packet = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        PacketType.PUBACK,
+        -1
+      );
+
+      expect(() => encodeVariableHeaderV4(packet)).toThrow(/unsigned/);
+    });
+
+    it("should throw if packet identifier is greater than 0xffff (2-bytes)", () => {
+      const packet = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        PacketType.PUBACK,
+        0xffff + 1
+      );
+
+      expect(() => encodeVariableHeaderV4(packet)).toThrow(/16-bit/);
     });
   });
 

@@ -55,6 +55,8 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
       return true;
     }
 
+    // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits, it is reserved for future use and MUST be set to the value listed in that table.
+    // [MQTT-2.2.2-1]
     if (
       packetType === PacketType.PUBREL ||
       packetType === PacketType.SUBSCRIBE ||
