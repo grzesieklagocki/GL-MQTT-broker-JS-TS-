@@ -90,7 +90,7 @@ export type PublishPacketV4 = ControlPacket<PacketType.PUBLISH> & {
   identifier?: number;
 
   topicName: string;
-  applicationMessage: Uint8Array;
+  applicationMessage?: Uint8Array;
 };
 
 export type PublishFlagsV4 = {

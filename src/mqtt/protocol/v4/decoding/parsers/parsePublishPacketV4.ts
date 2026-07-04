@@ -33,7 +33,7 @@ export function parsePublishPacketV4(
       ? parseIdentifier(reader)
       : undefined;
 
-  const message = reader.remaining > 0 ? reader.readBytes() : new Uint8Array();
+  const message = reader.remaining > 0 ? reader.readBytes() : undefined;
 
   _assertAllBytesRead(reader);
 

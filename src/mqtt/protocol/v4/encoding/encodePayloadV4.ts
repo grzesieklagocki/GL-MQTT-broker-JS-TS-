@@ -62,7 +62,7 @@ const encodeConnectPayload = (packet: ConnectPacketV4): Uint8Array => {
  * @returns A Uint8Array representing the encoded payload of the PUBLISH packet.
  */
 const encodePublishPayload = (packet: PublishPacketV4): Uint8Array =>
-  packet.applicationMessage;
+  packet.applicationMessage ? packet.applicationMessage : encodeEmpty();
 
 /**
  * Encodes the payload for a SUBACK packet.
