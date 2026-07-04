@@ -124,6 +124,8 @@ const connectFlagsToNumber = (flags: ConnectFlagsV4): number => {
   const willFlag = flags.willFlag ? 1 : 0;
   const cleanSession = flags.cleanSession ? 1 : 0;
 
+  // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero and disconnect the Client if it is not zero.
+  // [MQTT-3.1.2-3]
   return (
     (userName << 7) |
     (password << 6) |
@@ -173,6 +175,9 @@ function _assertValidPublishPacketV4(packet: PublishPacketV4) {
 
   // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
   // [MQTT-3.3.2-1]
+  //
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
   if (packet.topicName.length === 0)
     throw new AppError(`The Topic Name cannot be empty [MQTT-3.3.2-1]`);
 

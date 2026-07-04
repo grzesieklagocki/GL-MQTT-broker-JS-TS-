@@ -261,6 +261,9 @@ function _assertValidSubscribePacket(packet: SubscribePacketV4) {
 
   // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
   // [MQTT-3.8.3-1]
+  //
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
   packet.subscriptionList.forEach((subscription) => {
     if (subscription[0].length === 0)
       throw new AppError(
@@ -277,6 +280,9 @@ function _assertValidSubscribePacket(packet: SubscribePacketV4) {
 function _assertValidUnsubscribePacket(packet: UnsubscribePacketV4) {
   // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
   // [MQTT-3.10.3-1]
+  //
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
   packet.topicFilterList.forEach((topic) => {
     if (topic.length === 0)
       throw new AppError(
