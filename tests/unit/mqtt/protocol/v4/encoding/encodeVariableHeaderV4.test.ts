@@ -411,12 +411,15 @@ describe("encodeVariableHeaderV4", () => {
 
     // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
     // [MQTT-3.3.2-1]
+    //
+    // All Topic Names and Topic Filters MUST be at least one character long.
+    // [MQTT-4.7.3-1]
     it("should throw if PUBLISH packet has empty topic name [MQTT-3.3.2-1]", () => {
       const packet = MqttPacketV4Factory.createPublishPacketV4(
         "" // topic
       );
 
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.2-1/);
+      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
     });
 
     // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.

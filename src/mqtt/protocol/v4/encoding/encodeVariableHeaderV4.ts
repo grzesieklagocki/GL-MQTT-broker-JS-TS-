@@ -182,7 +182,9 @@ function _assertValidPublishPacketV4(packet: PublishPacketV4) {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   if (packet.topicName.length === 0)
-    throw new AppError(`The Topic Name cannot be empty [MQTT-3.3.2-1]`);
+    throw new AppError(
+      `All Topic Names and Topic Filters MUST be at least one character long [MQTT-4.7.3-1]`
+    );
 
   // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.
   // [MQTT-3.3.2-2]
