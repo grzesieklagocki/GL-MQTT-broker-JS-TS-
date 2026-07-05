@@ -161,6 +161,18 @@ function _assertValidConnectPacketV4(packet: ConnectPacketV4) {
     );
   }
 
+  // If the Will Flag is set to 1, the Will QoS and Will Retain fields in the Connect Flags will be used by the Server,
+  // and the Will Topic and Will Message fields MUST be present in the payload.
+  // [MQTT-3.1.2-9]
+  if (
+    packet.flags.willFlag &&
+    (packet.payload.willTopic === undefined ||
+      packet.payload.willMessage === undefined)
+  )
+    throw new AppError(
+      "If the Will Flag is set to 1 ...the Will Topic and Will Message fields MUST be present in the payload [MQTT-3.1.2-9]"
+    );
+
   // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
   // and the Will Topic and Will Message fields MUST NOT be present in the payload.
   // [MQTT-3.1.2-11]
@@ -198,6 +210,41 @@ function _assertValidConnectPacketV4(packet: ConnectPacketV4) {
   if (!packet.flags.willFlag && packet.flags.willRetain)
     throw new AppError(
       "If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0 [MQTT-3.1.2-15], [MQTT-3.1.2-11]"
+    );
+
+  // If the User Name Flag is set to 0, a user name MUST NOT be present in the payload.
+  // [MQTT-3.1.2-18]
+  if (!packet.flags.userName && packet.payload.userName !== undefined)
+    throw new AppError(
+      "If the User Name Flag is set to 0, a user name MUST NOT be present in the payload [MQTT-3.1.2-18]"
+    );
+
+  // If the User Name Flag is set to 1, a user name MUST be present in the payload.
+  // [MQTT-3.1.2-19]
+  if (packet.flags.userName && packet.payload.userName === undefined)
+    throw new AppError(
+      "If the User Name Flag is set to 1, a user name MUST be present in the payload [MQTT-3.1.2-19]"
+    );
+
+  // If the Password Flag is set to 0, a password MUST NOT be present in the payload.
+  // [MQTT-3.1.2-20]
+  if (!packet.flags.password && packet.payload.password !== undefined)
+    throw new AppError(
+      "If the Password Flag is set to 0, a password MUST NOT be present in the payload [MQTT-3.1.2-20]"
+    );
+
+  // If the Password Flag is set to 1, a password MUST be present in the payload.
+  // [MQTT-3.1.2-21]
+  if (packet.flags.password && packet.payload.password === undefined)
+    throw new AppError(
+      "If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21]"
+    );
+
+  // If the User Name Flag is set to 0, the Password Flag MUST be set to 0.
+  // [MQTT-3.1.2-22]
+  if (!packet.flags.userName && packet.flags.password)
+    throw new AppError(
+      "If the User Name Flag is set to 0, the Password Flag MUST be set to 0 [MQTT-3.1.2-22]"
     );
 }
 

@@ -4,6 +4,7 @@ import {
   MqttPacketV4Factory,
   PacketWithIdentifierV4Type,
   SimplePacketV4Type,
+  Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { encodeVariableHeaderV4 } from "@mqtt/protocol/v4/encoding/encodeVariableHeaderV4";
 import {
@@ -247,8 +248,52 @@ describe("encodeVariableHeaderV4", () => {
     // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero
     // and disconnect the Client if it is not zero.
     // [MQTT-3.1.2-3]
-    describe("[MQTT-3.1.2-9]", () => {
+    describe("[MQTT-3.1.2-3]", () => {
       it("Is it not possible to set the reserved flag in the CONNECT packet encoder, so we can skip this test", () => {});
+    });
+
+    // If the Will Flag is set to 1, the Will QoS and Will Retain fields in the Connect Flags will be used by the Server,
+    // and the Will Topic and Will Message fields MUST be present in the payload.
+    // [MQTT-3.1.2-9]
+    describe("[MQTT-3.1.2-9]", () => {
+      [
+        {
+          topic: "willTopic",
+          messsage: undefined,
+          reason: "no will topic",
+        },
+        {
+          topic: undefined,
+          messsage: new Uint8Array([0x00, 0x01, 0x50]),
+          reason: "no will message",
+        },
+        {
+          topic: undefined,
+          messsage: undefined,
+          reason: "no will topic and message",
+        },
+      ].forEach((testCase) => {
+        it(`should throw if CONNECT packet has willFlag true but ${testCase.reason}`, () => {
+          const packet = MqttPacketV4Factory.createConnectPacketV4(
+            true, // cleanSession
+            120, // keepAlive
+            "clientID", // clientIdentifier
+            undefined, // username
+            undefined, // password
+            {
+              topic: testCase.topic as string,
+              message: testCase.messsage,
+              qos: 0,
+              retain: false,
+            } satisfies Will
+          );
+
+          expect(packet.flags.willFlag).toBe(true);
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.1\.2-9/
+          );
+        });
+      });
     });
 
     // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
@@ -341,14 +386,18 @@ describe("encodeVariableHeaderV4", () => {
         const packet = MqttPacketV4Factory.createConnectPacketV4(
           true, // cleanSession
           5, // keepAlive
-          "client2" // clientIdentifier
+          "client2", // clientIdentifier
+          undefined, // username
+          undefined, // password
+          MqttPacketV4Factory.createConnectWillV4(
+            "topic", // will topic
+            new Uint8Array() // will message
+          )
         );
 
-        packet.payload.willTopic = "";
-
-        packet.flags.willFlag = true;
         packet.flags.willQoS = 3 as QoS;
 
+        expect(packet.flags.willFlag).toBe(true);
         expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-14/);
       });
     });
@@ -367,6 +416,98 @@ describe("encodeVariableHeaderV4", () => {
         packet.flags.willRetain = true;
 
         expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-15/);
+      });
+    });
+
+    // If the User Name Flag is set to 0, a user name MUST NOT be present in the payload.
+    // [MQTT-3.1.2-18]
+    describe("[MQTT-3.1.2-18]", () => {
+      it("should throw if CONNECT packet has userNameFlag false but userName present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID", // clientIdentifier
+          "user" // username
+        );
+
+        packet.flags.userName = false;
+
+        expect(packet.payload.userName).toBeDefined();
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-18/);
+      });
+    });
+
+    // If the User Name Flag is set to 1, a user name MUST be present in the payload.
+    // [MQTT-3.1.2-19]
+    describe("[MQTT-3.1.2-19]", () => {
+      it("should throw if CONNECT packet has userNameFlag true but userName not present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID", // clientIdentifier
+          undefined // no username
+        );
+
+        packet.flags.userName = true;
+
+        expect(packet.payload.userName).not.toBeDefined();
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-19/);
+      });
+    });
+
+    // If the Password Flag is set to 0, a password MUST NOT be present in the payload.
+    // [MQTT-3.1.2-20]
+    describe("[MQTT-3.1.2-20]", () => {
+      it("should throw if CONNECT packet has passwordFlag false but password present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID", // clientIdentifier
+          undefined, // no username
+          new Uint8Array([0x87]) // password
+        );
+
+        packet.flags.password = false;
+
+        expect(packet.payload.password).toBeDefined();
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-20/);
+      });
+    });
+
+    // If the Password Flag is set to 1, a password MUST be present in the payload.
+    // [MQTT-3.1.2-21]
+    describe("[MQTT-3.1.2-21]", () => {
+      it("should throw if CONNECT packet has passwordFlag true but password not present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID", // clientIdentifier
+          undefined, // no username
+          undefined // password
+        );
+
+        packet.flags.password = true;
+
+        expect(packet.payload.password).not.toBeDefined();
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-21/);
+      });
+    });
+
+    // If the User Name Flag is set to 0, the Password Flag MUST be set to 0.
+    // [MQTT-3.1.2-22]
+    describe("[MQTT-3.1.2-22]", () => {
+      it("should throw if CONNECT packet has userNameFlag false but passwordFlag true", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID", // clientIdentifier
+          undefined, // no username
+          new Uint8Array([0x99, 0x7c]) // password
+        );
+
+        expect(packet.flags.userName).toBe(false);
+        expect(packet.flags.password).toBe(true);
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-22/);
       });
     });
   });
