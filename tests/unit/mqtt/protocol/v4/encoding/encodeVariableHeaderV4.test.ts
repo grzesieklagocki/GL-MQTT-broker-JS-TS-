@@ -5,11 +5,9 @@ import {
   PacketWithIdentifierV4Type,
   SimplePacketV4Type,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { encodeVariableHeaderV4 } from "@src/mqtt/protocol/v4/encoding/encodeVariableHeaderV4";
+import { encodeVariableHeaderV4 } from "@mqtt/protocol/v4/encoding/encodeVariableHeaderV4";
 import {
   ConnackReturnCodeV4,
-  ConnectFlagsV4,
-  ConnectionPayloadV4,
   PublishFlagsV4,
   SubackReturnCodeV4,
   SubscriptionV4,
@@ -121,19 +119,6 @@ describe("encodeVariableHeaderV4", () => {
 
   describe("CONNECT", () => {
     it("should encode minimal CONNECT variable header", () => {
-      const flags: ConnectFlagsV4 = {
-        userName: false,
-        password: false,
-        willRetain: false,
-        willQoS: 0,
-        willFlag: false,
-        cleanSession: true,
-      };
-
-      const payload: ConnectionPayloadV4 = {
-        clientIdentifier: "id",
-      };
-
       const packet = MqttPacketV4Factory.createConnectPacketV4(
         true, // cleanSession
         60, // keepAlive
@@ -234,6 +219,155 @@ describe("encodeVariableHeaderV4", () => {
         result,
         [0x00, 0x04, 0x4d, 0x51, 0x54, 0x54, 0x04, 0b00000010, 0xff, 0xff]
       );
+    });
+
+    // If the protocol name is incorrect the Server MAY disconnect the Client,
+    // or it MAY continue processing the CONNECT packet in accordance with some other specification.
+    // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification.
+    // [MQTT-3.1.2-1]
+    describe("[MQTT-3.1.2-1]", () => {
+      it("should throw if CONNECT packet has invalid protocol name", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true,
+          20,
+          "id_1"
+        );
+
+        // invalid protocol levels for MQTT 3.1.1
+        [0, 1, 2, 3, 5, 0x0b, 0xc1, 0xff].forEach((invalidLevel) => {
+          packet.protocol.level = invalidLevel as 4;
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.1\.2-1/
+          );
+        });
+      });
+    });
+
+    // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero
+    // and disconnect the Client if it is not zero.
+    // [MQTT-3.1.2-3]
+    describe("[MQTT-3.1.2-9]", () => {
+      it("Is it not possible to set the reserved flag in the CONNECT packet encoder, so we can skip this test", () => {});
+    });
+
+    // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
+    // and the Will Topic and Will Message fields MUST NOT be present in the payload.
+    // [MQTT-3.1.2-11]
+    describe("[MQTT-3.1.2-11]", () => {
+      it("should throw if CONNECT packet has willFlag false but will qos is non-zero", () => {
+        [1, 2].forEach((qos) => {
+          const packet = MqttPacketV4Factory.createConnectPacketV4(
+            true, // cleanSession
+            120, // keepAlive
+            "clientID" // clientIdentifier
+          );
+
+          packet.flags.willFlag = false;
+          packet.flags.willQoS = qos as QoS;
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.1\.2-11/
+          );
+        });
+      });
+
+      it("should throw if CONNECT packet has willFlag false but will qos is non-zero", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID" // clientIdentifier
+        );
+
+        packet.flags.willFlag = false;
+        packet.flags.willRetain = true;
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
+      });
+
+      it("should throw if CONNECT packet has willFlag false but will topic present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID" // clientIdentifier
+        );
+
+        packet.flags.willFlag = false;
+        packet.payload.willTopic = "WILL/topic";
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
+      });
+
+      it("should throw if CONNECT packet has willFlag false but will message present", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          120, // keepAlive
+          "clientID" // clientIdentifier
+        );
+
+        packet.flags.willFlag = false;
+        packet.payload.willMessage = new Uint8Array([0x00, 0x01, 0x55]);
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
+      });
+    });
+
+    // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00).
+    // [MQTT-3.1.2-13]
+    describe("[MQTT-3.1.2-13]", () => {
+      [1, 2].forEach((qos) => {
+        it(`should throw if CONNECT packet has willFlag false but will qos is ${qos}`, () => {
+          const packet = MqttPacketV4Factory.createConnectPacketV4(
+            false, // cleanSession
+            0, // keepAlive
+            "client1" // clientIdentifier
+          );
+
+          packet.flags.willFlag = false;
+          packet.flags.willQoS = qos as QoS;
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.1\.2-13/
+          );
+        });
+      });
+    });
+
+    // If the Will Flag is set to 1, the value of Will QoS can be 0 (0x00), 1 (0x01), or 2 (0x02).
+    // It MUST NOT be 3 (0x03).
+    // [MQTT-3.1.2-14]
+    describe("[MQTT-3.1.2-14]", () => {
+      it("should throw if CONNECT packet has willFlag true but will qos is 3 (0b11)", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          5, // keepAlive
+          "client2" // clientIdentifier
+        );
+
+        packet.payload.willTopic = "";
+
+        packet.flags.willFlag = true;
+        packet.flags.willQoS = 3 as QoS;
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-14/);
+      });
+    });
+
+    // If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0.
+    // [MQTT-3.1.2-15]
+    describe("[MQTT-3.1.2-15]", () => {
+      it("should throw if CONNECT packet has willFlag false but will retain is true", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          51, // keepAlive
+          "client3" // clientIdentifier
+        );
+
+        packet.flags.willFlag = false;
+        packet.flags.willRetain = true;
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-15/);
+      });
     });
   });
 

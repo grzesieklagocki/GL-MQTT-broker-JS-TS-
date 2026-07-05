@@ -86,6 +86,8 @@ const encodePublishVariableHeader = (packet: PublishPacketV4): Uint8Array => {
  * @returns A Uint8Array representing the encoded variable header of the CONNECT packet.
  */
 const encodeConnectVariableHeader = (packet: ConnectPacketV4): Uint8Array => {
+  _assertValidConnectPacketV4(packet);
+
   const writer = new MqttWriterV4(10); // 10 bytes for the variable header of CONNECT packet
 
   writer.writeString(packet.protocol.name);
@@ -142,6 +144,62 @@ const connectFlagsToNumber = (flags: ConnectFlagsV4): number => {
 //
 // assertions
 //
+
+/**
+ * Asserts that the given CONNECT packet is valid according to MQTT v4 specs.
+ * @param packet - The CONNECT packet to validate.
+ * @throws AppError if the packet is invalid.
+ */
+function _assertValidConnectPacketV4(packet: ConnectPacketV4) {
+  // If the protocol name is incorrect the Server MAY disconnect the Client,
+  // or it MAY continue processing the CONNECT packet in accordance with some other specification.
+  // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification.
+  // [MQTT-3.1.2-1]
+  if (packet.protocol.level !== 4) {
+    throw new AppError(
+      `Invalid protocol level: ${packet.protocol.level}, expected 4 for MQTT 3.1.1 [MQTT-3.1.2-1]`
+    );
+  }
+
+  // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
+  // and the Will Topic and Will Message fields MUST NOT be present in the payload.
+  // [MQTT-3.1.2-11]
+  if (
+    !packet.flags.willFlag &&
+    (packet.payload.willTopic !== undefined ||
+      packet.payload.willMessage !== undefined)
+  )
+    throw new AppError(
+      "If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero and the Will Topic and Will Message fields MUST NOT be present in the payload [MQTT-3.1.2-11]"
+    );
+
+  // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00).
+  // [MQTT-3.1.2-13]
+  if (!packet.flags.willFlag && packet.flags.willQoS !== 0)
+    throw new AppError(
+      "If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13], [MQTT-3.1.2-11]"
+    );
+
+  // If the Will Flag is set to 1, the value of Will QoS can be 0 (0x00), 1 (0x01), or 2 (0x02).
+  // It MUST NOT be 3 (0x03).
+  // [MQTT-3.1.2-14]
+  if (
+    packet.flags.willFlag &&
+    packet.flags.willQoS !== 0b00 &&
+    packet.flags.willQoS !== 0b01 &&
+    packet.flags.willQoS !== 0b10
+  )
+    throw new AppError(
+      "If the Will Flag is set to 1, the value of Will QoS can be 0 (0x00), 1 (0x01), or 2 (0x02). It MUST NOT be 3 (0x03) [MQTT-3.1.2-14]"
+    );
+
+  // If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0.
+  // [MQTT-3.1.2-15]
+  if (!packet.flags.willFlag && packet.flags.willRetain)
+    throw new AppError(
+      "If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0 [MQTT-3.1.2-15], [MQTT-3.1.2-11]"
+    );
+}
 
 /**
  * Asserts that the given PUBLISH packet is valid according to MQTT v4 specs.
