@@ -188,13 +188,35 @@ export class MqttPacketV4Factory {
   }
 
   /**
+   * Creates a Will object with the specified topic, message, QoS level, and retain flag.
+   * @param topic - The topic for the Will message.
+   * @param message - The message for the Will message (optional).
+   * @param qos - The Quality of Service (QoS) level for the Will message (0, 1, or 2). Defaults to 0.
+   * @param retain - A boolean indicating whether the Will message should be retained (true) or not (false). Defaults to false.
+   * @returns A Will object with the specified topic, message, QoS level, and retain flag.
+   */
+  public static createConnectWillV4 = (
+    topic: string,
+    message?: Uint8Array,
+    qos: QoS = 0,
+    retain: boolean = false
+  ): Will => {
+    return {
+      topic: topic,
+      message: message,
+      qos: qos,
+      retain: retain,
+    } satisfies Will;
+  };
+
+  /**
    * Creates a PublishFlagsV4 object with the specified QoS level, retain flag, and duplicate flag.
    * @param qos - The Quality of Service (QoS) level for the PUBLISH packet (0, 1, or 2). Defaults to 0.
    * @param retain - A boolean indicating whether the PUBLISH packet should be retained (true) or not (false). Defaults to false.
    * @param dup - A boolean indicating whether the PUBLISH packet is a duplicate (true) or not (false). Defaults to false.
    * @returns A PublishFlagsV4 object with the specified QoS level, retain flag, and duplicate flag.
    */
-  static createPublishFlagsV4 = (
+  public static createPublishFlagsV4 = (
     qos: QoS = 0,
     retain: boolean = false,
     dup: boolean = false

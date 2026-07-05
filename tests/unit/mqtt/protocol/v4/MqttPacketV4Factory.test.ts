@@ -16,7 +16,7 @@ import {
 } from "@mqtt/protocol/v4/types";
 
 describe("MqttPacketV4Factory", () => {
-  describe("createSimplePacketV4", () => {
+  describe("createSimplePacketV4()", () => {
     [PacketType.PINGREQ, PacketType.PINGRESP, PacketType.DISCONNECT].forEach(
       (packetType) => {
         it(`should create ${PacketType[packetType]} packet`, () => {
@@ -32,7 +32,7 @@ describe("MqttPacketV4Factory", () => {
     );
   });
 
-  describe("createPacketWithIdentifierV4", () => {
+  describe("createPacketWithIdentifierV4()", () => {
     [
       PacketType.PUBACK,
       PacketType.PUBREC,
@@ -54,7 +54,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createConnectPacketV4", () => {
+  describe("createConnectPacketV4()", () => {
     it("should create CONNECT packet", () => {
       const flags: ConnectFlagsV4 = {
         userName: true,
@@ -166,7 +166,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createConnackPacketV4", () => {
+  describe("createConnackPacketV4()", () => {
     it("should create CONNACK packet with session present flag set to true", () => {
       const packet = MqttPacketV4Factory.createConnackPacketV4(
         true,
@@ -195,7 +195,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createPublishPacketV4", () => {
+  describe("createPublishPacketV4()", () => {
     it("should create PUBLISH packet without identifier", () => {
       const topic = "test/topic";
       const applicationMessage = new Uint8Array([0x01, 0x02, 0x03]);
@@ -271,7 +271,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createSubscribePacketV4", () => {
+  describe("createSubscribePacketV4()", () => {
     it("should create SUBSCRIBE packet", () => {
       const subscriptionList: SubscriptionV4[] = [
         ["sensors/+/temperature", 0],
@@ -302,7 +302,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createSubackPacketV4", () => {
+  describe("createSubackPacketV4()", () => {
     it("should create SUBACK packet with a single return code", () => {
       const packet = MqttPacketV4Factory.createSubackPacketV4(99, [
         SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
@@ -350,7 +350,7 @@ describe("MqttPacketV4Factory", () => {
     });
   });
 
-  describe("createUnsubscribePacketV4", () => {
+  describe("createUnsubscribePacketV4()", () => {
     it("should create UNSUBSCRIBE packet", () => {
       const topicFilterList = ["sensors/+", "home/#"];
 
@@ -376,5 +376,265 @@ describe("MqttPacketV4Factory", () => {
 
       expect(packet.topicFilterList).toBe(topicFilterList);
     });
+  });
+
+  describe("createConnectWillV4()", () => {
+    it("should create Will with required topic and default values", () => {
+      const will = MqttPacketV4Factory.createConnectWillV4("status/device-1");
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message: undefined,
+        qos: 0,
+        retain: false,
+      });
+    });
+
+    it("should create Will with topic and message", () => {
+      const message = new Uint8Array([0x6f, 0x66, 0x66]); // "off"
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 0,
+        retain: false,
+      });
+    });
+
+    it("should create Will with QoS 1", () => {
+      const message = new Uint8Array([0x01]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message,
+        1
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 1,
+        retain: false,
+      });
+    });
+
+    it("should create Will with QoS 2", () => {
+      const message = new Uint8Array([0x01]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message,
+        2
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 2,
+        retain: false,
+      });
+    });
+
+    it("should create Will with retain flag set", () => {
+      const message = new Uint8Array([0x01]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message,
+        0,
+        true
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 0,
+        retain: true,
+      });
+    });
+
+    it("should create Will with all optional values set", () => {
+      const message = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message,
+        2,
+        true
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 2,
+        retain: true,
+      });
+    });
+
+    it("should preserve message reference", () => {
+      const message = new Uint8Array([0x01, 0x02, 0x03]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message,
+        1,
+        true
+      );
+
+      expect(will.message).toBe(message);
+    });
+
+    it("should allow empty message", () => {
+      const message = new Uint8Array([]);
+
+      const will = MqttPacketV4Factory.createConnectWillV4(
+        "status/device-1",
+        message
+      );
+
+      expect(will).toEqual({
+        topic: "status/device-1",
+        message,
+        qos: 0,
+        retain: false,
+      });
+    });
+
+    it.each([
+      { qos: 0, retain: false },
+      { qos: 0, retain: true },
+      { qos: 1, retain: false },
+      { qos: 1, retain: true },
+      { qos: 2, retain: false },
+      { qos: 2, retain: true },
+    ] as const)(
+      "should create Will for qos=$qos retain=$retain",
+      ({ qos, retain }) => {
+        const message = new Uint8Array([0x01]);
+
+        const will = MqttPacketV4Factory.createConnectWillV4(
+          "status/device-1",
+          message,
+          qos,
+          retain
+        );
+
+        expect(will).toEqual({
+          topic: "status/device-1",
+          message,
+          qos,
+          retain,
+        });
+      }
+    );
+  });
+
+  describe("createPublishFlagsV4()", () => {
+    it("should create default PUBLISH flags", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4();
+
+      expect(flags).toEqual({
+        qosLevel: 0,
+        retain: false,
+        dup: false,
+      });
+    });
+
+    it("should create PUBLISH flags with QoS 0", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(0);
+
+      expect(flags).toEqual({
+        qosLevel: 0,
+        retain: false,
+        dup: false,
+      });
+    });
+
+    it("should create PUBLISH flags with QoS 1", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(1);
+
+      expect(flags).toEqual({
+        qosLevel: 1,
+        retain: false,
+        dup: false,
+      });
+    });
+
+    it("should create PUBLISH flags with QoS 2", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(2);
+
+      expect(flags).toEqual({
+        qosLevel: 2,
+        retain: false,
+        dup: false,
+      });
+    });
+
+    it("should create PUBLISH flags with retain flag true", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(0, true);
+
+      expect(flags).toEqual({
+        qosLevel: 0,
+        retain: true,
+        dup: false,
+      });
+    });
+
+    it("should create PUBLISH flags with dup flag true", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(0, false, true);
+
+      expect(flags).toEqual({
+        qosLevel: 0,
+        retain: false,
+        dup: true,
+      });
+    });
+
+    it("should create PUBLISH flags with QoS, retain and dup true", () => {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(2, true, true);
+
+      expect(flags).toEqual({
+        qosLevel: 2,
+        retain: true,
+        dup: true,
+      });
+    });
+
+    it.each([
+      { qos: 0, retain: false, dup: false },
+      { qos: 0, retain: false, dup: true },
+      { qos: 0, retain: true, dup: false },
+      { qos: 0, retain: true, dup: true },
+
+      { qos: 1, retain: false, dup: false },
+      { qos: 1, retain: false, dup: true },
+      { qos: 1, retain: true, dup: false },
+      { qos: 1, retain: true, dup: true },
+
+      { qos: 2, retain: false, dup: false },
+      { qos: 2, retain: false, dup: true },
+      { qos: 2, retain: true, dup: false },
+      { qos: 2, retain: true, dup: true },
+    ] as const)(
+      "should create PUBLISH flags for qos=$qos retain=$retain dup=$dup",
+      ({ qos, retain, dup }) => {
+        const flags = MqttPacketV4Factory.createPublishFlagsV4(
+          qos,
+          retain,
+          dup
+        );
+
+        expect(flags).toEqual({
+          qosLevel: qos,
+          retain,
+          dup,
+        });
+      }
+    );
   });
 });
