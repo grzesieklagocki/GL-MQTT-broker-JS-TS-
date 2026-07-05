@@ -6,13 +6,7 @@ import {
   Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { encodePayloadV4 } from "@mqtt/protocol/v4/encoding/encodePayloadV4";
-import {
-  ConnectFlagsV4,
-  ConnectionPayloadV4,
-  PublishFlagsV4,
-  SubackReturnCodeV4,
-  SubscriptionV4,
-} from "@mqtt/protocol/v4/types";
+import { SubackReturnCodeV4, SubscriptionV4 } from "@mqtt/protocol/v4/types";
 
 const expectBytes = (actual: Uint8Array, expected: number[]) => {
   expect([...actual]).toEqual(expected);
@@ -201,22 +195,169 @@ describe("encodePayloadV4", () => {
       );
     });
 
-    it("should encode UTF-8 Client Identifier with polish letters", () => {
-      const packet = MqttPacketV4Factory.createConnectPacketV4(
-        true, // cleanSession
-        220, // keepAlive
-        "ąć" // clientIdentifier
-      );
+    // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
+    // [MQTT-3.1.3-3]
+    describe("[MQTT-3.1.3-3]", () => {
+      it("should throw AppError for CONNECT packet with empty Client Identifier", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          false, // cleanSession
+          20, // keepAlive
+          undefined as unknown as string
+        );
 
-      const result = encodePayloadV4(packet);
+        expect(packet.payload.clientIdentifier).toBeUndefined();
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.1\.3-3/);
+      });
+    });
 
-      expectBytes(
-        result,
-        [
-          // "ąć" UTF-8 = C4 85 C4 87, length = 4 bytes
-          0x00, 0x04, 0xc4, 0x85, 0xc4, 0x87,
-        ]
-      );
+    // The ClientId MUST be a UTF-8 encoded string as defined in Section 1.5.3.
+    // [MQTT-3.1.3-4]
+    describe("[MQTT-3.1.3-4]", () => {
+      it("should encode Client Identifier as UTF-8 encoded string", () => {
+        //
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          600, // keepAlive
+          "Client03"
+        );
+
+        const result = encodePayloadV4(packet);
+
+        expectBytes(
+          result,
+          [
+            // client id length: 8
+            0x00, 0x08,
+            // client id: "Client03"
+            0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x30, 0x33,
+          ]
+        );
+      });
+    });
+
+    // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
+    // [MQTT-3.1.3-5]
+    describe("[MQTT-3.1.3-5]", () => {
+      [
+        {
+          identifier: "123456789012345678901234",
+          reason: "with Client Identifier longer than 23 bytes",
+        },
+        {
+          identifier: "invalid$char",
+          reason: "with Client Identifier containing invalid characters",
+        },
+      ].forEach((testCase) => {
+        it(`should throw AppError for CONNECT packet ${testCase.reason}`, () => {
+          const packet = MqttPacketV4Factory.createConnectPacketV4(
+            false, // cleanSession
+            20, // keepAlive
+            testCase.identifier
+          );
+
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.1\.3-5/);
+        });
+      });
+    });
+
+    // A Server MAY allow a Client to supply a ClientId that has a length of zero bytes.
+    // However if it does so the Server MUST treat this as a special case and assign a unique ClientId to that Client.
+    // It MUST then process the CONNECT packet as if the Client had provided that unique ClientId.
+    // [MQTT-3.1.3-6]
+    describe("[MQTT-3.1.3-6]", () => {
+      it("should encode CONNECT packet with zero-byte Client Identifier", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          20, // keepAlive
+          "" // zero-byte ClientId
+        );
+
+        const result = encodePayloadV4(packet);
+
+        expectBytes(
+          result,
+          [
+            // client id length: 0
+            0x00, 0x00,
+          ]
+        );
+      });
+    });
+
+    // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
+    // [MQTT-3.1.3-7]
+    describe("[MQTT-3.1.3-7]", () => {
+      it("should throw AppError for CONNECT packet with zero-byte Client Identifier and CleanSession set to 0", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          false, // cleanSession
+          100, // keepAlive
+          "" // zero-byte ClientId
+        );
+
+        expect(packet.flags.cleanSession).toBe(false);
+        expect(packet.payload.clientIdentifier).toBe("");
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.1\.3-7/);
+      });
+    });
+
+    // The Will Topic MUST be a UTF-8 encoded string as defined in Section 1.5.3.
+    // [MQTT-3.1.3-10]
+    describe("[MQTT-3.1.3-10]", () => {
+      it("should encode Will Topic as UTF-8 encoded string", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          25, // keepAlive
+          "", // zero-byte ClientId
+          undefined, // userName
+          undefined, // password
+          MqttPacketV4Factory.createConnectWillV4(
+            "G.Ł." // will topic
+          )
+        );
+
+        const result = encodePayloadV4(packet);
+
+        expectBytes(
+          result,
+          [
+            //client identifier length: 0
+            0x00, 0x00,
+            // will topic length: 5
+            0x00, 0x05,
+            // will topic: "G.Ł."
+            0x47, 0x2e, 0xc5, 0x81, 0x2e,
+            // will message length: 0
+            0x00, 0x00,
+          ]
+        );
+      });
+    });
+
+    // The User Name MUST be a UTF-8 encoded string as defined in Section 1.5.3.
+    // [MQTT-3.1.3-11]
+    describe("[MQTT-3.1.3-11]", () => {
+      it("should encode User Name as UTF-8 encoded string", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true, // cleanSession
+          175, // keepAlive
+          "", // zero-byte ClientId
+          "Grzegorz_Ł" // userName
+        );
+
+        const result = encodePayloadV4(packet);
+        //0x47 0x72 0x7a 0x65 0x67 0x6f 0x72 0x7a 0x5f 0xc5 0x81
+        expectBytes(
+          result,
+          [
+            //client identifier length: 0
+            0x00, 0x00,
+            // user name length: 11
+            0x00, 0x0b,
+            // user name: Grzegorz_Ł
+            0x47, 0x72, 0x7a, 0x65, 0x67, 0x6f, 0x72, 0x7a, 0x5f, 0xc5, 0x81,
+          ]
+        );
+      });
     });
   });
 

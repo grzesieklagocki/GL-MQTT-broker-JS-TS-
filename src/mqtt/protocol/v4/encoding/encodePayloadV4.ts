@@ -40,16 +40,26 @@ export function encodePayloadV4(packet: AnyPacketV4): Uint8Array {
 // encoding functions
 //
 
+/**
+ * Encodes the payload for a CONNECT packet.
+ * @param packet - The CONNECT packet to encode.
+ * @returns A Uint8Array representing the encoded payload of the CONNECT packet.
+ */
 const encodeConnectPayload = (packet: ConnectPacketV4): Uint8Array => {
+  _assertValidConnectPacketV4(packet);
+
   const payload = getEncodedConnectPayload(packet.payload);
-  const length = calculateConnectPayloadLength(payload);
+  const length = calculateConnectPayloadLength(payload, packet.flags.willFlag);
 
   const writer = new MqttWriterV4(length);
 
   writer.writeBinaryData(payload.clientIdentifierEncoded);
-  if (payload.willTopicEncoded)
-    writer.writeBinaryData(payload.willTopicEncoded);
-  if (payload.willMessage) writer.writeBinaryData(payload.willMessage);
+
+  if (packet.flags.willFlag) {
+    writer.writeBinaryData(payload.willTopicEncoded!);
+    writer.writeBinaryData(payload.willMessage!); // willMessage is guaranteed to be defined by getEncodedConnectPayload() if willFlag is true
+  }
+
   if (payload.userNameEncoded) writer.writeBinaryData(payload.userNameEncoded);
   if (payload.password) writer.writeBinaryData(payload.password);
 
@@ -148,10 +158,14 @@ const getEncodedConnectPayload = (
     ? encodeStringUtf8(payload.willTopic)
     : undefined;
 
+  const willMessage = payload.willMessage
+    ? payload.willMessage
+    : new Uint8Array();
+
   return {
     clientIdentifierEncoded: clientIdentifierEncoded,
     willTopicEncoded: willTopicEncoded,
-    willMessage: payload.willMessage,
+    willMessage: willMessage,
     userNameEncoded: userNameEncoded,
     password: payload.password,
   };
@@ -186,26 +200,28 @@ const getEncodedSubscriptionList = (
  * @param payload - The connection payload containing client identifier, will topic, will message, username, and password.
  * @returns The total length of the CONNECT packet payload in bytes.
  */
-const calculateConnectPayloadLength = (payload: EncodedConnectPayloadV4) => {
-  const clientIdentifierLength = 2 + payload.clientIdentifierEncoded.length;
-  const willTopicLength = payload.willTopicEncoded
-    ? 2 + payload.willTopicEncoded.length
-    : 0;
-  const willMessageLength = payload.willMessage
-    ? 2 + payload.willMessage.length
-    : 0;
+const calculateConnectPayloadLength = (
+  payload: EncodedConnectPayloadV4,
+  hasWill: boolean
+) => {
+  const clientIdentifierLength =
+    2 + // for prefixed length of client identifier
+    payload.clientIdentifierEncoded.length;
   const userNameLength = payload.userNameEncoded
-    ? 2 + payload.userNameEncoded.length
+    ? 2 + // for prefixed length of username
+      payload.userNameEncoded.length
     : 0;
   const passwordLength = payload.password ? 2 + payload.password.length : 0;
+  const willLength = hasWill
+    ? 2 + // for prefixed length of will topic
+      (payload.willTopicEncoded?.length ?? 0) +
+      2 + // for prefixed length of will message
+      (payload.willMessage?.length ?? 0)
+    : 0; // if will flag is not set, will topic and will message are not included in the payload
 
   // calculate total payload length
   const payloadLength =
-    clientIdentifierLength +
-    passwordLength +
-    userNameLength +
-    willMessageLength +
-    willTopicLength;
+    clientIdentifierLength + passwordLength + userNameLength + willLength;
 
   return payloadLength;
 };
@@ -226,6 +242,51 @@ const writeSubscription = (
 //
 // assertions
 //
+
+/**
+ * Asserts that the given CONNECT packet is valid according to MQTT v4 specs.
+ * @param packet - The CONNECT packet to validate.
+ * @throws AppError if the packet is invalid.
+ */
+function _assertValidConnectPacketV4(packet: ConnectPacketV4) {
+  // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
+  // [MQTT-3.1.3-3]
+  if (packet.payload.clientIdentifier === undefined)
+    throw new AppError(
+      "The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload [MQTT-3.1.3-3]"
+    );
+
+  // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
+  // [MQTT-3.1.3-5]
+  const clientIdentifier = packet.payload.clientIdentifier;
+
+  // allow zero-byte ClientId [MQTT-3.1.3-6]
+  if (clientIdentifier.length > 0) {
+    if (clientIdentifier.length > 23)
+      throw new AppError(
+        `The Client Identifier has invalid length: ${clientIdentifier.length}. It must be between 1 and 23 UTF-8 encoded bytes in length [MQTT-3.1.3-5]`
+      );
+
+    const allowedCharsRegex = /^[0-9a-zA-Z]+$/;
+    const hasDisallowedChars = !allowedCharsRegex.test(clientIdentifier);
+
+    if (hasDisallowedChars)
+      throw new AppError(
+        `The Client Identifier contains invalid characters: "${clientIdentifier}". ` +
+          `Only "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" are allowed. [MQTT-3.1.3-5]`
+      );
+  }
+
+  // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
+  // [MQTT-3.1.3-7]
+  if (
+    packet.payload.clientIdentifier.length === 0 &&
+    !packet.flags.cleanSession
+  )
+    throw new AppError(
+      `If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].`
+    );
+}
 
 /**
  * Asserts that the given SUBACK packet is valid according to MQTT v4 specs.
