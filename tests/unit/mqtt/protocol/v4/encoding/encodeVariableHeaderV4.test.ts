@@ -670,6 +670,18 @@ describe("encodeVariableHeaderV4", () => {
           ]
         );
       });
+
+      it("should throw if PUBLISH packet has topic name that are not string", () => {
+        [21, true, false, undefined, null].forEach((topic) => {
+          const packet = MqttPacketV4Factory.createPublishPacketV4(
+            topic as unknown as string
+          );
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.3\.2-1/
+          );
+        });
+      });
     });
 
     // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.
@@ -690,11 +702,15 @@ describe("encodeVariableHeaderV4", () => {
     // [MQTT-4.7.3-1]
     describe("[MQTT-4.7.3-1]", () => {
       it("should throw if PUBLISH packet has empty topic name", () => {
-        const packet = MqttPacketV4Factory.createPublishPacketV4(
-          "" // topic
-        );
+        [[""], ["topic", ""]].forEach((topics) => {
+          const packet = MqttPacketV4Factory.createPublishPacketV4(
+            "" // topic
+          );
 
-        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-4\.7\.3-1/
+          );
+        });
       });
     });
   });

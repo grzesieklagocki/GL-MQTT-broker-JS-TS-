@@ -313,6 +313,17 @@ function _assertValidSubackPacket(packet: SubackPacketV4) {
  * @throws AppError if the packet is invalid.
  */
 function _assertValidSubscribePacket(packet: SubscribePacketV4) {
+  // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
+  // [MQTT-3.8.3-1]
+  packet.subscriptionList.forEach((subscription) => {
+    const topicFilter = subscription[0];
+
+    if (typeof topicFilter !== "string")
+      throw new AppError(
+        `Invalid topic filter in SUBSCRIBE packet: ${topicFilter}. Topic Filters must be UTF-8 encoded strings [MQTT-3.8.3-1]`
+      );
+  });
+
   // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation.
   // [MQTT-3.8.3-3]
   if (packet.subscriptionList.length === 0)
@@ -320,15 +331,23 @@ function _assertValidSubscribePacket(packet: SubscribePacketV4) {
       "The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation [MQTT-3.8.3-3]"
     );
 
-  // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
-  // [MQTT-3.8.3-1]
-  //
+  // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2.
+  // [MQTT-3-8.3-4]
+  packet.subscriptionList.forEach((subscription) => {
+    const qos = subscription[1];
+
+    if (qos !== 0 && qos !== 1 && qos !== 2)
+      throw new AppError(
+        `Invalid QoS level in SUBSCRIBE packet: ${qos}. Valid QoS levels are 0, 1, or 2 [MQTT-3.8.3-4]`
+      );
+  });
+
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   packet.subscriptionList.forEach((subscription) => {
     if (subscription[0].length === 0)
       throw new AppError(
-        "Invalid subscription: Topic Filter must be at least one character long [MQTT-3.8.3-1]"
+        "Invalid subscription: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
       );
   });
 }
@@ -341,13 +360,10 @@ function _assertValidSubscribePacket(packet: SubscribePacketV4) {
 function _assertValidUnsubscribePacket(packet: UnsubscribePacketV4) {
   // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
   // [MQTT-3.10.3-1]
-  //
-  // All Topic Names and Topic Filters MUST be at least one character long.
-  // [MQTT-4.7.3-1]
-  packet.topicFilterList.forEach((topic) => {
-    if (topic.length === 0)
+  packet.topicFilterList.forEach((topicFilter) => {
+    if (typeof topicFilter !== "string")
       throw new AppError(
-        "Invalid topic filter: Topic Filter must be at least one character long [MQTT-3.10.3-1]"
+        `Invalid topic filter in UNSUBSCRIBE packet: ${topicFilter}. Topic Filters must be UTF-8 encoded strings [MQTT-3.10.3-1]`
       );
   });
 
@@ -358,6 +374,15 @@ function _assertValidUnsubscribePacket(packet: UnsubscribePacketV4) {
     throw new AppError(
       "The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter. An UNSUBSCRIBE packet with no payload is a protocol violation [MQTT-3.10.3-2]"
     );
+
+  // All Topic Names and Topic Filters MUST be at least one character long.
+  // [MQTT-4.7.3-1]
+  packet.topicFilterList.forEach((topic) => {
+    if (topic.length === 0)
+      throw new AppError(
+        "Invalid topic filter: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
+      );
+  });
 }
 
 //

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType, QoS } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   SimplePacketV4Type,
@@ -198,7 +198,7 @@ describe("encodePayloadV4", () => {
     // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
     // [MQTT-3.1.3-3]
     describe("[MQTT-3.1.3-3]", () => {
-      it("should throw AppError for CONNECT packet with empty Client Identifier", () => {
+      it("should throw if CONNECT packet has empty Client Identifier", () => {
         const packet = MqttPacketV4Factory.createConnectPacketV4(
           false, // cleanSession
           20, // keepAlive
@@ -248,7 +248,7 @@ describe("encodePayloadV4", () => {
           reason: "with Client Identifier containing invalid characters",
         },
       ].forEach((testCase) => {
-        it(`should throw AppError for CONNECT packet ${testCase.reason}`, () => {
+        it(`should throw for CONNECT packet ${testCase.reason}`, () => {
           const packet = MqttPacketV4Factory.createConnectPacketV4(
             false, // cleanSession
             20, // keepAlive
@@ -287,7 +287,7 @@ describe("encodePayloadV4", () => {
     // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
     // [MQTT-3.1.3-7]
     describe("[MQTT-3.1.3-7]", () => {
-      it("should throw AppError for CONNECT packet with zero-byte Client Identifier and CleanSession set to 0", () => {
+      it("should throw if CONNECT packet has zero-byte Client Identifier and CleanSession set to 0", () => {
         const packet = MqttPacketV4Factory.createConnectPacketV4(
           false, // cleanSession
           100, // keepAlive
@@ -472,26 +472,65 @@ describe("encodePayloadV4", () => {
 
     // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
     // [MQTT-3.8.3-1]
-    it("should throw AppError for SUBSCRIBE packet with empty topic filter", () => {
-      [[""], ["topic", ""]].forEach((topics) => {
-        const packet = MqttPacketV4Factory.createSubscribePacketV4(
-          0x0001, // identifier
-          topics.map((topic) => [topic, 0])
-        );
+    describe("[MQTT-3.8.3-1]", () => {
+      it("should throw if SUBSCRIBE packet has topic filters that are not string", () => {
+        [[21], ["topic", 33], [true, false, "topic2"]].forEach((topics) => {
+          const packet = MqttPacketV4Factory.createSubscribePacketV4(
+            0x0001, // identifier
+            topics.map((topic) => [topic as string, 0])
+          );
 
-        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-1/);
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-1/);
+        });
       });
     });
 
     // [MQTT-3.8.3-3]
     // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation.
-    it("should throw AppError for SUBSCRIBE packet with no subscriptions", () => {
-      const packet = MqttPacketV4Factory.createSubscribePacketV4(
-        0x0001, // identifier
-        [] // no subscriptions
-      );
+    describe("[MQTT-3.8.3-3]", () => {
+      it("should throw if SUBSCRIBE packet has no subscriptions", () => {
+        const packet = MqttPacketV4Factory.createSubscribePacketV4(
+          0x0001, // identifier
+          [] // no subscriptions
+        );
 
-      expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-3/);
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-3/);
+      });
+    });
+
+    // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2.
+    // [MQTT-3-8.3-4]
+    describe("[MQTT-3.8.3-4]", () => {
+      it("should throw if SUBSCRIBE packet has invalid QoS in subscription", () => {
+        const subscriptions: SubscriptionV4[] = [
+          [
+            "a/b", // topic filter
+            3 as QoS, // invalid QoS: 3
+          ],
+        ];
+
+        const packet = MqttPacketV4Factory.createSubscribePacketV4(
+          0x0001, // identifier
+          subscriptions
+        );
+
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.8\.3-4/);
+      });
+    });
+
+    // All Topic Names and Topic Filters MUST be at least one character long.
+    // [MQTT-4.7.3-1]
+    describe("[MQTT-4.7.3-1]", () => {
+      it("should throw if SUBSCRIBE packet has empty topic filter", () => {
+        [[""], ["topic", ""]].forEach((topics) => {
+          const packet = MqttPacketV4Factory.createSubscribePacketV4(
+            0x0001, // identifier
+            topics.map((topic) => [topic, 0])
+          );
+
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
+        });
+      });
     });
   });
 
@@ -529,20 +568,22 @@ describe("encodePayloadV4", () => {
 
     // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
     // [MQTT-3.9.3-2]
-    it("should throw if SUBACK packet has invalid return code [MQTT-3.9.3-2]", () => {
-      [
-        [0x03],
-        [0x0c, 0x13],
-        [0x02, 0x81, 0x01],
-        [0x01, 0x01, 0x02, 0x79],
-        [0x00, 0x02, 0x01, 0xff, 0x00],
-      ].forEach((returnCodeList) => {
-        const packet = MqttPacketV4Factory.createSubackPacketV4(
-          0x1234,
-          returnCodeList
-        );
+    describe("[MQTT-3.9.3-2]", () => {
+      it("should throw if SUBACK packet has invalid return code", () => {
+        [
+          [0x03],
+          [0x0c, 0x13],
+          [0x02, 0x81, 0x01],
+          [0x01, 0x01, 0x02, 0x79],
+          [0x00, 0x02, 0x01, 0xff, 0x00],
+        ].forEach((returnCodeList) => {
+          const packet = MqttPacketV4Factory.createSubackPacketV4(
+            0x1234,
+            returnCodeList
+          );
 
-        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.9\.3-2/);
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.9\.3-2/);
+        });
       });
     });
   });
@@ -602,24 +643,46 @@ describe("encodePayloadV4", () => {
 
     // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
     // [MQTT-3.10.3-1]
-    it("should throw AppError for SUBSCRIBE packet with empty topic filter", () => {
-      [[""], ["topic", ""]].forEach((topics) => {
-        const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
-          0x0001, // identifier
-          topics
-        );
+    describe("[MQTT-3.10.3-1]", () => {
+      it("should throw if UNSUBSCRIBE packet has topic filters that are not string", () => {
+        [[21], ["topic", 33], [true, false, "topic2"]].forEach((topics) => {
+          const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
+            0x0001, // identifier
+            topics as string[]
+          );
 
-        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-1/);
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-1/);
+        });
       });
     });
 
     // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
     // An UNSUBSCRIBE packet with no payload is a protocol violation.
     // [MQTT-3.10.3-2]
-    it("should throw AppError for UNSUBSCRIBE packet with empty topic filter", () => {
-      const packet = MqttPacketV4Factory.createUnsubscribePacketV4(0x4321, []);
+    describe("[MQTT-3.10.3-2]", () => {
+      it("should throw if UNSUBSCRIBE packet has no topic filters", () => {
+        const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
+          0x4321,
+          []
+        );
 
-      expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-2/);
+        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.10\.3-2/);
+      });
+    });
+
+    // All Topic Names and Topic Filters MUST be at least one character long.
+    // [MQTT-4.7.3-1]
+    describe("[MQTT-4.7.3-1]", () => {
+      it("should throw if UNSUBSCRIBE packet has empty topic name", () => {
+        [[""], ["topic", ""]].forEach((topics) => {
+          const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
+            0x0001, // identifier
+            topics
+          );
+
+          expect(() => encodePayloadV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
+        });
+      });
     });
   });
 });

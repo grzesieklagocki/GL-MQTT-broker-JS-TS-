@@ -283,7 +283,11 @@ function _assertValidPublishPacketV4(packet: PublishPacketV4) {
 
   // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
   // [MQTT-3.3.2-1]
-  //
+  if (typeof packet.topicName !== "string")
+    throw new AppError(
+      `Invalid topic filter in UNSUBSCRIBE packet: ${packet.topicName}. Topic Filters must be UTF-8 encoded strings [MQTT-3.3.2-1]`
+    );
+
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   if (packet.topicName.length === 0)
