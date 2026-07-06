@@ -21,7 +21,14 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
       throw new AppError(
         `Invalid Fixed Header Flags: 0b${flags
           .toString(2)
-          .padEnd(4, "0")} for Packet Type: ${PacketType[packetType]}`
+          .padEnd(
+            4,
+            "0"
+          )} for Packet Type: ${PacketType[packetType]} [MQTT-2.2.2-1]` +
+          (packetType === PacketType.PUBREL ? ", [MQTT-3.6.1-1]" : "") +
+          (packetType === PacketType.SUBSCRIBE ? ", [MQTT-3.8.1-1]" : "") +
+          (packetType === PacketType.UNSUBSCRIBE ? ", [MQTT-3.10.1-1]" : "") +
+          (packetType === PacketType.DISCONNECT ? ", [MQTT-3.14.1-1]" : "")
       );
   }
 
@@ -58,8 +65,14 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
     // Where a flag bit is marked as “Reserved” in Table 2.2 - Flag Bits, it is reserved for future use and MUST be set to the value listed in that table.
     // [MQTT-2.2.2-1]
     if (
+      // Bits 3,2,1 and 0 of the fixed header in the PUBREL Control Packet are reserved and MUST be set to 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection.
+      // [MQTT-3.6.1-1]
       packetType === PacketType.PUBREL ||
+      // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved and MUST be set to 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection.
+      // [MQTT-3.8.1-1]
       packetType === PacketType.SUBSCRIBE ||
+      // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved and MUST be set to 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection.
+      // [MQTT-3.10.1-1]
       packetType === PacketType.UNSUBSCRIBE
     )
       return flags === 0b0010;
