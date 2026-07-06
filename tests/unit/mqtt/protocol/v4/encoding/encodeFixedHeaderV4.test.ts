@@ -261,14 +261,40 @@ describe("encodeFixedHeaderV4()", () => {
       expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow();
     });
 
-    it("should throw when PUBLISH has QoS value 3", () => {
-      const fixedHeader: FixedHeader = {
-        packetType: PacketType.PUBLISH,
-        flags: 0b0110, // QoS bits = 11
-        remainingLength: 5,
-      };
+    // The DUP flag MUST be set to 0 for all QoS 0 messages.
+    // [MQTT-3.3.1-2]
+    describe("[MQTT-3.3.1-2]", () => {
+      it("should throw when PUBLISH has QoS 0 and DUP flag set to 1", () => {
+        [
+          0b1000, // dup=1, qos=0, retain=0
+          0b1001, // dup=1, qos=0, retain=1
+        ].forEach((flags) => {
+          const fixedHeader: FixedHeader = {
+            packetType: PacketType.PUBLISH,
+            flags: flags,
+            remainingLength: 10,
+          };
 
-      expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow();
+          expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow(
+            /MQTT-3\.3\.1-2/
+          );
+        });
+      });
+    });
+
+    // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
+    // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
+    // [MQTT-3.3.1-4]
+    describe("[MQTT-3.3.1-4]", () => {
+      it("should throw when PUBLISH has QoS 3 [MQTT-3.3.1-4]", () => {
+        const fixedHeader: FixedHeader = {
+          packetType: PacketType.PUBLISH,
+          flags: 0b0110, // qos=3 (0b11)
+          remainingLength: 5,
+        };
+
+        expect(() => encodeFixedHeaderV4(fixedHeader)).toThrow(/MQTT-3\.3\.1-4/);
+      });
     });
 
     it("should throw when Remaining Length is negative", () => {

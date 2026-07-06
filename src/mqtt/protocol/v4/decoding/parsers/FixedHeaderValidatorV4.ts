@@ -76,7 +76,7 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
       throw new AppError(
         `Invalid QoS Flags in fixed header: 0b${qos
           .toString(2)
-          .padStart(2, "0")}, should be 0b00, 0b01 or 0b10`
+          .padStart(2, "0")}, should be 0b00, 0b01 or 0b10 [MQTT-3.3.1-4]`
       );
   }
 

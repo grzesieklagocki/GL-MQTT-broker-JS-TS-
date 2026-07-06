@@ -636,74 +636,65 @@ describe("encodeVariableHeaderV4", () => {
 
     // A PUBLISH Packet MUST NOT contain a Packet Identifier if its QoS value is set to 0.
     // [MQTT-2.3.1-5]
-    it("should throw if PUBLISH packet has QoS 0 and identifier [MQTT-2.3.1-5]", () => {
-      const packet = MqttPacketV4Factory.createPublishPacketV4(
-        "topic",
-        undefined, // message
-        MqttPacketV4Factory.createPublishFlagsV4(), // default flags, qos 0
-        0xdd
-      );
+    describe("[MQTT-2.3.1-5]", () => {
+      it("should throw if PUBLISH packet has QoS 0 and identifier", () => {
+        const packet = MqttPacketV4Factory.createPublishPacketV4(
+          "topic",
+          undefined, // message
+          MqttPacketV4Factory.createPublishFlagsV4(), // default flags, qos 0
+          0xdd
+        );
 
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-2\.3\.1-5/);
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-2\.3\.1-5/);
+      });
     });
 
-    // The DUP flag MUST be set to 0 for all QoS 0 messages.
-    // [MQTT-3.3.1-2]
-    it("should throw if PUBLISH packet has QoS 0 and DUP flag is set [MQTT-3.3.1-2]", () => {
-      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
-        0, // qos
-        false, // retain
-        true // dup
-      );
-
-      const packet = MqttPacketV4Factory.createPublishPacketV4(
-        "topic",
-        undefined, // message
-        flags // dup=true
-      );
-
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.1-2/);
-    });
-
-    // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
-    // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
-    // [MQTT-3.3.1-4]
-    it("should throw if PUBLISH packet has QoS 3 [MQTT-3.3.1-4]", () => {
-      const flags: PublishFlagsV4 = MqttPacketV4Factory.createPublishFlagsV4(
-        0b11 as QoS, // invalid qos
-        false, // retain
-        true // dup
-      );
-
-      const packet = MqttPacketV4Factory.createPublishPacketV4(
-        "topic",
-        undefined, // message
-        flags // invalid qos (3)
-      );
-
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.1-4/);
-    });
-
-    // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
+    // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header.
+    // It MUST be a UTF-8 encoded string.
     // [MQTT-3.3.2-1]
-    //
-    // All Topic Names and Topic Filters MUST be at least one character long.
-    // [MQTT-4.7.3-1]
-    it("should throw if PUBLISH packet has empty topic name [MQTT-3.3.2-1]", () => {
-      const packet = MqttPacketV4Factory.createPublishPacketV4(
-        "" // topic
-      );
+    describe("[MQTT-3.3.2-1]", () => {
+      it("should encode Topic Name as UTF-8 encoded string", () => {
+        const packet = MqttPacketV4Factory.createPublishPacketV4(
+          "topic/GŁ" // topic
+        );
 
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
+        const result = encodeVariableHeaderV4(packet);
+
+        expectBytes(
+          result,
+          [
+            // Topin Name length: 9
+            0x00, 0x09,
+            // Topic Name: "topic/GŁ" (UTF‑8)
+            0x74, 0x6f, 0x70, 0x69, 0x63, 0x2f, 0x47, 0xc5, 0x81,
+          ]
+        );
+      });
     });
 
     // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.
     // [MQTT-3.3.2-2]
-    it("should throw if PUBLISH packet has topic name with wildcard [MQTT-3.3.2-2]", () => {
-      ["+", "#", "a/+/b", "c/#"].forEach((topic) => {
-        const packet = MqttPacketV4Factory.createPublishPacketV4(topic);
+    describe("[MQTT-3.3.2-2]", () => {
+      it("should throw if PUBLISH packet has topic name with wildcard", () => {
+        ["+", "#", "a/+/b", "c/#"].forEach((topic) => {
+          const packet = MqttPacketV4Factory.createPublishPacketV4(topic);
 
-        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.3\.2-2/);
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.3\.2-2/
+          );
+        });
+      });
+    });
+
+    // All Topic Names and Topic Filters MUST be at least one character long.
+    // [MQTT-4.7.3-1]
+    describe("[MQTT-4.7.3-1]", () => {
+      it("should throw if PUBLISH packet has empty topic name", () => {
+        const packet = MqttPacketV4Factory.createPublishPacketV4(
+          "" // topic
+        );
+
+        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-4\.7\.3-1/);
       });
     });
   });
