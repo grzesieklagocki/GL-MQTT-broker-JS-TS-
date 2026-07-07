@@ -113,7 +113,7 @@ describe("parseSubackPacketV4", () => {
       ]);
 
       expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-        /Invalid SUBACK return code/
+        /Invalid return code/
       );
     });
   });
@@ -122,7 +122,7 @@ describe("parseSubackPacketV4", () => {
     const readerMock = createSubackReaderMock([], 0x1234, []);
 
     expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-      /Invalid return code list length/
+      /at least one return code/
     );
   });
 });

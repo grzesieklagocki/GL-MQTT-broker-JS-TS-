@@ -1,6 +1,9 @@
-import { AppError } from "@src/AppError";
 import { PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, SubackPacketV4, SubackReturnCodeV4 } from "../../types";
+import {
+  _assertValidSubackReturnCodeListLength,
+  _assertValidSubackReturnCodeV4,
+} from "../../validation/suback";
 
 /**
  * Parses a SUBACK MQTT packet (for protocol version 3.1.1).
@@ -38,40 +41,14 @@ function parseReturnCodeList(reader: IMQTTReaderV4): SubackReturnCodeV4[] {
     returnCodeList.push(returnCode);
   }
 
-  _assertValidReturnCodeList(returnCodeList);
+  _assertValidSubackReturnCodeListLength(returnCodeList.length);
 
   return returnCodeList;
 }
 
 function parseReturnCode(reader: IMQTTReaderV4): SubackReturnCodeV4 {
   const returnCode = reader.readOneByteInteger();
-  _assertValidReturnCode(returnCode);
+  _assertValidSubackReturnCodeV4(returnCode);
 
   return returnCode;
-}
-
-//
-// assertions helpers
-//
-
-// return code list must contain at least one code
-function _assertValidReturnCodeList(list: SubackReturnCodeV4[]) {
-  if (list.length < 1)
-    throw new AppError(
-      `Invalid return code list length: ${list.length}, should be at least 1`
-    );
-}
-
-// SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
-// [MQTT-3.9.3-2]
-function _assertValidReturnCode(
-  returnCode: number
-): asserts returnCode is SubackReturnCodeV4 {
-  if (
-    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0 &&
-    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1 &&
-    returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2 &&
-    returnCode !== SubackReturnCodeV4.FAILURE
-  )
-    throw new AppError(`Invalid SUBACK return code: ${returnCode}`);
 }
