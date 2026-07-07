@@ -9,7 +9,6 @@ import {
 import { encodeVariableHeaderV4 } from "@mqtt/protocol/v4/encoding/encodeVariableHeaderV4";
 import {
   ConnackReturnCodeV4,
-  PublishFlagsV4,
   SubackReturnCodeV4,
   SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
@@ -230,6 +229,30 @@ describe("encodeVariableHeaderV4", () => {
       it("should throw if CONNECT packet has invalid protocol name", () => {
         const packet = MqttPacketV4Factory.createConnectPacketV4(
           true,
+          60,
+          "id"
+        );
+
+        // invalid protocol names for MQTT 3.1.1
+        ["MQIsdp", "mqtt", "MQTTv5", "MQTTv3.1.1", "", "MQTT3"].forEach(
+          (invalidName) => {
+            packet.protocol.name = invalidName as "MQTT";
+
+            expect(() => encodeVariableHeaderV4(packet)).toThrow(
+              /MQTT-3\.1\.2-1/
+            );
+          }
+        );
+      });
+    });
+
+    // The Server MUST respond to the CONNECT Packet with a CONNACK return code 0x01 (unacceptable protocol level)
+    // and then disconnect the Client if the Protocol Level is not supported by the Server.
+    // [MQTT-3.1.2-2]
+    describe("[MQTT-3.1.2-2]", () => {
+      it("should throw if CONNECT packet has invalid protocol level", () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true,
           20,
           "id_1"
         );
@@ -239,7 +262,7 @@ describe("encodeVariableHeaderV4", () => {
           packet.protocol.level = invalidLevel as 4;
 
           expect(() => encodeVariableHeaderV4(packet)).toThrow(
-            /MQTT-3\.1\.2-1/
+            /MQTT-3\.1\.2-2/
           );
         });
       });

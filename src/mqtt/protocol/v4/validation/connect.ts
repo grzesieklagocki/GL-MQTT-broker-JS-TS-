@@ -11,9 +11,17 @@ export function _assertValidConnectVariableHeaderV4(packet: ConnectPacketV4) {
   // or it MAY continue processing the CONNECT packet in accordance with some other specification.
   // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification.
   // [MQTT-3.1.2-1]
+  if (packet.protocol.name !== "MQTT")
+    throw new AppError(
+      `Invalid protocol name: ${packet.protocol.name}, expected "MQTT for MQTT 3.1.1" [MQTT-3.1.2-1]`
+    );
+
+  // The Server MUST respond to the CONNECT Packet with a CONNACK return code 0x01 (unacceptable protocol level)
+  // and then disconnect the Client if the Protocol Level is not supported by the Server.
+  // [MQTT-3.1.2-2]
   if (packet.protocol.level !== 4) {
     throw new AppError(
-      `Invalid protocol level: ${packet.protocol.level}, expected 4 for MQTT 3.1.1 [MQTT-3.1.2-1]`
+      `Invalid protocol level: ${packet.protocol.level}, expected 4 for MQTT 3.1.1 [MQTT-3.1.2-2]`
     );
   }
 
