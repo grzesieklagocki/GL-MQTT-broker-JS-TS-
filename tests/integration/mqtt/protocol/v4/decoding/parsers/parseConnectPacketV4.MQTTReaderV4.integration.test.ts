@@ -1,12 +1,9 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { describe, it, expect } from "vitest";
-import {
-  createConnectFixedHeader,
-  createFixedHeader,
-} from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
-import { ConnectPacketV4 } from "@src/mqtt/protocol/v4/types";
+import { createConnectFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
+import { parseMqttPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
+import { ConnectPacketV4 } from "@mqtt/protocol/v4/types";
 
 //
 // integration tests for parseConnectPacketV4 using MQTTReaderV4 with data buffers
@@ -15,23 +12,6 @@ import { ConnectPacketV4 } from "@src/mqtt/protocol/v4/types";
 describe("parseConnectPacketV4", () => {
   // commonly used fixed header for CONNECT packet
   const fixedHeader = createConnectFixedHeader(12);
-
-  // common array for tests
-  const array = new Uint8Array([
-    // protocol name length: 4
-    0x00, 0x04,
-    // protocol name: "MQTT"
-    0x4d, 0x51, 0x54, 0x54,
-    // protocol level: 4
-    0x04,
-    // flags: 0b00000000
-    0b00000000,
-    // keep alive: 0xabdc
-    0xab, 0xdc,
-    // client identifier length: 0
-    0x00, 0x00,
-    // client identifier: empty
-  ]);
 
   // arrays with invalid UTF-8 sequences (for testing UTF-8 string parsing)
   const invalidUtf8Arrays = [
@@ -124,8 +104,8 @@ describe("parseConnectPacketV4", () => {
       0x4d, 0x49, 0x73, 0x64, 0x70, 0x20,
       // protocol level: 4
       0x04,
-      // flags: 0b00000000
-      0b00000000,
+      // flags: clean session flag set
+      0b00000010,
       // keep alive: 0x00dc
       0xab, 0xdc,
       // client identifier length: 2
