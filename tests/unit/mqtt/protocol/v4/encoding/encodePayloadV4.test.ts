@@ -542,12 +542,10 @@ describe("encodePayloadV4", () => {
       expectBytes(result, [0x00, 0x01, 0x02, 0x80]);
     });
 
-    it("should encode empty SUBACK payload when returnCodes is empty", () => {
+    it("should throw if SUBACK packet has no return codes", () => {
       const packet = MqttPacketV4Factory.createSubackPacketV4(0x1234, []);
 
-      const result = encodePayloadV4(packet);
-
-      expectBytes(result, []);
+      expect(() => encodePayloadV4(packet)).toThrow(/return code/);
     });
 
     // SUBACK return codes other than 0x00, 0x01, 0x02 and 0x80 are reserved and MUST NOT be used.
