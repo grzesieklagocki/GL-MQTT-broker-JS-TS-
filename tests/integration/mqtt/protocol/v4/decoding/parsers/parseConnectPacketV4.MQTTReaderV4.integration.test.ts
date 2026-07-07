@@ -341,7 +341,7 @@ describe("parseConnectPacketV4", () => {
         // protocol level: 4
         0x04,
         // flags: 0b00000000
-        invalidWillQoS << 4,
+        invalidWillQoS << 3,
         // keep alive: 0x00dc
         0xab,
         0xdc,

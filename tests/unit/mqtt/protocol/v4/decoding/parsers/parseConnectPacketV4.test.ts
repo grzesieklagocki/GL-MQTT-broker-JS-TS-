@@ -207,7 +207,8 @@ describe("parseConnectPacketV4", () => {
         [], // remaining values not needed
         "MQTT", // protocol name
         4, // protocol level
-        invalidWillQoS << 4 // Will Flag not set
+        //(invalidWillQoS << 4) | (1 << 5) // Will Flag not set
+        invalidWillQoS << 3
       );
 
       expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
