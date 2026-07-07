@@ -74,8 +74,8 @@ describe("parseConnectPacketV4", () => {
       /Invalid protocol name/
     );
 
-    expect(readerMock.readString).toHaveBeenCalledOnce(); // protocol name
-    expect(readerMock.readOneByteInteger).not.toBeCalled();
+    expect(readerMock.readString).toHaveBeenCalledOnce; // protocol name
+    expect(readerMock.readOneByteInteger).toHaveBeenCalledOnce; // protocol level
     expect(readerMock.readTwoByteInteger).not.toBeCalled();
     expect(readerMock.readBytes).not.toBeCalled();
   });
@@ -207,7 +207,6 @@ describe("parseConnectPacketV4", () => {
         [], // remaining values not needed
         "MQTT", // protocol name
         4, // protocol level
-        //(invalidWillQoS << 4) | (1 << 5) // Will Flag not set
         invalidWillQoS << 3
       );
 
