@@ -159,7 +159,7 @@ describe("parseUnsubscribePacketV4", () => {
     );
 
     expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-      /Invalid topic length/
+      /MQTT-4\.7\.3-1/
     );
   });
 

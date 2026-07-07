@@ -1,6 +1,6 @@
 import { AppError } from "@src/AppError";
 import { SubscribePacketV4 } from "../types";
-import { _assertValidTopicLenth } from "./topic";
+import { _assertValidTopicFilter, _assertValidTopicName } from "./topic";
 
 /**
  * Asserts that a SUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
@@ -42,6 +42,6 @@ export function _assertValidSubscribePayloadV4(packet: SubscribePacketV4) {
   packet.subscriptionList.forEach((subscription) => {
     const topic = subscription[0];
 
-    _assertValidTopicLenth(topic);
+    _assertValidTopicFilter(topic);
   });
 }

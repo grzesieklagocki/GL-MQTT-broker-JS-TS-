@@ -1,6 +1,7 @@
 import { AppError } from "@src/AppError";
 import { containsWildcard, Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 import { IMQTTReaderV4 } from "../../types";
+import { _assertValidTopicFilter, _assertValidTopicName } from "../../validation/topic";
 
 /**
  * Parses a topic filter from the MQTT packet.
@@ -35,24 +36,4 @@ function parseTopic(reader: IMQTTReaderV4, allowWildcards: boolean) {
       error as Error
     );
   }
-}
-
-function _assertValidTopicFilter(topicFilter: string) {
-  // All Topic Names and Topic Filters MUST be at least one character long
-  // [MQTT-4.7.3-1]
-  if (topicFilter.length < 1)
-    throw new AppError(
-      `Invalid topic length: ${topicFilter.length}, should be at least 1`
-    );
-}
-
-function _assertValidTopicName(topicName: string) {
-  _assertValidTopicFilter(topicName);
-
-  // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters
-  // [MQTT-3.3.2-2]
-  if (containsWildcard(topicName))
-    throw new AppError(
-      `Invalid topic filter: ${topicName}. The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters [MQTT-3.3.2-2]`
-    );
 }

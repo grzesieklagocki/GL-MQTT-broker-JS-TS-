@@ -236,7 +236,7 @@ describe("parseSubscribePacketV4", () => {
     const reader = new MQTTReaderV4(remainingData);
 
     expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
-      /topic length/
+      /MQTT-4\.7\.3-1/
     );
   });
 
@@ -261,7 +261,7 @@ describe("parseSubscribePacketV4", () => {
     const reader = new MQTTReaderV4(remainingData);
 
     expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrowError(
-      /topic length/
+      /MQTT-4\.7\.3-1/
     );
   });
 

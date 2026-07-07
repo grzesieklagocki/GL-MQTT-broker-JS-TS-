@@ -189,7 +189,7 @@ describe("parsePublishPacketV4", () => {
     );
 
     expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-      /Invalid topic length/
+      /MQTT-4\.7\.3-1/
     );
 
     expect(readerMock.readString).toHaveBeenCalledOnce(); // topic name

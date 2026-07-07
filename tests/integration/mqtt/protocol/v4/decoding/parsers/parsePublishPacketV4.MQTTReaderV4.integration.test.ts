@@ -2,7 +2,6 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import { describe, it, expect } from "vitest";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import {
-  createFixedHeader,
   createPublishFixedHeader,
 } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
@@ -151,7 +150,7 @@ describe("parsePublishPacketV4", () => {
     const reader = new MQTTReaderV4(array);
 
     expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
-      /Invalid topic length/
+      /MQTT-4\.7\.3-1/
     );
   });
 
