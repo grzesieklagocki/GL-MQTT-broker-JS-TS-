@@ -1,5 +1,6 @@
 import { AppError } from "@src/AppError";
 import { UnsubscribePacketV4 } from "../types";
+import { _assertValidTopicLenth } from "./topic";
 
 /**
  * Asserts that an UNSUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
@@ -27,9 +28,6 @@ export function _assertValidUnsubscribePayloadV4(packet: UnsubscribePacketV4) {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   packet.topicFilterList.forEach((topic) => {
-    if (topic.length === 0)
-      throw new AppError(
-        "Invalid topic filter: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
-      );
+    _assertValidTopicLenth(topic);
   });
 }

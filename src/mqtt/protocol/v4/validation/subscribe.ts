@@ -1,5 +1,6 @@
 import { AppError } from "@src/AppError";
 import { SubscribePacketV4 } from "../types";
+import { _assertValidTopicLenth } from "./topic";
 
 /**
  * Asserts that a SUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
@@ -39,9 +40,8 @@ export function _assertValidSubscribePayloadV4(packet: SubscribePacketV4) {
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
   packet.subscriptionList.forEach((subscription) => {
-    if (subscription[0].length === 0)
-      throw new AppError(
-        "Invalid subscription: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
-      );
+    const topic = subscription[0];
+
+    _assertValidTopicLenth(topic);
   });
 }

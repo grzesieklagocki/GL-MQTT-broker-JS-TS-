@@ -1,6 +1,7 @@
 import { AppError } from "@src/AppError";
 import { containsWildcard } from "../../shared/Utf8Conversion";
 import { PublishPacketV4 } from "../types";
+import { _assertValidTopicLenth } from "./topic";
 
 /**
  * Asserts that the given PUBLISH packet has valid variable header according to MQTT v4 specs.
@@ -44,10 +45,7 @@ export function _assertValidPublishVariableHeaderV4(packet: PublishPacketV4) {
 
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
-  if (packet.topicName.length === 0)
-    throw new AppError(
-      `All Topic Names and Topic Filters MUST be at least one character long [MQTT-4.7.3-1]`
-    );
+  _assertValidTopicLenth(packet.topicName);
 
   // The Topic Name in the PUBLISH Packet MUST NOT contain wildcard characters.
   // [MQTT-3.3.2-2]
