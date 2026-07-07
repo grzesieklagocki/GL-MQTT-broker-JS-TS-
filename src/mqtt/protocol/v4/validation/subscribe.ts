@@ -1,6 +1,6 @@
 import { AppError } from "@src/AppError";
 import { SubscribePacketV4, SubscriptionV4 } from "../types";
-import { _assertValidTopicFilter, _assertValidTopicName } from "./topic";
+import { _assertValidTopicFilter } from "./topic";
 
 /**
  * Asserts that a SUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
@@ -35,14 +35,14 @@ export function _assertValidSubscriptionListLength(length: number) {
 export function _assertValidSubscription(
   subscription: [topicFilter: string, qos: number]
 ): asserts subscription is SubscriptionV4 {
-  const topic = subscription[0];
+  const topicFilter = subscription[0];
   const qos = subscription[1];
 
   // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
   // [MQTT-3.8.3-1]
-  if (typeof topic !== "string")
+  if (typeof topicFilter !== "string")
     throw new AppError(
-      `Invalid topic filter in SUBSCRIBE packet: ${topic}. Topic Filters must be UTF-8 encoded strings [MQTT-3.8.3-1]`
+      `Invalid topic filter in SUBSCRIBE packet: ${topicFilter}. Topic Filters must be UTF-8 encoded strings [MQTT-3.8.3-1]`
     );
 
   // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2.
@@ -54,5 +54,5 @@ export function _assertValidSubscription(
 
   // All Topic Names and Topic Filters MUST be at least one character long.
   // [MQTT-4.7.3-1]
-  _assertValidTopicFilter(topic);
+  _assertValidTopicFilter(topicFilter);
 }

@@ -1,7 +1,10 @@
-import { AppError } from "@src/AppError";
-import { PacketType, QoS } from "../../../shared/types";
+import { PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, SubscribePacketV4, SubscriptionV4 } from "../../types";
 import { parseTopicFilter } from "./parseTopic";
+import {
+  _assertValidSubscription,
+  _assertValidSubscriptionListLength,
+} from "../../validation/subscribe";
 
 /**
  * Parses a SUBSCRIBE MQTT packet (for protocol version 3.1.1).
@@ -36,36 +39,14 @@ function parseSubscriptionList(reader: IMQTTReaderV4) {
 
   while (reader.remaining > 0) {
     const topic = parseTopicFilter(reader);
-    const qos = parseQoS(reader);
+    const qos = reader.readOneByteInteger();
 
-    subscriptionList.push([topic, qos]);
+    const subscription: [string, number] = [topic, qos];
+    _assertValidSubscription(subscription);
+
+    subscriptionList.push(subscription);
   }
-  _assertValidSubscriptionList(subscriptionList);
+  _assertValidSubscriptionListLength(subscriptionList.length);
 
   return subscriptionList;
-}
-
-function parseQoS(reader: IMQTTReaderV4): QoS {
-  const qos = reader.readOneByteInteger();
-  _assertValidQoS(qos);
-
-  return qos;
-}
-
-//
-// assertions helpers
-//
-
-// subscription list must contain at least one subscription
-function _assertValidSubscriptionList(list: SubscriptionV4[]) {
-  if (list.length < 1)
-    throw new AppError(
-      `Invalid subscription list length: ${list.length}, should be at least 1`
-    );
-}
-
-// QoS must be 0, 1 or 2
-function _assertValidQoS(qos: number): asserts qos is QoS {
-  if (qos !== 0x00 && qos !== 0x01 && qos !== 2)
-    throw new AppError(`Invalid QoS level: ${qos}, should be 0, 1 or 2`);
 }

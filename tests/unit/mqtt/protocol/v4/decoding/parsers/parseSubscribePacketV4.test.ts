@@ -184,7 +184,7 @@ describe("parseSubscribePacketV4", () => {
       [] // empty subscription list
     );
     expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-      /subscription list length/
+      /at least one Topic Filter \/ QoS/
     );
   });
 
