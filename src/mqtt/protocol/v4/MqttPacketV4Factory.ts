@@ -71,6 +71,7 @@ export class MqttPacketV4Factory {
       willQoS: 0,
       willFlag: false,
       cleanSession: cleanSession,
+      reserved: false,
     };
 
     if (will) {

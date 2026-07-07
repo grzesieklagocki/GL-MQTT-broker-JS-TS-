@@ -63,6 +63,7 @@ describe("MqttPacketV4Factory", () => {
         willQoS: 1,
         willFlag: true,
         cleanSession: true,
+        reserved: false,
       };
 
       const payload: ConnectionPayloadV4 = {
@@ -111,6 +112,7 @@ describe("MqttPacketV4Factory", () => {
         willQoS: 0,
         willFlag: false,
         cleanSession: false,
+        reserved: false,
       };
 
       const payload: ConnectionPayloadV4 = {
@@ -162,6 +164,7 @@ describe("MqttPacketV4Factory", () => {
         willQoS: 2,
         willFlag: true,
         cleanSession: true,
+        reserved: false,
       });
     });
   });

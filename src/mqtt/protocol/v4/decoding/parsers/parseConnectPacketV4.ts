@@ -68,9 +68,10 @@ function parseConnectFlags(reader: IMQTTReaderV4): ConnectFlagsV4 {
     userName: (byte & (1 << 7)) !== 0 ? true : false,
     password: (byte & (1 << 6)) !== 0 ? true : false,
     willRetain: (byte & (1 << 5)) !== 0 ? true : false,
-    willQoS: qos,
+    willQoS: qos as QoS,
     willFlag: (byte & (1 << 2)) !== 0 ? true : false,
     cleanSession: (byte & (1 << 1)) !== 0 ? true : false,
+    reserved: false,
   };
 }
 

@@ -59,6 +59,7 @@ export type ConnectFlagsV4 = {
   willQoS: QoS;
   willFlag: boolean;
   cleanSession: boolean;
+  reserved: false;
 };
 
 export type ConnectionPayloadV4 = {
