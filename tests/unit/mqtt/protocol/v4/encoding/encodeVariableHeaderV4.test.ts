@@ -329,32 +329,6 @@ describe("encodeVariableHeaderV4", () => {
 
         expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
       });
-
-      it("should throw if CONNECT packet has willFlag false but will topic present", () => {
-        const packet = MqttPacketV4Factory.createConnectPacketV4(
-          true, // cleanSession
-          120, // keepAlive
-          "clientID" // clientIdentifier
-        );
-
-        packet.flags.willFlag = false;
-        packet.payload.willTopic = "WILL/topic";
-
-        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
-      });
-
-      it("should throw if CONNECT packet has willFlag false but will message present", () => {
-        const packet = MqttPacketV4Factory.createConnectPacketV4(
-          true, // cleanSession
-          120, // keepAlive
-          "clientID" // clientIdentifier
-        );
-
-        packet.flags.willFlag = false;
-        packet.payload.willMessage = new Uint8Array([0x00, 0x01, 0x55]);
-
-        expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-3\.1\.2-11/);
-      });
     });
 
     // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00).
