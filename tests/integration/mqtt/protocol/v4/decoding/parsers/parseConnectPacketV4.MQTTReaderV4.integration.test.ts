@@ -176,8 +176,10 @@ describe("parseConnectPacketV4", () => {
         0xdc,
         // client identifier length: 2
         0x00,
-        0x00,
-        // client identifier: empty
+        0x02,
+        // client identifier: "id"
+        0x69,
+        0x64,
       ]);
       const reader = new MQTTReaderV4(array);
 
