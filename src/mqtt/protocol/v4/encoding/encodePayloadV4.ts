@@ -48,7 +48,7 @@ export function encodePayloadV4(packet: AnyPacketV4): Uint8Array {
  * @returns A Uint8Array representing the encoded payload of the CONNECT packet.
  */
 const encodeConnectPayloadV4 = (packet: ConnectPacketV4): Uint8Array => {
-  _assertValidConnectPayloadV4(packet);
+  _assertValidConnectPayloadV4(packet.payload.clientIdentifier);
 
   const payload = getEncodedConnectPayload(packet.payload);
   const length = calculateConnectPayloadLength(payload, packet.flags.willFlag);

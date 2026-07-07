@@ -1,12 +1,20 @@
 import { AppError } from "@src/AppError";
-import { ConnectFlagsV4, ConnectionPayloadV4, ConnectPacketV4, ProtocolInfoV4 } from "../types";
+import {
+  ConnectFlagsV4,
+  ConnectionPayloadV4,
+  ConnectPacketV4,
+  ProtocolInfoV4,
+} from "../types";
 
 /**
  * Asserts that the given CONNECT packet has valid variable header according to MQTT v4 specs.
  * @param packet - The CONNECT packet to validate.
  * @throws AppError if the packet is invalid.
  */
-export function _assertValidConnectVariableHeaderV4(protocol: ProtocolInfoV4, flags: ConnectFlagsV4) {
+export function _assertValidConnectVariableHeaderV4(
+  protocol: ProtocolInfoV4,
+  flags: ConnectFlagsV4
+) {
   // If the protocol name is incorrect the Server MAY disconnect the Client,
   // or it MAY continue processing the CONNECT packet in accordance with some other specification.
   // In the latter case, the Server MUST NOT continue to process the CONNECT packet in line with this specification.
@@ -62,20 +70,19 @@ export function _assertValidConnectVariableHeaderV4(protocol: ProtocolInfoV4, fl
 
 /**
  * Asserts that the given CONNECT packet is valid according to MQTT v4 specs.
- * @param packet - The CONNECT packet to validate.
+ * @param clientIdentifier - The client identifier to validate.
  * @throws AppError if the packet is invalid.
  */
-export function _assertValidConnectPayloadV4(packet: ConnectPacketV4) {
+export function _assertValidConnectPayloadV4(clientIdentifier: string) {
   // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
   // [MQTT-3.1.3-3]
-  if (packet.payload.clientIdentifier === undefined)
+  if (clientIdentifier === undefined)
     throw new AppError(
       "The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload [MQTT-3.1.3-3]"
     );
 
   // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
   // [MQTT-3.1.3-5]
-  const clientIdentifier = packet.payload.clientIdentifier;
 
   // allow zero-byte ClientId [MQTT-3.1.3-6]
   if (clientIdentifier.length > 0) {
