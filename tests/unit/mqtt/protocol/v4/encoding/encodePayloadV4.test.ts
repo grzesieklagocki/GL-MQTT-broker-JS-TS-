@@ -284,22 +284,6 @@ describe("encodePayloadV4", () => {
       });
     });
 
-    // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
-    // [MQTT-3.1.3-7]
-    describe("[MQTT-3.1.3-7]", () => {
-      it("should throw if CONNECT packet has zero-byte Client Identifier and CleanSession set to 0", () => {
-        const packet = MqttPacketV4Factory.createConnectPacketV4(
-          false, // cleanSession
-          100, // keepAlive
-          "" // zero-byte ClientId
-        );
-
-        expect(packet.flags.cleanSession).toBe(false);
-        expect(packet.payload.clientIdentifier).toBe("");
-        expect(() => encodePayloadV4(packet)).toThrow(/MQTT-3\.1\.3-7/);
-      });
-    });
-
     // The Will Topic MUST be a UTF-8 encoded string as defined in Section 1.5.3.
     // [MQTT-3.1.3-10]
     describe("[MQTT-3.1.3-10]", () => {

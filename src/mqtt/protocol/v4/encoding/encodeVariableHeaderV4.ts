@@ -87,7 +87,7 @@ const encodePublishVariableHeader = (packet: PublishPacketV4): Uint8Array => {
  * @returns A Uint8Array representing the encoded variable header of the CONNECT packet.
  */
 const encodeConnectVariableHeader = (packet: ConnectPacketV4): Uint8Array => {
-  _assertValidConnectVariableHeaderV4(packet);
+  _assertValidConnectVariableHeaderV4(packet.protocol, packet.flags);
 
   const writer = new MqttWriterV4(10); // 10 bytes for the variable header of CONNECT packet
 

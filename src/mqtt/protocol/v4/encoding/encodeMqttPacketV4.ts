@@ -1,5 +1,6 @@
 import { PacketType } from "../../shared/types";
 import { AnyPacketV4, PublishFlagsV4 } from "../types";
+import { _assertValidConnectPacketV4 } from "../validation/connect";
 import { combinePacketV4 } from "./combinePacketV4";
 import { encodePayloadV4 } from "./encodePayloadV4";
 import { encodeVariableHeaderV4 } from "./encodeVariableHeaderV4";
@@ -10,6 +11,9 @@ import { encodeVariableHeaderV4 } from "./encodeVariableHeaderV4";
  * @returns A Uint8Array representing the encoded MQTT packet.
  */
 export function encodeMqttPacketV4(packet: AnyPacketV4): Uint8Array {
+  if (packet.typeId === PacketType.CONNECT)
+    _assertValidConnectPacketV4(packet.flags, packet.payload);
+
   const variableHeader = encodeVariableHeaderV4(packet);
   const payload = encodePayloadV4(packet);
 
