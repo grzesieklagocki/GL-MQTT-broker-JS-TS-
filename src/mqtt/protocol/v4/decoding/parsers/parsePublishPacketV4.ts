@@ -3,6 +3,7 @@ import { FixedHeader, PacketType, QoS } from "../../../shared/types";
 import { IMQTTReaderV4, PublishFlagsV4, PublishPacketV4 } from "../../types";
 import { parseIdentifier } from "./parseIdentifier";
 import { parseTopicName } from "./parseTopic";
+import { _assertValidPublishVariableHeaderV4 } from "../../validation/publish";
 
 /**
  * Parses a PUBLISH MQTT packet (for protocol version 3.1.1).
@@ -23,7 +24,6 @@ export function parsePublishPacketV4(
 
   // parse
   const flags = parseFlags(fixedHeader.flags);
-
   const topicName = parseTopicName(reader);
 
   _assertCanReadIdentifier(flags.qosLevel, reader.remaining);
@@ -32,6 +32,8 @@ export function parsePublishPacketV4(
     flags.qosLevel === 0x01 || flags.qosLevel === 0x02
       ? parseIdentifier(reader)
       : undefined;
+
+  _assertValidPublishVariableHeaderV4(flags, topicName, identifier);
 
   const message = reader.remaining > 0 ? reader.readBytes() : undefined;
 
