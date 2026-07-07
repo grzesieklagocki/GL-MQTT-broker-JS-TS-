@@ -14,7 +14,7 @@ import { MqttWriterV4 } from "./MqttWriterV4";
 import { _assertValidConnectPayloadV4 } from "../validation/connect";
 import { _assertValidSubackPayloadV4 } from "../validation/suback";
 import { _assertValidSubscribePayloadV4 } from "../validation/subscribe";
-import { _assertValidUnsubscribePayloadV4 as _assertValidUnsubscribePayloadV4 } from "../validation/unsubscribe";
+import { _assertValidUnsubscribePayloadV4 } from "../validation/unsubscribe";
 
 /**
  * Encodes the payload of an MQTT 3.1.1 packet into a Uint8Array.

@@ -1,5 +1,4 @@
 import { AppError } from "@src/AppError";
-import { containsWildcard } from "../../shared/Utf8Conversion";
 import { PublishPacketV4 } from "../types";
 import { _assertValidTopicName } from "./topic";
 
