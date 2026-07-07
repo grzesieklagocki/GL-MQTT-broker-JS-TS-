@@ -61,7 +61,11 @@ const encodeConnackVariableHeader = (packet: ConnackPacketV4): Uint8Array =>
  * @returns A Uint8Array representing the encoded variable header of the PUBLISH packet.
  */
 const encodePublishVariableHeader = (packet: PublishPacketV4): Uint8Array => {
-  _assertValidPublishVariableHeaderV4(packet);
+  _assertValidPublishVariableHeaderV4(
+    packet.flags,
+    packet.topicName,
+    packet.identifier
+  );
 
   const encodedTopic = encodeStringUtf8(packet.topicName);
 
