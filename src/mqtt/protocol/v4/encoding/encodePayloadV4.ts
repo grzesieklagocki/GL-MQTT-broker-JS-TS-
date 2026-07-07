@@ -1,4 +1,3 @@
-import { AppError } from "@src/AppError";
 import { PacketType, QoS } from "../../shared/types";
 import {
   AnyPacketV4,
@@ -6,13 +5,16 @@ import {
   ConnectPacketV4,
   PublishPacketV4,
   SubackPacketV4,
-  SubackReturnCodeV4,
   SubscribePacketV4,
   SubscriptionV4,
   UnsubscribePacketV4,
 } from "../types";
 import { encodeStringUtf8 } from "./encodeStringUtf8";
 import { MqttWriterV4 } from "./MqttWriterV4";
+import { _assertValidConnectPayloadV4 } from "../validation/connect";
+import { _assertValidSubackPayloadV4 } from "../validation/suback";
+import { _assertValidSubscribePayloadV4 } from "../validation/subscribe";
+import { _assertValidUnsubscribePayloadV4 as _assertValidUnsubscribePayloadV4 } from "../validation/unsubscribe";
 
 /**
  * Encodes the payload of an MQTT 3.1.1 packet into a Uint8Array.
@@ -22,15 +24,15 @@ import { MqttWriterV4 } from "./MqttWriterV4";
 export function encodePayloadV4(packet: AnyPacketV4): Uint8Array {
   switch (packet.typeId) {
     case PacketType.CONNECT:
-      return encodeConnectPayload(packet);
+      return encodeConnectPayloadV4(packet);
     case PacketType.PUBLISH:
-      return encodePublishPayload(packet);
+      return encodePublishPayloadV4(packet);
     case PacketType.SUBACK:
-      return encodeSubackPayload(packet);
+      return encodeSubackPayloadV4(packet);
     case PacketType.SUBSCRIBE:
-      return encodeSubscribePayload(packet);
+      return encodeSubscribePayloadV4(packet);
     case PacketType.UNSUBSCRIBE:
-      return encodeUnsubscribePayload(packet);
+      return encodeUnsubscribePayloadV4(packet);
     default:
       return encodeEmpty();
   }
@@ -45,8 +47,8 @@ export function encodePayloadV4(packet: AnyPacketV4): Uint8Array {
  * @param packet - The CONNECT packet to encode.
  * @returns A Uint8Array representing the encoded payload of the CONNECT packet.
  */
-const encodeConnectPayload = (packet: ConnectPacketV4): Uint8Array => {
-  _assertValidConnectPacketV4(packet);
+const encodeConnectPayloadV4 = (packet: ConnectPacketV4): Uint8Array => {
+  _assertValidConnectPayloadV4(packet);
 
   const payload = getEncodedConnectPayload(packet.payload);
   const length = calculateConnectPayloadLength(payload, packet.flags.willFlag);
@@ -71,7 +73,7 @@ const encodeConnectPayload = (packet: ConnectPacketV4): Uint8Array => {
  * @param packet - The PUBLISH packet to encode.
  * @returns A Uint8Array representing the encoded payload of the PUBLISH packet.
  */
-const encodePublishPayload = (packet: PublishPacketV4): Uint8Array =>
+const encodePublishPayloadV4 = (packet: PublishPacketV4): Uint8Array =>
   packet.applicationMessage ? packet.applicationMessage : encodeEmpty();
 
 /**
@@ -79,8 +81,8 @@ const encodePublishPayload = (packet: PublishPacketV4): Uint8Array =>
  * @param packet - The SUBACK packet to encode.
  * @returns A Uint8Array representing the encoded payload of the SUBACK packet.
  */
-const encodeSubackPayload = (packet: SubackPacketV4): Uint8Array => {
-  _assertValidSubackPacket(packet);
+const encodeSubackPayloadV4 = (packet: SubackPacketV4): Uint8Array => {
+  _assertValidSubackPayloadV4(packet);
 
   return new Uint8Array(packet.returnCodeList);
 };
@@ -90,8 +92,8 @@ const encodeSubackPayload = (packet: SubackPacketV4): Uint8Array => {
  * @param packet - The SUBSCRIBE packet to encode.
  * @returns A Uint8Array representing the encoded payload of the SUBSCRIBE packet.
  */
-const encodeSubscribePayload = (packet: SubscribePacketV4): Uint8Array => {
-  _assertValidSubscribePacket(packet);
+const encodeSubscribePayloadV4 = (packet: SubscribePacketV4): Uint8Array => {
+  _assertValidSubscribePayloadV4(packet);
 
   const subscriptionList = getEncodedSubscriptionList(packet.subscriptionList);
 
@@ -113,8 +115,10 @@ const encodeSubscribePayload = (packet: SubscribePacketV4): Uint8Array => {
  * @param packet - The UNSUBSCRIBE packet to encode.
  * @returns A Uint8Array representing the encoded payload of the UNSUBSCRIBE packet.
  */
-const encodeUnsubscribePayload = (packet: UnsubscribePacketV4): Uint8Array => {
-  _assertValidUnsubscribePacket(packet);
+const encodeUnsubscribePayloadV4 = (
+  packet: UnsubscribePacketV4
+): Uint8Array => {
+  _assertValidUnsubscribePayloadV4(packet);
 
   const topicFilterList = getEncodedTopicFilterList(packet.topicFilterList);
 
@@ -238,152 +242,6 @@ const writeSubscription = (
   writer.writeBinaryData(subscription.topicFilterEncoded);
   writer.writeOneByteInteger(subscription.qos);
 };
-
-//
-// assertions
-//
-
-/**
- * Asserts that the given CONNECT packet is valid according to MQTT v4 specs.
- * @param packet - The CONNECT packet to validate.
- * @throws AppError if the packet is invalid.
- */
-function _assertValidConnectPacketV4(packet: ConnectPacketV4) {
-  // The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload.
-  // [MQTT-3.1.3-3]
-  if (packet.payload.clientIdentifier === undefined)
-    throw new AppError(
-      "The Client Identifier (ClientId) MUST be present and MUST be the first field in the CONNECT packet payload [MQTT-3.1.3-3]"
-    );
-
-  // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
-  // [MQTT-3.1.3-5]
-  const clientIdentifier = packet.payload.clientIdentifier;
-
-  // allow zero-byte ClientId [MQTT-3.1.3-6]
-  if (clientIdentifier.length > 0) {
-    if (clientIdentifier.length > 23)
-      throw new AppError(
-        `The Client Identifier has invalid length: ${clientIdentifier.length}. It must be between 1 and 23 UTF-8 encoded bytes in length [MQTT-3.1.3-5]`
-      );
-
-    const allowedCharsRegex = /^[0-9a-zA-Z]+$/;
-    const hasDisallowedChars = !allowedCharsRegex.test(clientIdentifier);
-
-    if (hasDisallowedChars)
-      throw new AppError(
-        `The Client Identifier contains invalid characters: "${clientIdentifier}". ` +
-          `Only "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" are allowed. [MQTT-3.1.3-5]`
-      );
-  }
-
-  // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
-  // [MQTT-3.1.3-7]
-  if (
-    packet.payload.clientIdentifier.length === 0 &&
-    !packet.flags.cleanSession
-  )
-    throw new AppError(
-      `If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].`
-    );
-}
-
-/**
- * Asserts that the given SUBACK packet is valid according to MQTT v4 specs.
- * @param packet - The SUBACK packet to validate.
- * @throws AppError if the packet is invalid.
- */
-function _assertValidSubackPacket(packet: SubackPacketV4) {
-  packet.returnCodeList.forEach((returnCode) => {
-    if (
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0 &&
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1 &&
-      returnCode !== SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_2 &&
-      returnCode !== SubackReturnCodeV4.FAILURE
-    )
-      throw new AppError(
-        `Invalid return code in SUBACK packet: ${returnCode}. Valid return codes are: 0x00, 0x01, 0x02, 0x80 [MQTT-3.9.3-2]`
-      );
-  });
-}
-
-/**
- * Asserts that a SUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
- * @param packet - The SUBSCRIBE packet to validate.
- * @throws AppError if the packet is invalid.
- */
-function _assertValidSubscribePacket(packet: SubscribePacketV4) {
-  // The Topic Filters in a SUBSCRIBE packet payload MUST be UTF-8 encoded strings as defined in Section 1.5.3.
-  // [MQTT-3.8.3-1]
-  packet.subscriptionList.forEach((subscription) => {
-    const topicFilter = subscription[0];
-
-    if (typeof topicFilter !== "string")
-      throw new AppError(
-        `Invalid topic filter in SUBSCRIBE packet: ${topicFilter}. Topic Filters must be UTF-8 encoded strings [MQTT-3.8.3-1]`
-      );
-  });
-
-  // The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation.
-  // [MQTT-3.8.3-3]
-  if (packet.subscriptionList.length === 0)
-    throw new AppError(
-      "The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair. A SUBSCRIBE packet with no payload is a protocol violation [MQTT-3.8.3-3]"
-    );
-
-  // The Server MUST treat a SUBSCRIBE packet as malformed and close the Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2.
-  // [MQTT-3-8.3-4]
-  packet.subscriptionList.forEach((subscription) => {
-    const qos = subscription[1];
-
-    if (qos !== 0 && qos !== 1 && qos !== 2)
-      throw new AppError(
-        `Invalid QoS level in SUBSCRIBE packet: ${qos}. Valid QoS levels are 0, 1, or 2 [MQTT-3.8.3-4]`
-      );
-  });
-
-  // All Topic Names and Topic Filters MUST be at least one character long.
-  // [MQTT-4.7.3-1]
-  packet.subscriptionList.forEach((subscription) => {
-    if (subscription[0].length === 0)
-      throw new AppError(
-        "Invalid subscription: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
-      );
-  });
-}
-
-/**
- * Asserts that an UNSUBSCRIBE packet is valid according to MQTT 3.1.1 specification.
- * @param packet - The UNSUBSCRIBE packet to validate.
- * @throws AppError if the packet is invalid.
- */
-function _assertValidUnsubscribePacket(packet: UnsubscribePacketV4) {
-  // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings as defined in Section 1.5.3, packed contiguously.
-  // [MQTT-3.10.3-1]
-  packet.topicFilterList.forEach((topicFilter) => {
-    if (typeof topicFilter !== "string")
-      throw new AppError(
-        `Invalid topic filter in UNSUBSCRIBE packet: ${topicFilter}. Topic Filters must be UTF-8 encoded strings [MQTT-3.10.3-1]`
-      );
-  });
-
-  // The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter.
-  // An UNSUBSCRIBE packet with no payload is a protocol violation.
-  // [MQTT-3.10.3-2]
-  if (packet.topicFilterList.length === 0)
-    throw new AppError(
-      "The Payload of an UNSUBSCRIBE packet MUST contain at least one Topic Filter. An UNSUBSCRIBE packet with no payload is a protocol violation [MQTT-3.10.3-2]"
-    );
-
-  // All Topic Names and Topic Filters MUST be at least one character long.
-  // [MQTT-4.7.3-1]
-  packet.topicFilterList.forEach((topic) => {
-    if (topic.length === 0)
-      throw new AppError(
-        "Invalid topic filter: Topic Filter must be at least one character long [MQTT-4.7.3-1]"
-      );
-  });
-}
 
 //
 // types
