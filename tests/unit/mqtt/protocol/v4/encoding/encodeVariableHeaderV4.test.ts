@@ -482,7 +482,7 @@ describe("encodeVariableHeaderV4", () => {
           true, // cleanSession
           120, // keepAlive
           "clientID", // clientIdentifier
-          undefined, // no username
+          "", // username
           undefined // password
         );
 
