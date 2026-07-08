@@ -87,4 +87,23 @@ describe("parseConnackPacketV4", () => {
       }
     );
   });
+
+  // If a server sends a CONNACK packet containing a non-zero return code it MUST set Session Present to 0.
+  // [MQTT-3.2.2-4]
+  describe("[MQTT-3.2.2-4]", () => {
+    // test all valid non-zero return codes with Session Present Flag set to 1
+    [0x01, 0x02, 0x03, 0x04, 0x05].forEach((returnCode) => {
+      it(`throws an Error if Session Present Flag is 1 and Connect Return Code is non-zero`, () => {
+        const readerMock = createConnackReaderMock(
+          2, // remaining
+          0x01, // session present flag
+          returnCode // non-zero Connect Return Code
+        );
+
+        expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+          /MQTT-3\.2\.2-4/
+        );
+      });
+    });
+  });
 });
