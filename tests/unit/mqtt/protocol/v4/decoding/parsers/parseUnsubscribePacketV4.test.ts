@@ -36,7 +36,7 @@ describe("parseUnsubscribePacketV4", () => {
     [1, 255, 260, 4660, 63535].forEach((identifier) => {
       const fixedHeader = createUnsubscribeFixedHeader(5);
       const readerMock = createUnsubscribeReaderMock(
-        [], // remaining values not needed
+        [3], // for topic filter reading
         identifier, // packet identifier
         ["/"] // topic filter: "test"
       );

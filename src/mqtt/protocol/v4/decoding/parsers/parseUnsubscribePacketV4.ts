@@ -1,5 +1,9 @@
 import { PacketType } from "../../../shared/types";
 import { IMQTTReaderV4, UnsubscribePacketV4 } from "../../types";
+import {
+  _assertValidUnsubscribeTopicFilter,
+  _assertValidUnsubscribeTopicFilterListLength,
+} from "../../validation/unsubscribe";
 import { parseTopicFilter } from "./parseTopic";
 
 /**
@@ -34,8 +38,12 @@ function parseTopicFilterList(reader: IMQTTReaderV4) {
 
   while (reader.remaining > 0) {
     const topicFilter = parseTopicFilter(reader);
+    _assertValidUnsubscribeTopicFilter(topicFilter);
+
     topicFilterList.push(topicFilter);
   }
+
+  _assertValidUnsubscribeTopicFilterListLength(topicFilterList.length);
 
   return topicFilterList;
 }
