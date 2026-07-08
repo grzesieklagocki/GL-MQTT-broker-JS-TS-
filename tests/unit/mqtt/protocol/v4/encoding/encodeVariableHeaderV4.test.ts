@@ -397,6 +397,39 @@ describe("encodeVariableHeaderV4", () => {
         ConnackReturnCodeV4.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD,
       ]);
     });
+
+    it("should throw if CONNACK packet has invalid return code", () => {
+      [-0xff, -3, "returnCode", false, true, -1, 6, 0xfc].forEach(
+        (invalidReturnCode) => {
+          const packet = MqttPacketV4Factory.createConnackPacketV4(
+            false,
+            invalidReturnCode as ConnackReturnCodeV4
+          );
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /Invalid CONNACK return code/
+          );
+        }
+      );
+    });
+
+    // If a server sends a CONNACK packet containing a non-zero return code it MUST set Session Present to 0.
+    // [MQTT-3.2.2-4]
+    describe("[MQTT-3.2.2-4]", () => {
+      it("should throw if CONNACK packet has session present true and return code non-zero", () => {
+        [1, 2, 3, 4, 5].forEach((returnCode) => {
+          const packet = MqttPacketV4Factory.createConnackPacketV4(
+            true, // sessionPresent
+            returnCode
+          ); // return code (non-zero)
+
+          expect(packet.sessionPresentFlag).toBe(true);
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-3\.2\.2-4/
+          );
+        });
+      });
+    });
   });
 
   describe("PUBLISH", () => {

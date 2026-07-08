@@ -11,6 +11,7 @@ import { MqttWriterV4 } from "./MqttWriterV4";
 import { _assertValidConnectVariableHeaderV4 } from "../validation/connect";
 import { _assertValidPublishVariableHeaderV4 } from "../validation/publish";
 import { _assertValidIdentifier } from "../validation/identifier";
+import { _assertValidConnackVariableHeaderV4 } from "../validation/connack";
 
 /**
  * Encodes the variable header of an MQTT 3.1.1 packet into a Uint8Array.
@@ -49,11 +50,14 @@ const encodeEmptyVariableHeader = () => new Uint8Array();
  * @param packet - The CONNACK packet to encode.
  * @returns A Uint8Array representing the encoded variable header of the CONNACK packet.
  */
-const encodeConnackVariableHeader = (packet: ConnackPacketV4): Uint8Array =>
-  new Uint8Array([
+const encodeConnackVariableHeader = (packet: ConnackPacketV4): Uint8Array => {
+  _assertValidConnackVariableHeaderV4(packet);
+
+  return new Uint8Array([
     packet.sessionPresentFlag ? 1 : 0, // session present flag
     packet.connectReturnCode, // connect return code
   ]);
+};
 
 /**
  * Encodes the variable header for a PUBLISH packet.
