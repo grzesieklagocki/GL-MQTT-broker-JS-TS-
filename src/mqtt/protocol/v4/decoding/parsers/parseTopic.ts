@@ -1,5 +1,5 @@
 import { AppError } from "@src/AppError";
-import { containsWildcard, Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
+import { Uint8ArrayToUtf8String } from "@mqtt/protocol/shared/Utf8Conversion";
 import { IMQTTReaderV4 } from "../../types";
 import { _assertValidTopicFilter, _assertValidTopicName } from "../../validation/topic";
 
