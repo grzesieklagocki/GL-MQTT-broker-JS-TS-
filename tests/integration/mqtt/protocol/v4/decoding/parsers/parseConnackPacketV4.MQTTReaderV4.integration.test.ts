@@ -1,7 +1,7 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
-import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
-import { ConnackPacketV4 } from "@src/mqtt/protocol/v4/types";
+import { parseMqttPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
+import { ConnackPacketV4 } from "@mqtt/protocol/v4/types";
 import { createConnackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
 import { describe, it, expect } from "vitest";
 
@@ -48,11 +48,12 @@ describe("parseConnackPacketV4", () => {
   it(`correctly parses all Connect Return Code values`, () => {
     [
       { input: [0x00, 0x00], expected: 0x00 },
-      { input: [0x01, 0x01], expected: 0x01 },
+      { input: [0x01, 0x00], expected: 0x00 },
+      { input: [0x00, 0x01], expected: 0x01 },
       { input: [0x00, 0x02], expected: 0x02 },
-      { input: [0x01, 0x03], expected: 0x03 },
+      { input: [0x00, 0x03], expected: 0x03 },
       { input: [0x00, 0x04], expected: 0x04 },
-      { input: [0x01, 0x05], expected: 0x05 },
+      { input: [0x00, 0x05], expected: 0x05 },
     ].forEach(({ input, expected }) => {
       const remainingData = new Uint8Array(input);
       const reader = new MQTTReaderV4(remainingData);

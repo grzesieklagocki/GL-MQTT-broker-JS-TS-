@@ -1,5 +1,5 @@
 import { AppError } from "@src/AppError";
-import { ConnackPacketV4, ConnackReturnCodeV4 } from "../types";
+import { ConnackPacketV4 } from "../types";
 
 export function _assertValidConnackVariableHeaderV4(packet: ConnackPacketV4) {
   _assertValidConnackReturnCodeV4(packet.connectReturnCode);
@@ -17,7 +17,7 @@ export function _assertValidConnackVariableHeaderV4(packet: ConnackPacketV4) {
  * @param returnCode - The return code to validate.
  * @throws AppError if the return code is invalid.
  */
-function _assertValidConnackReturnCodeV4(returnCode: number) {
+export function _assertValidConnackReturnCodeV4(returnCode: number) {
   if (
     typeof returnCode !== "number" ||
     (returnCode !== 0 &&

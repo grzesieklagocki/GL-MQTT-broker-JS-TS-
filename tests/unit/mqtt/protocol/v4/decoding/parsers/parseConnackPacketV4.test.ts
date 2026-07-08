@@ -1,9 +1,9 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { ConnackPacketV4, IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
+import { ConnackPacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createConnackReaderMock } from "./mocks";
 import { createConnackFixedHeader } from "@tests/helpers/mqtt/protocol/createFixedHeader";
-import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
+import { parseMqttPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 
 describe("parseConnackPacketV4", () => {
   // commonly used fixed header for CONNACK packet
@@ -12,7 +12,7 @@ describe("parseConnackPacketV4", () => {
   it(`parse CONNACK packet`, () => {
     const readerMock = createConnackReaderMock(
       2, // remaining
-      0x01, // session present flag
+      0x00, // session present flag
       0x05 //connect return code
     );
 
@@ -29,7 +29,7 @@ describe("parseConnackPacketV4", () => {
       const readerMock = createConnackReaderMock(
         2, // remaining
         input, // session present flag
-        0x05 //connect return code
+        0x00 //connect return code
       );
 
       const packet = parseMqttPacketV4(
@@ -46,7 +46,7 @@ describe("parseConnackPacketV4", () => {
       const readerMock = createConnackReaderMock(
         2, // remaining
         invalidFirstByte, // session present flag
-        0x00 //connect return code
+        0x03 //connect return code
       );
 
       expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(

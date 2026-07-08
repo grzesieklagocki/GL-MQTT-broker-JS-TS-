@@ -1,10 +1,10 @@
 import { AppError } from "@src/AppError";
 import { FixedHeader, PacketType } from "../../../shared/types";
+import { ConnackPacketV4, IMQTTReaderV4 } from "../../types";
 import {
-  ConnackPacketV4,
-  ConnackReturnCodeV4,
-  IMQTTReaderV4,
-} from "../../types";
+  _assertValidConnackReturnCodeV4,
+  _assertValidConnackVariableHeaderV4,
+} from "../../validation/connack";
 
 /**
  * Parses a CONNACK MQTT packet (for protocol version 3.1.1).
@@ -29,17 +29,19 @@ export function parseConnackPacketV4(
   const sessionPresent = getSessionPresentFlag(firstByte);
 
   const returnCode = reader.readOneByteInteger();
-  _assertValidReturnCode(returnCode);
+  _assertValidConnackReturnCodeV4(returnCode);
 
-  return {
+  const packet = {
     typeId: fixedHeader.packetType,
     sessionPresentFlag: sessionPresent,
     connectReturnCode: returnCode,
   };
+  _assertValidConnackVariableHeaderV4(packet);
+
+  return packet;
 }
 
-const getSessionPresentFlag = (byte: number) =>
-  byte === 0x01 ? true : false;
+const getSessionPresentFlag = (byte: number) => (byte === 1 ? true : false);
 
 //
 // assertions helpers
@@ -61,12 +63,4 @@ function _assertValidFirstByte(byte: number) {
     throw new AppError(
       `Invalid first byte: 0x${byte.toString(16)}, should be 0x00 or 0x01`
     );
-}
-
-// only 0x00 to 0x05 are valid
-function _assertValidReturnCode(
-  returnCode: number
-): asserts returnCode is ConnackReturnCodeV4 {
-  if (returnCode > 0x05)
-    throw new AppError(`Invalid CONNACK return code: ${returnCode}`);
 }
