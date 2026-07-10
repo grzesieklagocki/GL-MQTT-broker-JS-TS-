@@ -13,3 +13,12 @@ export interface ITransportAdapter<
    */
   send(packet: PacketType): void;
 }
+
+/**
+ * Enum representing the connection status of an MQTT client.
+ */
+export enum ConnectionStatus {
+  DISCONNECTED, // The client is not connected to the broker.
+  CONNECTING, // The client is in the process of establishing a connection to the broker.
+  CONNECTED, // The client is successfully connected to the broker.
+}
