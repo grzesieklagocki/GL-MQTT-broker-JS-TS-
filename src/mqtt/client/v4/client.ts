@@ -2,11 +2,12 @@ import { AppError } from "@src/AppError";
 import { ITransportAdapterV4 } from "./types";
 import { IPacketIdentifierManager } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
-import { MqttPacketV4Factory } from "@src/mqtt/protocol/v4/MqttPacketV4Factory";
-import { PacketType } from "@src/mqtt/protocol/shared/types";
-import { AnyPacketV4 } from "@src/mqtt/protocol/v4/types";
+import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import { PacketType } from "@mqtt/protocol/shared/types";
+import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
+import { EventEmitter } from "stream";
 
-export class MqttClientV4 {
+export class MqttClientV4 extends EventEmitter {
   private mqttConnectionStatus: ConnectionStatus =
     ConnectionStatus.DISCONNECTED;
 
@@ -19,6 +20,8 @@ export class MqttClientV4 {
     private readonly transport: ITransportAdapterV4,
     private readonly packetIdManager: IPacketIdentifierManager
   ) {
+    super();
+
     this.transport.on("packetReceived", (packet) => {
       this.handleReceivedPacket(packet);
     });
@@ -30,7 +33,7 @@ export class MqttClientV4 {
    */
   private handleReceivedPacket(packet: AnyPacketV4) {
     let response: AnyPacketV4 | undefined;
-    
+
     switch (packet.typeId) {
       case PacketType.PUBLISH:
         switch (packet.flags.qosLevel) {
@@ -45,11 +48,34 @@ export class MqttClientV4 {
         }
 
         break;
+
+      case PacketType.CONNACK:
+      case PacketType.PUBACK:
+      case PacketType.PUBREC:
+      case PacketType.PUBREL:
+      case PacketType.PUBCOMP:
+      case PacketType.SUBACK:
+      case PacketType.UNSUBACK:
+      case PacketType.PINGRESP:
+        break;
+
       default:
-        throw Error();
+        this.handleDisconnect(
+          new AppError(
+            `Client received disallowed packet type: ${PacketType[packet.typeId]}`
+          )
+        );
     }
 
     if (response) this.transport.send(response);
+  }
+
+  /**
+   * Handles the disconnection of the MQTT client and emits a disconnect event.
+   * @param error - Optional error that caused the disconnection.
+   */
+  private handleDisconnect(error?: AppError) {
+    this.emit("disconnect", error);
   }
 
   /**
