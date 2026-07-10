@@ -3,7 +3,7 @@ import { ITransportAdapterV4 } from "./types";
 import { IPacketIdentifierManager } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
 
-export class ClientV4 {
+export class MqttClientV4 {
   private mqttConnectionStatus: ConnectionStatus =
     ConnectionStatus.DISCONNECTED;
 
