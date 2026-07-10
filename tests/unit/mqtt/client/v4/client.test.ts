@@ -23,42 +23,81 @@ describe("MqttClientV4", () => {
       client = new MqttClientV4(transportMock, managerMock);
     });
 
-    it("sends nothing when received PUBLISH packet with QOS 0", () => {
-      const packet = MqttPacketV4Factory.createPublishPacketV4("topic");
+    describe("PUBLISH", () => {
+      const topic = "a/b";
+      const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
 
-      expect(packet.typeId).toBe(PacketType.PUBLISH);
-      expect(packet.flags.qosLevel).toBe(0);
-
-      transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
-
-      expect(transportMock.send).not.toBeCalled();
-    });
-
-    [1, 0xa1, 0xff].forEach((packetId) => {
-      it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, () => {
-        const flags = MqttPacketV4Factory.createPublishFlagsV4(1); // qos: 1
-        const packet = MqttPacketV4Factory.createPublishPacketV4(
-          "topic",
-          undefined, // message
-          flags,
-          packetId // packet identifier
-        );
+      it("sends nothing when received PUBLISH packet with QOS 0", () => {
+        const packet = MqttPacketV4Factory.createPublishPacketV4("topic");
 
         expect(packet.typeId).toBe(PacketType.PUBLISH);
-        expect(packet.flags.qosLevel).toBe(1);
+        expect(packet.flags.qosLevel).toBe(0);
 
-        transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+        transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
 
-        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createPacketWithIdentifierV4(
-            PacketType.PUBACK,
-            packetId
-          )
-        );
+        expect(transportMock.send).not.toBeCalled();
       });
-    });
 
-    it.todo("TODO when received PUBLISH packet with QOS 2");
+      [1, 0xa1, 0xff].forEach((packetId) => {
+        it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, () => {
+          const flags = MqttPacketV4Factory.createPublishFlagsV4(1); // qos: 1
+          const packet = MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            message,
+            flags,
+            packetId // packet identifier
+          );
+
+          expect(packet.typeId).toBe(PacketType.PUBLISH);
+          expect(packet.flags.qosLevel).toBe(1);
+
+          transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+
+          expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              PacketType.PUBACK,
+              packetId
+            )
+          );
+        });
+      });
+
+      [
+        // qos: 0
+        MqttPacketV4Factory.createPublishPacketV4(topic, message),
+
+        // qos: 1
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          message,
+          MqttPacketV4Factory.createPublishFlagsV4(1),
+          0xffff
+        ),
+
+        // qos: 2
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          message,
+          MqttPacketV4Factory.createPublishFlagsV4(2),
+          0xffff
+        ),
+      ].forEach((packet) => {
+        it(`call publish event with provided topic and message when received PUBLISH packet with QOS ${packet.flags.qosLevel}`, () => {
+          expect(packet.typeId).toBe(PacketType.PUBLISH);
+          // expect(packet.flags.qosLevel).toBe(p);
+
+          // set event listener for publish event
+          const onPublish = vi.fn();
+          client.on("publish", onPublish);
+
+          transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
+
+          expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+        });
+      });
+
+      it.todo("TODO when received PUBLISH packet with QOS 2");
+    });
 
     // disallowed packets to receive for client
     describe("disallowed packets", () => {

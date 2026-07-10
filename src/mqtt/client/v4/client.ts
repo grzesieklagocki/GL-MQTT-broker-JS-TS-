@@ -4,7 +4,10 @@ import { IPacketIdentifierManager } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
+import {
+  AnyPacketV4,
+  PublishPacketV4,
+} from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "stream";
 
 export class MqttClientV4 extends EventEmitter {
@@ -36,17 +39,7 @@ export class MqttClientV4 extends EventEmitter {
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
-        switch (packet.flags.qosLevel) {
-          case 0:
-            break;
-          case 1:
-            response = MqttPacketV4Factory.createPacketWithIdentifierV4(
-              PacketType.PUBACK,
-              packet.identifier!
-            );
-            break;
-        }
-
+        response = this.handlePublishPacketReceived(packet);
         break;
 
       case PacketType.CONNACK:
@@ -68,6 +61,20 @@ export class MqttClientV4 extends EventEmitter {
     }
 
     if (response) this.transport.send(response);
+  }
+
+  private handlePublishPacketReceived(
+    packet: PublishPacketV4
+  ): AnyPacketV4 | undefined {
+    this.emit("publish", packet.topicName, packet.applicationMessage);
+
+    if (packet.flags.qosLevel === 1)
+      return MqttPacketV4Factory.createPacketWithIdentifierV4(
+        PacketType.PUBACK,
+        packet.identifier!
+      );
+
+    return undefined;
   }
 
   /**
