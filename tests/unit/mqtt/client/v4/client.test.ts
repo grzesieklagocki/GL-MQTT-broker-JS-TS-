@@ -4,25 +4,28 @@ import { ITransportAdapterV4 } from "@mqtt/client/v4/types";
 import { PacketType } from "@mqtt/protocol/shared/types";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { IPacketIdentifierManager } from "@mqtt/shared/types";
-import { EventEmitter } from "stream";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EventEmitter } from "node:events";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("MqttClientV4", () => {
-  describe("on receiving packets", () => {
-    let managerMock: IPacketIdentifierManager;
-    let transportMock: ITransportAdapterV4;
-    let client: MqttClientV4;
+  let managerMock: IPacketIdentifierManager;
+  let transportMock: ITransportAdapterV4;
+  let client: MqttClientV4;
 
-    beforeEach(() => {
-      // create mocks for tests
-      transportMock = Object.assign(new EventEmitter(), {
-        send: vi.fn(),
-      });
-      managerMock = {} as unknown as IPacketIdentifierManager;
-
-      client = new MqttClientV4(transportMock, managerMock);
+  beforeEach(() => {
+    // create mocks for tests
+    transportMock = Object.assign(new EventEmitter(), {
+      send: vi.fn(),
     });
 
+    managerMock = {
+      allocateIdentifier: vi.fn().mockImplementationOnce(() => 1),
+    } as unknown as IPacketIdentifierManager;
+
+    client = new MqttClientV4(transportMock, managerMock);
+  });
+
+  describe("on receiving packets", () => {
     describe("PUBLISH", () => {
       const topic = "a/b";
       const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
@@ -142,6 +145,61 @@ describe("MqttClientV4", () => {
           );
         });
       });
+    });
+  });
+
+  describe("subscribe", () => {
+    let transportMock: EventEmitter & {
+      send: ReturnType<typeof vi.fn>;
+    };
+
+    let managerMock: IPacketIdentifierManager;
+    let client: MqttClientV4;
+
+    beforeEach(() => {
+      transportMock = Object.assign(new EventEmitter(), {
+        send: vi.fn(),
+      });
+
+      managerMock = {
+        allocateIdentifier: vi.fn(() => 1),
+        releaseIdentifier: vi.fn(),
+      } as unknown as IPacketIdentifierManager;
+
+      client = new MqttClientV4(transportMock, managerMock);
+
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.clearAllMocks();
+    });
+
+    it("rejects when SUBACK is not received before timeout", async () => {
+      const promise = client.subscribe([]);
+
+      vi.advanceTimersByTime(10_100);
+
+      await expect(promise).rejects.toThrow(/timeout/);
+    });
+
+    it("returns SUBACK return codes when SUBACK is received before timeout", async () => {
+      const suback = MqttPacketV4Factory.createSubackPacketV4(1, [2, 0, 1]);
+
+      transportMock.send.mockImplementation(() => {
+        setTimeout(() => {
+          transportMock.emit("packetReceived", suback);
+        }, 9_900);
+      });
+
+      const promise = client.subscribe([
+        // will be ignored in this test
+      ]);
+
+      vi.advanceTimersByTime(10_000);
+
+      await expect(promise).resolves.toEqual([2, 0, 1]);
     });
   });
 });

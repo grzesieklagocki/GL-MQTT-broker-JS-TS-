@@ -7,6 +7,8 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   AnyPacketV4,
   PublishPacketV4,
+  SubackReturnCodeV4,
+  SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "stream";
 
@@ -27,6 +29,47 @@ export class MqttClientV4 extends EventEmitter {
 
     this.transport.on("packetReceived", (packet) => {
       this.handleReceivedPacket(packet);
+    });
+  }
+
+  public async subscribe(
+    subscriptionList: SubscriptionV4[]
+  ): Promise<SubackReturnCodeV4[]> {
+    return new Promise((resolve, reject) => {
+      const packetId = this.packetIdManager.allocateIdentifier();
+
+      const packet = MqttPacketV4Factory.createSubscribePacketV4(
+        packetId,
+        subscriptionList
+      );
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.transport.off("packetReceived", waitForSuback); // remove listener for this SUBACK packet
+        this.packetIdManager.releaseIdentifier(packetId); // release the allocated packet identifier
+      };
+
+      const waitForSuback = (receivedPacket: AnyPacketV4) => {
+        if (
+          receivedPacket.typeId !== PacketType.SUBACK ||
+          receivedPacket.identifier !== packetId
+        ) {
+          return;
+        }
+
+        // if the received packet is the expected SUBACK packet
+        cleanup();
+        resolve(receivedPacket.returnCodeList);
+      };
+
+      const timeout = setTimeout(() => {
+        // if the SUBACK packet is not received in defined time
+        cleanup();
+        reject(new AppError("timeout"));
+      }, 10_000);
+
+      this.transport.on("packetReceived", waitForSuback);
+      this.transport.send(packet);
     });
   }
 
