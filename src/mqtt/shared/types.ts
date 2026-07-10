@@ -3,13 +3,13 @@
  */
 export interface IPacketIdentifierManager {
   /**
-   * Generates and returns a unique packet identifier.
+   * Generates and returns a new packet identifier that is not currently in use.
    */
-  getId(): number;
+  allocateIdentifier(): number;
 
   /**
    * Releases a previously generated packet identifier, making it available for reuse.
    * @param id - The packet identifier to be released.
    */
-  releaseId(id: number): void;
+  releaseIdentifier(id: number): void;
 }
