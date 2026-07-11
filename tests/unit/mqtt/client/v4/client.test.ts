@@ -198,6 +198,51 @@ describe("MqttClientV4", () => {
           MqttPacketV4Factory.createSubscribePacketV4(1, [])
         );
       });
+
+      it("rejects when SUBACK is received with a different packet identifier", async () => {
+        const suback = MqttPacketV4Factory.createSubackPacketV4(2, [2, 0, 1]);
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", suback);
+          }, 9_900);
+        });
+
+        const promise = client.subscribe([
+          // will be ignored in this test
+        ]);
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).rejects.toThrow(/timeout/);
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSubscribePacketV4(1, [])
+        );
+      });
+
+      it("rejects when respond with a different packet type than SUBACK", async () => {
+        const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.UNSUBACK,
+          1
+        );
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", unsuback);
+          }, 9_900);
+        });
+
+        const promise = client.subscribe([
+          // will be ignored in this test
+        ]);
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).rejects.toThrow(/timeout/);
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSubscribePacketV4(1, [])
+        );
+      });
     });
 
     describe("unsubscribe()", () => {
@@ -228,6 +273,51 @@ describe("MqttClientV4", () => {
         vi.advanceTimersByTime(10_000);
 
         await expect(promise).resolves.toBeUndefined();
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createUnsubscribePacketV4(1, [])
+        );
+      });
+
+      it("rejects when UNSUBACK is received with a different packet identifier", async () => {
+        const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.UNSUBACK,
+          2
+        );
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", unsuback);
+          }, 9_900);
+        });
+
+        const promise = client.unsubscribe([
+          // will be ignored in this test
+        ]);
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).rejects.toThrow(/timeout/);
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createUnsubscribePacketV4(1, [])
+        );
+      });
+
+      it("rejects when respond with a different packet type than UNSUBACK", async () => {
+        const suback = MqttPacketV4Factory.createSubackPacketV4(1, []);
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", suback);
+          }, 9_900);
+        });
+
+        const promise = client.unsubscribe([
+          // will be ignored in this test
+        ]);
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).rejects.toThrow(/timeout/);
         expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
           MqttPacketV4Factory.createUnsubscribePacketV4(1, [])
         );
