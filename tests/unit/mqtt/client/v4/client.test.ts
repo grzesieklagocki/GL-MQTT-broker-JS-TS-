@@ -179,7 +179,7 @@ describe("MqttClientV4", () => {
 
     describe("connectAsync()", () => {
       it("rejects when CONNACK is not received before timeout", async () => {
-        const promise = client.connectAsync("clientID");
+        const promise = client.connect("clientID");
 
         vi.advanceTimersByTime(10_100);
 
@@ -198,7 +198,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.connectAsync(
+        const promise = client.connect(
           // will be ignored in this test
           ""
         );
@@ -226,7 +226,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.connectAsync(
+        const promise = client.connect(
           ""
           // will be ignored in this test
         );
@@ -258,7 +258,7 @@ describe("MqttClientV4", () => {
           transportMock.emit("packetReceived", connack);
         });
 
-        const promise = client.connectAsync("clientID", auth, will, 120, false);
+        const promise = client.connect("clientID", auth, will, 120, false);
 
         await expect(promise).resolves.toEqual({
           returnCode: ConnackReturnCodeV4.CONNECTION_ACCEPTED,
@@ -280,7 +280,7 @@ describe("MqttClientV4", () => {
 
     describe("subscribeAsync()", () => {
       it("rejects when SUBACK is not received before timeout", async () => {
-        const promise = client.subscribeAsync([]);
+        const promise = client.subscribe([]);
 
         vi.advanceTimersByTime(10_100);
 
@@ -296,7 +296,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribeAsync([
+        const promise = client.subscribe([
           // will be ignored in this test
         ]);
 
@@ -317,7 +317,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribeAsync([
+        const promise = client.subscribe([
           // will be ignored in this test
         ]);
 
@@ -341,7 +341,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribeAsync([
+        const promise = client.subscribe([
           // will be ignored in this test
         ]);
 
@@ -356,7 +356,7 @@ describe("MqttClientV4", () => {
 
     describe("unsubscribeAsync()", () => {
       it("rejects when UNSUBACK is not received before timeout", async () => {
-        const promise = client.unsubscribeAsync([]);
+        const promise = client.unsubscribe([]);
 
         vi.advanceTimersByTime(10_100);
 
@@ -375,7 +375,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribeAsync([
+        const promise = client.unsubscribe([
           // will be ignored in this test
         ]);
 
@@ -399,7 +399,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribeAsync([
+        const promise = client.unsubscribe([
           // will be ignored in this test
         ]);
 
@@ -420,7 +420,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribeAsync([
+        const promise = client.unsubscribe([
           // will be ignored in this test
         ]);
 
