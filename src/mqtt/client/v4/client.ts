@@ -149,6 +149,17 @@ export class MqttClientV4 extends EventEmitter {
     return this.createRequest(packet, matcher, resolver, 10);
   }
 
+  public disconnect(): void {
+    const packet = MqttPacketV4Factory.createSimplePacketV4(
+      PacketType.DISCONNECT
+    );
+
+    this.sendPacket(packet); // send disconnect packet to broker
+
+    this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
+    this.handleDisconnect(); // emit disconnect event and perform cleanup
+  }
+
   /**
    * Creates a request by sending a packet and waiting for a matching response packet.
    * @param packet - The packet to send.
@@ -249,6 +260,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param error - Optional error that caused the disconnection.
    */
   private handleDisconnect(error?: AppError) {
+    this.setConectionStatus(ConnectionStatus.DISCONNECTED);
     this.emit("disconnect", error);
   }
 

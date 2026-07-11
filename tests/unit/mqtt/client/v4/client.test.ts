@@ -198,6 +198,19 @@ describe("MqttClientV4", () => {
         expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
         expect(client.isConnected).toBe(true);
       });
+
+      it("returns false after disconnect", async () => {
+        // before connect
+        expect(client.isConnected).toBe(false);
+
+        // after successful connect
+        await connect(true);
+        expect(client.isConnected).toBe(true);
+
+        // after disconnect
+        client.disconnect();
+        expect(client.isConnected).toBe(false);
+      });
     });
   });
 
