@@ -7,7 +7,9 @@ import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   AnyPacketV4,
   PublishPacketV4,
+  SubackPacketV4,
   SubackReturnCodeV4,
+  SubscribePacketV4,
   SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "stream";
@@ -32,43 +34,69 @@ export class MqttClientV4 extends EventEmitter {
     });
   }
 
+  /**
+   * Subscribes to a list of topics and returns the corresponding return codes from the broker.
+   * @param subscriptionList - The list of topics to subscribe to, along with their requested QoS levels.
+   * @returns A promise that resolves with an array of return codes indicating the result of each subscription request.
+   */
   public async subscribe(
     subscriptionList: SubscriptionV4[]
   ): Promise<SubackReturnCodeV4[]> {
+    const packetId = this.packetIdManager.allocateIdentifier();
+
+    const packet = MqttPacketV4Factory.createSubscribePacketV4(
+      packetId,
+      subscriptionList
+    );
+
+    const matcher = (response: AnyPacketV4) =>
+      response.typeId === PacketType.SUBACK ? true : false;
+
+    const resolver = (response: SubackPacketV4) => response.returnCodeList;
+
+    return this.createRequest(packet, matcher, resolver, 10);
+  }
+
+  /**
+   * Creates a request by sending a packet and waiting for a matching response packet.
+   * @param packet - The packet to send.
+   * @param matcher - A function that checks if a received packet matches the expected response.
+   * @param resolver - A function that extracts the desired result from the received response packet.
+   * @param timeout_s - The timeout in seconds for waiting for the response packet.
+   * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
+   */
+  private async createRequest<TResponse extends AnyPacketV4, TResult>(
+    packet: AnyPacketV4,
+    matcher: (response: TResponse) => boolean,
+    resolver: (response: TResponse) => TResult,
+    timeout_s: number
+  ): Promise<TResult> {
     return new Promise((resolve, reject) => {
       const packetId = this.packetIdManager.allocateIdentifier();
 
-      const packet = MqttPacketV4Factory.createSubscribePacketV4(
-        packetId,
-        subscriptionList
-      );
-
       const cleanup = () => {
         clearTimeout(timeout);
-        this.transport.off("packetReceived", waitForSuback); // remove listener for this SUBACK packet
+        this.transport.off("packetReceived", waitForPacket); // remove listener for this packet
         this.packetIdManager.releaseIdentifier(packetId); // release the allocated packet identifier
       };
 
-      const waitForSuback = (receivedPacket: AnyPacketV4) => {
-        if (
-          receivedPacket.typeId !== PacketType.SUBACK ||
-          receivedPacket.identifier !== packetId
-        ) {
+      const waitForPacket = (receivedPacket: TResponse) => {
+        if (!matcher(receivedPacket)) {
           return;
         }
 
-        // if the received packet is the expected SUBACK packet
+        // if the received packet is the expected packet
         cleanup();
-        resolve(receivedPacket.returnCodeList);
+        resolve(resolver(receivedPacket));
       };
 
       const timeout = setTimeout(() => {
-        // if the SUBACK packet is not received in defined time
+        // if the expected packet is not received in defined time
         cleanup();
         reject(new AppError("timeout"));
-      }, 10_000);
+      }, timeout_s * 1000);
 
-      this.transport.on("packetReceived", waitForSuback);
+      this.transport.on("packetReceived", waitForPacket);
       this.transport.send(packet);
     });
   }
