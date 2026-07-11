@@ -135,7 +135,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param timeout_s - The timeout in seconds for waiting for the response packet.
    * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
    */
-  private async createRequest<TResponse extends AnyPacketV4, TResult>(
+  private createRequest<TResponse extends AnyPacketV4, TResult>(
     packet: AnyPacketV4,
     matcher: (response: TResponse) => boolean,
     resolver: (response: TResponse) => TResult,

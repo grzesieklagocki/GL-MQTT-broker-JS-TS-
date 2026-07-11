@@ -177,7 +177,7 @@ describe("MqttClientV4", () => {
       vi.clearAllMocks();
     });
 
-    describe("connectAsync()", () => {
+    describe("connect()", () => {
       it("rejects when CONNACK is not received before timeout", async () => {
         const promise = client.connect("clientID");
 
@@ -239,7 +239,7 @@ describe("MqttClientV4", () => {
         );
       });
 
-      it("pass all parameters to the connect packet when calling connectAsync()", async () => {
+      it("pass all parameters to the connect packet when calling connect()", async () => {
         const auth = { user: "user", password: new Uint8Array([1, 2, 3]) };
 
         const will: Will = {
@@ -278,7 +278,7 @@ describe("MqttClientV4", () => {
       });
     });
 
-    describe("subscribeAsync()", () => {
+    describe("subscribe()", () => {
       it("rejects when SUBACK is not received before timeout", async () => {
         const promise = client.subscribe([]);
 
@@ -354,7 +354,7 @@ describe("MqttClientV4", () => {
       });
     });
 
-    describe("unsubscribeAsync()", () => {
+    describe("unsubscribe()", () => {
       it("rejects when UNSUBACK is not received before timeout", async () => {
         const promise = client.unsubscribe([]);
 
