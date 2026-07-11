@@ -9,8 +9,8 @@ import {
   PublishPacketV4,
   SubackPacketV4,
   SubackReturnCodeV4,
-  SubscribePacketV4,
   SubscriptionV4,
+  UnsubackPacketV4,
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "stream";
 
@@ -43,16 +43,33 @@ export class MqttClientV4 extends EventEmitter {
     subscriptionList: SubscriptionV4[]
   ): Promise<SubackReturnCodeV4[]> {
     const packetId = this.packetIdManager.allocateIdentifier();
-
     const packet = MqttPacketV4Factory.createSubscribePacketV4(
       packetId,
       subscriptionList
     );
 
     const matcher = (response: AnyPacketV4) =>
-      response.typeId === PacketType.SUBACK ? true : false;
-
+      response.typeId === PacketType.SUBACK;
     const resolver = (response: SubackPacketV4) => response.returnCodeList;
+
+    return this.createRequest(packet, matcher, resolver, 10);
+  }
+
+  /**
+   * Unsubscribes from a list of topics.
+   * @param topicFilterList - The list of topic filters to unsubscribe from.
+   * @returns A promise that resolves when the unsubscription is successful or rejects with an error if the timeout is reached.
+   */
+  public async unsubscribe(topicFilterList: string[]): Promise<void> {
+    const packetId = this.packetIdManager.allocateIdentifier();
+    const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
+      packetId,
+      topicFilterList
+    );
+
+    const matcher = (response: AnyPacketV4) =>
+      response.typeId === PacketType.UNSUBACK;
+    const resolver = (response: UnsubackPacketV4) => {};
 
     return this.createRequest(packet, matcher, resolver, 10);
   }
