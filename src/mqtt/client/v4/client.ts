@@ -39,7 +39,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param subscriptionList - The list of topics to subscribe to, along with their requested QoS levels.
    * @returns A promise that resolves with an array of return codes indicating the result of each subscription request.
    */
-  public async subscribe(
+  public async subscribeAsync(
     subscriptionList: SubscriptionV4[]
   ): Promise<SubackReturnCodeV4[]> {
     const packetId = this.packetIdManager.allocateIdentifier();
@@ -60,7 +60,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param topicFilterList - The list of topic filters to unsubscribe from.
    * @returns A promise that resolves when the unsubscription is successful or rejects with an error if the timeout is reached.
    */
-  public async unsubscribe(topicFilterList: string[]): Promise<void> {
+  public async unsubscribeAsync(topicFilterList: string[]): Promise<void> {
     const packetId = this.packetIdManager.allocateIdentifier();
     const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
       packetId,

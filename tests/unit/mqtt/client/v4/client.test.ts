@@ -169,9 +169,9 @@ describe("MqttClientV4", () => {
       vi.useRealTimers();
       vi.clearAllMocks();
     });
-    describe("subscribe()", () => {
+    describe("subscribeAsync()", () => {
       it("rejects when SUBACK is not received before timeout", async () => {
-        const promise = client.subscribe([]);
+        const promise = client.subscribeAsync([]);
 
         vi.advanceTimersByTime(10_100);
 
@@ -187,7 +187,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
+        const promise = client.subscribeAsync([
           // will be ignored in this test
         ]);
 
@@ -208,7 +208,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
+        const promise = client.subscribeAsync([
           // will be ignored in this test
         ]);
 
@@ -232,7 +232,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
+        const promise = client.subscribeAsync([
           // will be ignored in this test
         ]);
 
@@ -245,9 +245,9 @@ describe("MqttClientV4", () => {
       });
     });
 
-    describe("unsubscribe()", () => {
+    describe("unsubscribeAsync()", () => {
       it("rejects when UNSUBACK is not received before timeout", async () => {
-        const promise = client.unsubscribe([]);
+        const promise = client.unsubscribeAsync([]);
 
         vi.advanceTimersByTime(10_100);
 
@@ -266,7 +266,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
+        const promise = client.unsubscribeAsync([
           // will be ignored in this test
         ]);
 
@@ -290,7 +290,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
+        const promise = client.unsubscribeAsync([
           // will be ignored in this test
         ]);
 
@@ -311,7 +311,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
+        const promise = client.unsubscribeAsync([
           // will be ignored in this test
         ]);
 
