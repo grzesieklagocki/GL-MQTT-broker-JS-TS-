@@ -1,11 +1,16 @@
 import { AppError } from "@src/AppError";
 import { ITransportAdapterV4 } from "./types";
-import { IPacketIdentifierManager } from "@mqtt/shared/types";
+import { IPacketIdentifierManager, MqttAuth } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
-import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import {
+  MqttPacketV4Factory,
+  Will,
+} from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   AnyPacketV4,
+  ConnackPacketV4,
+  ConnackReturnCodeV4,
   PublishPacketV4,
   SubackPacketV4,
   SubackReturnCodeV4,
@@ -31,6 +36,54 @@ export class MqttClientV4 extends EventEmitter {
     this.transport.on("packetReceived", (packet) => {
       this.handleReceivedPacket(packet);
     });
+  }
+
+  public async connectAsync(
+    clientIdentifier: string,
+    auth?: MqttAuth,
+    will?: Will,
+    keepAlive: number = 60,
+    cleanSession: boolean = true
+  ): Promise<{
+    returnCode: ConnackReturnCodeV4;
+    sessionPresent: boolean;
+  }> {
+    const packet = MqttPacketV4Factory.createConnectPacketV4(
+      cleanSession,
+      keepAlive,
+      clientIdentifier,
+      auth?.user,
+      auth?.password,
+      will
+    );
+
+    const matcher = (response: AnyPacketV4) =>
+      response.typeId === PacketType.CONNACK;
+
+    const resolver = (response: ConnackPacketV4) => {
+      //set the connection status based on the return code from the CONNACK packet
+      this.mqttConnectionStatus =
+        response.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
+          ? ConnectionStatus.CONNECTED
+          : ConnectionStatus.DISCONNECTED;
+
+      return {
+        returnCode: response.connectReturnCode,
+        sessionPresent: response.sessionPresentFlag,
+      };
+    };
+
+    // set the connection status to connecting before sending the connect packet
+    this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
+
+    const promise = this.createRequest(packet, matcher, resolver, 10);
+
+    promise.catch(() => {
+      // if the connection fails set the status back to disconnected
+      this.mqttConnectionStatus = ConnectionStatus.DISCONNECTED;
+    });
+
+    return promise;
   }
 
   /**

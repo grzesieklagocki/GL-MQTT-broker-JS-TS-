@@ -1,10 +1,14 @@
 import { AppError } from "@src/AppError";
 import { MqttClientV4 } from "@mqtt/client/v4/client";
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import {
+  MqttPacketV4Factory,
+  Will,
+} from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { IPacketIdentifierManager } from "@mqtt/shared/types";
 import { EventEmitter } from "node:events";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
 
 describe("MqttClientV4", () => {
   let managerMock: IPacketIdentifierManager;
@@ -172,6 +176,108 @@ describe("MqttClientV4", () => {
       vi.useRealTimers();
       vi.clearAllMocks();
     });
+
+    describe("connectAsync()", () => {
+      it("rejects when CONNACK is not received before timeout", async () => {
+        const promise = client.connectAsync("clientID");
+
+        vi.advanceTimersByTime(10_100);
+
+        await expect(promise).rejects.toThrow(/timeout/);
+      });
+
+      it("returns connection information when CONNACK is received before timeout", async () => {
+        const connack = MqttPacketV4Factory.createConnackPacketV4(
+          true,
+          ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+        );
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", connack);
+          }, 9_900);
+        });
+
+        const promise = client.connectAsync(
+          // will be ignored in this test
+          ""
+        );
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).resolves.toEqual({
+          returnCode: ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED,
+          sessionPresent: true,
+        });
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
+        );
+      });
+
+      it("rejects when respond with a different packet type than CONNACK", async () => {
+        const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.UNSUBACK,
+          1
+        );
+
+        transportMock.send.mockImplementation(() => {
+          setTimeout(() => {
+            transportMock.emit("packetReceived", unsuback);
+          }, 9_900);
+        });
+
+        const promise = client.connectAsync(
+          ""
+          // will be ignored in this test
+        );
+
+        vi.advanceTimersByTime(10_000);
+
+        await expect(promise).rejects.toThrow(/timeout/);
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
+        );
+      });
+
+      it("pass all parameters to the connect packet when calling connectAsync()", async () => {
+        const auth = { user: "user", password: new Uint8Array([1, 2, 3]) };
+
+        const will: Will = {
+          topic: "will/topic",
+          message: new Uint8Array([4, 5, 6]),
+          qos: 1,
+          retain: true,
+        };
+
+        const connack = MqttPacketV4Factory.createConnackPacketV4(
+          true,
+          ConnackReturnCodeV4.CONNECTION_ACCEPTED
+        );
+
+        transportMock.send.mockImplementation(() => {
+          transportMock.emit("packetReceived", connack);
+        });
+
+        const promise = client.connectAsync("clientID", auth, will, 120, false);
+
+        await expect(promise).resolves.toEqual({
+          returnCode: ConnackReturnCodeV4.CONNECTION_ACCEPTED,
+          sessionPresent: true,
+        });
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnectPacketV4(
+            false,
+            120,
+            "clientID",
+            auth.user,
+            auth.password,
+            will
+          )
+        );
+      });
+    });
+
     describe("subscribeAsync()", () => {
       it("rejects when SUBACK is not received before timeout", async () => {
         const promise = client.subscribeAsync([]);
