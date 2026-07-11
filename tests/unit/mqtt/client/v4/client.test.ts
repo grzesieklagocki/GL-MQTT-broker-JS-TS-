@@ -9,6 +9,7 @@ import { IPacketIdentifierManager } from "@mqtt/shared/types";
 import { EventEmitter } from "node:events";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
+import { ConnectionStatus } from "@src/mqtt/client/shared/types";
 
 describe("MqttClientV4", () => {
   let managerMock: IPacketIdentifierManager;
@@ -19,6 +20,7 @@ describe("MqttClientV4", () => {
   let client: MqttClientV4;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     // create mocks for tests
     transportMock = Object.assign(new EventEmitter(), {
       send: vi.fn(),
@@ -27,10 +29,34 @@ describe("MqttClientV4", () => {
 
     managerMock = {
       allocateIdentifier: vi.fn().mockImplementationOnce(() => 1),
+      releaseIdentifier: vi.fn(),
     } as unknown as IPacketIdentifierManager;
 
     client = new MqttClientV4(transportMock, managerMock);
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  const connect = (success: boolean) => {
+    transportMock.send.mockImplementation(() => {
+      if (success) {
+        // simulate receiving CONNACK packet by client
+
+        const connack = MqttPacketV4Factory.createConnackPacketV4(
+          false,
+          ConnackReturnCodeV4.CONNECTION_ACCEPTED
+        );
+
+        transportMock.emit("packetReceived", connack);
+      }
+      vi.advanceTimersByTime(11000);
+    });
+
+    return client.connect("");
+  };
 
   describe("on receiving packets", () => {
     describe("PUBLISH", () => {
@@ -155,26 +181,46 @@ describe("MqttClientV4", () => {
     });
   });
 
-  describe("methods", () => {
-    beforeEach(() => {
-      transportMock = Object.assign(new EventEmitter(), {
-        send: vi.fn(),
-        disconnect: vi.fn(),
+  describe("getters", () => {
+    describe("isConnected", () => {
+      it("returns false when client is not connected", () => {
+        expect(client.isConnected).toBe(false);
       });
 
-      managerMock = {
-        allocateIdentifier: vi.fn(() => 1),
-        releaseIdentifier: vi.fn(),
-      } as unknown as IPacketIdentifierManager;
+      it("returns false while connecting", async () => {
+        expect(connect(false)).rejects.toThrow(/timeout/);
+        expect(client.isConnected).toBe(false);
+      });
 
-      client = new MqttClientV4(transportMock, managerMock);
+      it("returns true after cuccessfully connected", async () => {
+        const status = await connect(true);
 
-      vi.useFakeTimers();
+        expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
+        expect(client.isConnected).toBe(true);
+      });
     });
+  });
 
-    afterEach(() => {
-      vi.useRealTimers();
-      vi.clearAllMocks();
+  describe("methods", () => {
+    describe("getConnectionStatus()", () => {
+      it("returns DISCONNECTED status when client is not connected", () => {
+        expect(client.getConnectionStatus()).toBe(
+          ConnectionStatus.DISCONNECTED
+        );
+      });
+
+      it("returns CONNECTING status while connecting", () => {
+        connect(false);
+
+        expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+      });
+
+      it("returns CONNECTED status after cuccessfully connected", async () => {
+        const status = await connect(true);
+
+        expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
+        expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+      });
     });
 
     describe("connect()", () => {

@@ -19,6 +19,27 @@ import {
 import { EventEmitter } from "node:events";
 
 export class MqttClientV4 extends EventEmitter {
+  /**
+   * Indicates whether the MQTT client is currently connected to the broker.
+   */
+  public get isConnected(): boolean {
+    return this.getConnectionStatus() === ConnectionStatus.CONNECTED;
+  }
+
+  /**
+   * Gets the current connection status of the MQTT client.
+   * @returns The current connection status, which can be CONNECTED, DISCONNECTED, or CONNECTING.
+   */
+  public getConnectionStatus = () => {
+    return this.mqttConnectionStatus;
+  };
+
+  // Sets the connection status of the MQTT client.
+  private setConectionStatus(status: ConnectionStatus) {
+    this.mqttConnectionStatus = status;
+  }
+
+  // The current connection status of the MQTT client. Initialized to DISCONNECTED.
   private mqttConnectionStatus: ConnectionStatus =
     ConnectionStatus.DISCONNECTED;
 
@@ -62,10 +83,11 @@ export class MqttClientV4 extends EventEmitter {
 
     const resolver = (response: ConnackPacketV4) => {
       //set the connection status based on the return code from the CONNACK packet
-      this.mqttConnectionStatus =
+      this.setConectionStatus(
         response.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
           ? ConnectionStatus.CONNECTED
-          : ConnectionStatus.DISCONNECTED;
+          : ConnectionStatus.DISCONNECTED
+      );
 
       return {
         returnCode: response.connectReturnCode,
@@ -80,7 +102,7 @@ export class MqttClientV4 extends EventEmitter {
 
     promise.catch(() => {
       // if the connection fails set the status back to disconnected
-      this.mqttConnectionStatus = ConnectionStatus.DISCONNECTED;
+      this.setConectionStatus(ConnectionStatus.DISCONNECTED);
     });
 
     return promise;
@@ -234,7 +256,7 @@ export class MqttClientV4 extends EventEmitter {
    * Asserts that the MQTT client is currently connected.
    */
   private _assertClientConnected() {
-    if (this.mqttConnectionStatus !== ConnectionStatus.CONNECTED)
+    if (!this.isConnected)
       throw new AppError(
         `Client is not connected. Current status: ${ConnectionStatus[this.mqttConnectionStatus]}`
       );
