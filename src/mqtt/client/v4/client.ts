@@ -238,7 +238,7 @@ export class MqttClientV4 extends EventEmitter {
         );
     }
 
-    if (response) this.transport.send(response);
+    if (response) this.sendPacket(response);
   }
 
   private handlePublishPacketReceived(
