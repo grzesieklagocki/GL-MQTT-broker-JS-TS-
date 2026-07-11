@@ -13,3 +13,11 @@ export interface IPacketIdentifierManager {
    */
   releaseIdentifier(id: number): void;
 }
+
+/**
+ * Type representing MQTT authentication credentials.
+ */
+export type MqttAuth = {
+  user: string;
+  password?: Uint8Array;
+};
