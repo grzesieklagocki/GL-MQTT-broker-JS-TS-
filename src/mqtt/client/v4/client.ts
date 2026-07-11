@@ -10,9 +10,8 @@ import {
   SubackPacketV4,
   SubackReturnCodeV4,
   SubscriptionV4,
-  UnsubackPacketV4,
 } from "@mqtt/protocol/v4/types";
-import { EventEmitter } from "stream";
+import { EventEmitter } from "node:events";
 
 export class MqttClientV4 extends EventEmitter {
   private mqttConnectionStatus: ConnectionStatus =
@@ -115,9 +114,13 @@ export class MqttClientV4 extends EventEmitter {
       }, timeout_s * 1000);
 
       this.transport.on("packetReceived", waitForPacket);
-      this.transport.send(packet);
+      this.sendPacket(packet);
     });
   }
+
+  private sendPacket = (packet: AnyPacketV4) => {
+    this.transport.send(packet);
+  };
 
   /**
    * Handles a received MQTT packet and sends response if necessary.
