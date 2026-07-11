@@ -49,7 +49,7 @@ export class MqttClientV4 extends EventEmitter {
     );
 
     const matcher = (response: AnyPacketV4) =>
-      response.typeId === PacketType.SUBACK;
+      response.typeId === PacketType.SUBACK && response.identifier === packetId;
     const resolver = (response: SubackPacketV4) => response.returnCodeList;
 
     return this.createRequest(packet, matcher, resolver, 10);
@@ -68,8 +68,9 @@ export class MqttClientV4 extends EventEmitter {
     );
 
     const matcher = (response: AnyPacketV4) =>
-      response.typeId === PacketType.UNSUBACK;
-    const resolver = (response: UnsubackPacketV4) => {};
+      response.typeId === PacketType.UNSUBACK &&
+      response.identifier === packetId;
+    const resolver = () => {};
 
     return this.createRequest(packet, matcher, resolver, 10);
   }
