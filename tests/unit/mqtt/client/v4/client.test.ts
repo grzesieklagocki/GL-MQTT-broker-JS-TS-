@@ -10,6 +10,7 @@ describe("MqttClientV4", () => {
   let managerMock: IPacketIdentifierManager;
   let transportMock: EventEmitter & {
     send: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
   };
   let client: MqttClientV4;
 
@@ -17,6 +18,7 @@ describe("MqttClientV4", () => {
     // create mocks for tests
     transportMock = Object.assign(new EventEmitter(), {
       send: vi.fn(),
+      disconnect: vi.fn(),
     });
 
     managerMock = {
@@ -153,6 +155,7 @@ describe("MqttClientV4", () => {
     beforeEach(() => {
       transportMock = Object.assign(new EventEmitter(), {
         send: vi.fn(),
+        disconnect: vi.fn(),
       });
 
       managerMock = {

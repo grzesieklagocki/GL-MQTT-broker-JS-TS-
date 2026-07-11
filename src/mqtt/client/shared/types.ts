@@ -1,5 +1,5 @@
 import { AnyPacket } from "@mqtt/protocol/shared/types";
-import { EventEmitter } from "stream";
+import { EventEmitter } from "node:events";
 
 /**
  * Interface for a transport adapter that handles MQTT packets of a specific type.
@@ -12,6 +12,7 @@ export interface ITransportAdapter<
    * @param packet - The MQTT packet to be sent.
    */
   send(packet: PacketType): void;
+  disconnect(): void;
 }
 
 /**
