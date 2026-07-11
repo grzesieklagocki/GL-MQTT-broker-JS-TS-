@@ -198,10 +198,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.connect(
-          // will be ignored in this test
-          ""
-        );
+        const promise = client.connect("");
 
         vi.advanceTimersByTime(10_000);
 
@@ -226,10 +223,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.connect(
-          ""
-          // will be ignored in this test
-        );
+        const promise = client.connect("");
 
         vi.advanceTimersByTime(10_000);
 
@@ -296,9 +290,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.subscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
@@ -317,9 +309,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.subscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
@@ -341,9 +331,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.subscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.subscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
@@ -375,9 +363,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.unsubscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
@@ -399,9 +385,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.unsubscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
@@ -420,9 +404,7 @@ describe("MqttClientV4", () => {
           }, 9_900);
         });
 
-        const promise = client.unsubscribe([
-          // will be ignored in this test
-        ]);
+        const promise = client.unsubscribe([]);
 
         vi.advanceTimersByTime(10_000);
 
