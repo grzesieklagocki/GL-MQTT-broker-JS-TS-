@@ -14,6 +14,7 @@ import { ConnectionStatus } from "@src/mqtt/client/shared/types";
 describe("MqttClientV4", () => {
   let managerMock: IPacketIdentifierManager;
   let transportMock: EventEmitter & {
+    connect: ReturnType<typeof vi.fn>;
     send: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
   };
@@ -23,6 +24,7 @@ describe("MqttClientV4", () => {
     vi.useFakeTimers();
     // create mocks for tests
     transportMock = Object.assign(new EventEmitter(), {
+      connect: vi.fn(),
       send: vi.fn(),
       disconnect: vi.fn(),
     });

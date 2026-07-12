@@ -1,5 +1,5 @@
 import { AppError } from "@src/AppError";
-import { ITransportAdapterV4 } from "./types";
+import { IMqttTransportAdapterV4 } from "./types";
 import { IPacketIdentifierManager, MqttAuth } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
 import {
@@ -49,7 +49,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param packetIdManager - The packet identifier manager responsible for generating unique packet identifiers.
    */
   public constructor(
-    private readonly transport: ITransportAdapterV4,
+    private readonly transport: IMqttTransportAdapterV4,
     private readonly packetIdManager: IPacketIdentifierManager
   ) {
     super();
@@ -78,8 +78,8 @@ export class MqttClientV4 extends EventEmitter {
       will
     );
 
-    const matcher = (response: AnyPacketV4) =>
-      response.typeId === PacketType.CONNACK;
+    const selector = (response: AnyPacketV4) =>
+      response.typeId === PacketType.CONNACK ? response : undefined;
 
     const resolver = (response: ConnackPacketV4) => {
       //set the connection status based on the return code from the CONNACK packet
@@ -98,7 +98,7 @@ export class MqttClientV4 extends EventEmitter {
     // set the connection status to connecting before sending the connect packet
     this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
 
-    const promise = this.createRequest(packet, matcher, resolver, 10);
+    const promise = this.createRequest(packet, selector, resolver, 10);
 
     promise.catch(() => {
       // if the connection fails set the status back to disconnected
@@ -122,11 +122,14 @@ export class MqttClientV4 extends EventEmitter {
       subscriptionList
     );
 
-    const matcher = (response: AnyPacketV4) =>
-      response.typeId === PacketType.SUBACK && response.identifier === packetId;
+    const selector = (response: AnyPacketV4) =>
+      response.typeId === PacketType.SUBACK && response.identifier === packetId
+        ? response
+        : undefined;
+
     const resolver = (response: SubackPacketV4) => response.returnCodeList;
 
-    return this.createRequest(packet, matcher, resolver, 10);
+    return this.createRequest(packet, selector, resolver, 10);
   }
 
   /**
@@ -141,12 +144,15 @@ export class MqttClientV4 extends EventEmitter {
       topicFilterList
     );
 
-    const matcher = (response: AnyPacketV4) =>
+    const selector = (response: AnyPacketV4) =>
       response.typeId === PacketType.UNSUBACK &&
-      response.identifier === packetId;
+      response.identifier === packetId
+        ? response
+        : undefined;
+
     const resolver = () => {};
 
-    return this.createRequest(packet, matcher, resolver, 10);
+    return this.createRequest(packet, selector, resolver, 10);
   }
 
   public disconnect(): void {
@@ -163,14 +169,14 @@ export class MqttClientV4 extends EventEmitter {
   /**
    * Creates a request by sending a packet and waiting for a matching response packet.
    * @param packet - The packet to send.
-   * @param matcher - A function that checks if a received packet matches the expected response.
+   * @param responseSelector - A function that checks if a received packet matches the expected response packet and if so, returns the response packet.
    * @param resolver - A function that extracts the desired result from the received response packet.
    * @param timeout_s - The timeout in seconds for waiting for the response packet.
    * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
    */
   private createRequest<TResponse extends AnyPacketV4, TResult>(
     packet: AnyPacketV4,
-    matcher: (response: TResponse) => boolean,
+    responseSelector: (response: AnyPacketV4) => TResponse | undefined,
     resolver: (response: TResponse) => TResult,
     timeout_s: number
   ): Promise<TResult> {
@@ -183,14 +189,14 @@ export class MqttClientV4 extends EventEmitter {
         this.packetIdManager.releaseIdentifier(packetId); // release the allocated packet identifier
       };
 
-      const waitForPacket = (receivedPacket: TResponse) => {
-        if (!matcher(receivedPacket)) {
-          return;
-        }
+      const waitForPacket = (receivedPacket: AnyPacketV4) => {
+        const response = responseSelector(receivedPacket);
+
+        if (!response) return;
 
         // if the received packet is the expected packet
         cleanup();
-        resolve(resolver(receivedPacket));
+        resolve(resolver(response));
       };
 
       const timeout = setTimeout(() => {
@@ -220,14 +226,18 @@ export class MqttClientV4 extends EventEmitter {
         response = this.handlePublishPacketReceived(packet);
         break;
 
-      case PacketType.CONNACK:
-      case PacketType.PUBACK:
       case PacketType.PUBREC:
       case PacketType.PUBREL:
       case PacketType.PUBCOMP:
+        // TODO: QoS 2
+        break;
+
+      case PacketType.CONNACK:
+      case PacketType.PUBACK:
       case PacketType.SUBACK:
       case PacketType.UNSUBACK:
       case PacketType.PINGRESP:
+        // ignore, should to be handled by the createRequest method
         break;
 
       default:
