@@ -105,7 +105,7 @@ export class MqttPacketV4Factory {
    */
   public static createConnackPacketV4(
     sessionPresentFlag: boolean,
-    connectReturnCode: ConnackReturnCodeV4
+    connectReturnCode: ConnackReturnCodeV4 = ConnackReturnCodeV4.CONNECTION_ACCEPTED
   ): ConnackPacketV4 {
     return {
       typeId: PacketType.CONNACK,

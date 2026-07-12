@@ -17,7 +17,7 @@ export interface IMqttTransportAdapter<
   /**
    * Connects to the transport layer (e.g. TCP) and will emit the "connected" event.
    */
-  connect(): void;
+  connect(): Promise<void>;
 
   /**
    * Sends a packet to the transport layer.

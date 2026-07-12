@@ -1,14 +1,18 @@
 import { AppError } from "@src/AppError";
 import { MqttClientV4 } from "@mqtt/client/v4/client";
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { AnyPacket, PacketType } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { IPacketIdentifierManager } from "@mqtt/shared/types";
+import { IPacketIdentifierManager, MqttAuth } from "@mqtt/shared/types";
 import { EventEmitter } from "node:events";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
+import {
+  AnyPacketV4,
+  ConnackPacketV4,
+  ConnackReturnCodeV4,
+} from "@mqtt/protocol/v4/types";
 import { ConnectionStatus } from "@src/mqtt/client/shared/types";
 
 describe("MqttClientV4", () => {
@@ -22,9 +26,10 @@ describe("MqttClientV4", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+
     // create mocks for tests
     transportMock = Object.assign(new EventEmitter(), {
-      connect: vi.fn(),
+      connect: vi.fn(async () => {}),
       send: vi.fn(),
       disconnect: vi.fn(),
     });
@@ -42,23 +47,11 @@ describe("MqttClientV4", () => {
     vi.clearAllMocks();
   });
 
-  const connect = (success: boolean) => {
-    transportMock.send.mockImplementation(() => {
-      if (success) {
-        // simulate receiving CONNACK packet by client
-
-        const connack = MqttPacketV4Factory.createConnackPacketV4(
-          false,
-          ConnackReturnCodeV4.CONNECTION_ACCEPTED
-        );
-
-        transportMock.emit("packetReceived", connack);
-      }
-      vi.advanceTimersByTime(11000);
-    });
-
-    return client.connect("");
-  };
+  const connackAccepted: ConnackPacketV4 =
+    MqttPacketV4Factory.createConnackPacketV4(
+      false,
+      ConnackReturnCodeV4.CONNECTION_ACCEPTED
+    );
 
   describe("on receiving packets", () => {
     describe("PUBLISH", () => {
@@ -189,16 +182,37 @@ describe("MqttClientV4", () => {
         expect(client.isConnected).toBe(false);
       });
 
-      it("returns false while connecting", async () => {
-        expect(connect(false)).rejects.toThrow(/timeout/);
+      it("returns false while connecting", () => {
+        expect(testConnect()).rejects.toThrow(/timeout/);
         expect(client.isConnected).toBe(false);
       });
 
-      it("returns true after cuccessfully connected", async () => {
-        const status = await connect(true);
+      it(`returns true after cuccessfully connected  ${ConnackReturnCodeV4[connackAccepted.connectReturnCode]} code`, async () => {
+        const status = await testConnect(connackAccepted);
 
         expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
         expect(client.isConnected).toBe(true);
+      });
+
+      [
+        ConnackReturnCodeV4.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_SERVER_UNAVAILABLE,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION,
+      ].forEach((refusedCode) => {
+        it(`returns false after unsuccessful connection attempt with ${ConnackReturnCodeV4[refusedCode]} code`, async () => {
+          const connackRefused = MqttPacketV4Factory.createConnackPacketV4(
+            true,
+            refusedCode
+          );
+
+          const status = await testConnect(connackRefused);
+
+          expect(status.returnCode).toBe(refusedCode);
+          expect(status.sessionPresent).toBe(true);
+          expect(client.isConnected).toBe(false);
+        });
       });
 
       it("returns false after disconnect", async () => {
@@ -206,7 +220,7 @@ describe("MqttClientV4", () => {
         expect(client.isConnected).toBe(false);
 
         // after successful connect
-        await connect(true);
+        await testConnect(connackAccepted);
         expect(client.isConnected).toBe(true);
 
         // after disconnect
@@ -224,25 +238,56 @@ describe("MqttClientV4", () => {
         );
       });
 
-      it("returns CONNECTING status while connecting", () => {
-        connect(false);
+      it("returns CONNECTING status while connecting", async () => {
+        // expect(testConnect()).rejects.toThrow(/timeout/);
+        // expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+        let status = client.getConnectionStatus();
+        expect(status).toBe(ConnectionStatus.DISCONNECTED);
 
-        expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
+        await testConnect(
+          connackAccepted,
+          // get connection status while connecting
+          () => (status = client.getConnectionStatus()) // will be called before receiving CONNACK packet
+        );
+        expect(status).toBe(ConnectionStatus.CONNECTING);
       });
 
-      it("returns CONNECTED status after cuccessfully connected", async () => {
-        const status = await connect(true);
+      it(`returns CONNECTED status after cuccessfully connected with ${ConnackReturnCodeV4[connackAccepted.connectReturnCode]} code`, async () => {
+        const status = await testConnect(connackAccepted);
 
         expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
         expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+      });
+
+      ///
+
+      [
+        ConnackReturnCodeV4.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_SERVER_UNAVAILABLE,
+        ConnackReturnCodeV4.CONNECTION_REFUSED_UNACCEPTABLE_PROTOCOL_VERSION,
+      ].forEach((refusedCode) => {
+        it(`returns DISCONNECTED after unsuccessful connection attempt with ${ConnackReturnCodeV4[refusedCode]} code`, async () => {
+          const connackRefused = MqttPacketV4Factory.createConnackPacketV4(
+            true,
+            refusedCode
+          );
+
+          const status = await testConnect(connackRefused);
+
+          expect(status.returnCode).toBe(refusedCode);
+          expect(status.sessionPresent).toBe(true);
+          expect(client.getConnectionStatus()).toBe(
+            ConnectionStatus.DISCONNECTED
+          );
+        });
       });
     });
 
     describe("connect()", () => {
       it("rejects when CONNACK is not received before timeout", async () => {
-        const promise = client.connect("clientID");
-
-        vi.advanceTimersByTime(10_100);
+        const promise = testConnect();
 
         await expect(promise).rejects.toThrow(/timeout/);
       });
@@ -253,15 +298,7 @@ describe("MqttClientV4", () => {
           ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
         );
 
-        transportMock.send.mockImplementation(() => {
-          setTimeout(() => {
-            transportMock.emit("packetReceived", connack);
-          }, 9_900);
-        });
-
-        const promise = client.connect("");
-
-        vi.advanceTimersByTime(10_000);
+        const promise = testConnect(connack);
 
         await expect(promise).resolves.toEqual({
           returnCode: ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED,
@@ -278,15 +315,7 @@ describe("MqttClientV4", () => {
           1
         );
 
-        transportMock.send.mockImplementation(() => {
-          setTimeout(() => {
-            transportMock.emit("packetReceived", unsuback);
-          }, 9_900);
-        });
-
-        const promise = client.connect("");
-
-        vi.advanceTimersByTime(10_000);
+        const promise = testConnect(unsuback);
 
         await expect(promise).rejects.toThrow(/timeout/);
         expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
@@ -309,11 +338,15 @@ describe("MqttClientV4", () => {
           ConnackReturnCodeV4.CONNECTION_ACCEPTED
         );
 
-        transportMock.send.mockImplementation(() => {
-          transportMock.emit("packetReceived", connack);
-        });
-
-        const promise = client.connect("clientID", auth, will, 120, false);
+        const promise = testConnect(
+          connack,
+          () => {},
+          "clientID",
+          auth,
+          will,
+          120,
+          false
+        );
 
         await expect(promise).resolves.toEqual({
           returnCode: ConnackReturnCodeV4.CONNECTION_ACCEPTED,
@@ -330,6 +363,12 @@ describe("MqttClientV4", () => {
             will
           )
         );
+      });
+
+      it("calls connect() on transport adapter", async () => {
+        await testConnect(connackAccepted);
+
+        expect(transportMock.connect).toHaveBeenCalledOnce();
       });
     });
 
@@ -476,4 +515,50 @@ describe("MqttClientV4", () => {
       });
     });
   });
+
+  //
+  // helpers
+  //
+
+  /**
+   * Helper function to test the connect method of the MqttClientV4 class.
+   * @param response - Optional ConnackPacketV4 to simulate receiving a CONNACK packet from the broker.
+   * @param clientIdentifier - Optional client identifier to be used in the connect method.
+   * @param auth - Optional authentication information (username and password) to be used in the connect method.
+   * @param will - Optional will message to be used in the connect method, including topic, message, QoS, and retain flag.
+   * @param keepAlive - Optional keep-alive value (in seconds) to be used in the connect method.
+   * @param cleanSession - Optional boolean indicating whether to start a clean session (true) or not (false) in the connect method.
+   * @returns A promise that resolves with the connection information (return code and session present flag) if the connection is successful,
+   * or rejects with an error if the connection fails or times out.
+   */
+  const testConnect = (
+    response?: AnyPacketV4,
+    beforeConnack?: () => void,
+    clientIdentifier?: string,
+    auth?: MqttAuth,
+    will?: Will,
+    keepAlive?: number,
+    cleanSession?: boolean
+  ) => {
+    transportMock.send.mockImplementation(() => {
+      if (beforeConnack) beforeConnack();
+
+      if (response) {
+        // simulate receiving CONNACK packet by client
+        vi.advanceTimersByTime(9_990);
+
+        transportMock.emit("packetReceived", response);
+      }
+
+      vi.advanceTimersByTime(10_010);
+    });
+
+    return client.connect(
+      clientIdentifier ?? "",
+      auth,
+      will,
+      keepAlive,
+      cleanSession
+    );
+  };
 });

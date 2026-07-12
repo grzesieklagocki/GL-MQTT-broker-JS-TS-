@@ -59,7 +59,7 @@ export class MqttClientV4 extends EventEmitter {
     });
   }
 
-  public connect(
+  public async connect(
     clientIdentifier: string,
     auth?: MqttAuth,
     will?: Will,
@@ -69,6 +69,12 @@ export class MqttClientV4 extends EventEmitter {
     returnCode: ConnackReturnCodeV4;
     sessionPresent: boolean;
   }> {
+    try {
+      await this.transport.connect();
+    } catch (error) {
+      throw new AppError("Transport connection failed: ", error as Error);
+    }
+
     const packet = MqttPacketV4Factory.createConnectPacketV4(
       cleanSession,
       keepAlive,
