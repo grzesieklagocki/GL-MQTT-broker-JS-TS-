@@ -224,7 +224,7 @@ describe("MqttClientV4", () => {
         expect(client.isConnected).toBe(true);
 
         // after disconnect
-        client.disconnect();
+        await client.disconnect();
         expect(client.isConnected).toBe(false);
       });
     });
@@ -239,8 +239,6 @@ describe("MqttClientV4", () => {
       });
 
       it("returns CONNECTING status while connecting", async () => {
-        // expect(testConnect()).rejects.toThrow(/timeout/);
-        // expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTING);
         let status = client.getConnectionStatus();
         expect(status).toBe(ConnectionStatus.DISCONNECTED);
 
@@ -512,6 +510,23 @@ describe("MqttClientV4", () => {
         expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
           MqttPacketV4Factory.createUnsubscribePacketV4(1, [])
         );
+      });
+    });
+
+    describe("disconnect()", () => {
+      it("calls disconnect() on transport adapter", async () => {
+        await testConnect(connackAccepted);
+        expect(client.isConnected).toBe(true);
+
+        expect(transportMock.disconnect).not.toHaveBeenCalled();
+        await client.disconnect();
+        expect(transportMock.disconnect).toHaveBeenCalledExactlyOnceWith();
+      });
+
+      it("rejects when called while client is not connected", async () => {
+        expect(client.isConnected).toBe(false);
+
+        await expect(client.disconnect()).rejects.toThrow(/not connected/);
       });
     });
   });

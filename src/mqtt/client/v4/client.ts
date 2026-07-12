@@ -161,10 +161,12 @@ export class MqttClientV4 extends EventEmitter {
     return this.createRequest(packet, selector, resolver, 10);
   }
 
-  public disconnect(): void {
+  public async disconnect(): Promise<void> {
     const packet = MqttPacketV4Factory.createSimplePacketV4(
       PacketType.DISCONNECT
     );
+
+    this._assertClientConnected();
 
     this.sendPacket(packet); // send disconnect packet to broker
 

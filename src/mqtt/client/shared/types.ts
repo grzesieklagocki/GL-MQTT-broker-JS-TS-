@@ -29,7 +29,7 @@ export interface IMqttTransportAdapter<
    * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
    * @param error - Optional error that caused the disconnect.
    */
-  disconnect(error?: Error): void;
+  disconnect(error?: Error): Promise<void>;
 
   /**
    * Registers an event listener for a specific event emitted by the transport adapter.
