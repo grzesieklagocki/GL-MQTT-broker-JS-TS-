@@ -1,6 +1,6 @@
 import { AppError } from "@src/AppError";
 import { MqttClientV4 } from "@mqtt/client/v4/client";
-import { AnyPacket, PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   Will,
@@ -93,44 +93,6 @@ describe("MqttClientV4", () => {
           );
         });
       });
-
-      [
-        // qos: 0
-        MqttPacketV4Factory.createPublishPacketV4(topic, message),
-
-        // qos: 1
-        MqttPacketV4Factory.createPublishPacketV4(
-          topic,
-          message,
-          MqttPacketV4Factory.createPublishFlagsV4(1),
-          0xffff
-        ),
-
-        // qos: 2
-        // MqttPacketV4Factory.createPublishPacketV4(
-        //   topic,
-        //   message,
-        //   MqttPacketV4Factory.createPublishFlagsV4(2),
-        //   0xffff
-        // ),
-      ].forEach((packet) => {
-        it(`call publish event with provided topic and message when received PUBLISH packet with QOS ${packet.flags.qosLevel}`, () => {
-          expect(packet.typeId).toBe(PacketType.PUBLISH);
-          // expect(packet.flags.qosLevel).toBe(p);
-
-          // set event listener for publish event
-          const onPublish = vi.fn();
-          client.on("publish", onPublish);
-
-          transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
-
-          expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
-        });
-      });
-
-      it.todo(
-        "TODO: call publish event with provided topic and message when received PUBLISH packet with QOS"
-      );
 
       it.todo("TODO: when received PUBLISH packet with QOS 2");
     });
@@ -686,6 +648,61 @@ describe("MqttClientV4", () => {
         await client.disconnect();
         expect(transportMock.disconnect).toHaveBeenCalledExactlyOnceWith();
       });
+    });
+  });
+
+  describe("event emitting", () => {
+    const topic = "a/b";
+    const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
+
+    [
+      // qos: 0
+      MqttPacketV4Factory.createPublishPacketV4(topic, message),
+
+      // qos: 1
+      MqttPacketV4Factory.createPublishPacketV4(
+        topic,
+        message,
+        MqttPacketV4Factory.createPublishFlagsV4(1),
+        0xffff
+      ),
+
+      // qos: 2
+      // MqttPacketV4Factory.createPublishPacketV4(
+      //   topic,
+      //   message,
+      //   MqttPacketV4Factory.createPublishFlagsV4(2),
+      //   0xffff
+      // ),
+    ].forEach((packet) => {
+      it(`emits publish event with provided topic and message when received PUBLISH packet with QOS ${packet.flags.qosLevel}`, () => {
+        expect(packet.typeId).toBe(PacketType.PUBLISH);
+        // expect(packet.flags.qosLevel).toBe(p);
+
+        // set event listener for publish event
+        const onPublish = vi.fn();
+        client.on("publish", onPublish);
+
+        transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
+
+        expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+      });
+    });
+
+    it.todo(
+      "TODO: call publish event with provided topic and message when received PUBLISH packet with QOS 2"
+    );
+
+    it("emits disconnect event when transport emits disconnect event", async () => {
+      const disconnectListener = vi.fn();
+      const error = new Error("TRANSPORT DISCONNECT");
+
+      await connectAndClearSendMock();
+
+      client.on("disconnect", disconnectListener);
+      transportMock.emit("disconnect", error);
+
+      expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
     });
   });
 
