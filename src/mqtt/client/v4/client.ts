@@ -124,9 +124,11 @@ export class MqttClientV4 extends EventEmitter {
    * @param subscriptionList - The list of topics to subscribe to, along with their requested QoS levels.
    * @returns A promise that resolves with an array of return codes indicating the result of each subscription request.
    */
-  public subscribe(
+  public async subscribe(
     subscriptionList: SubscriptionV4[]
   ): Promise<SubackReturnCodeV4[]> {
+    this._assertClientConnected();
+
     const packetId = this.packetIdManager.allocateIdentifier();
     const packet = MqttPacketV4Factory.createSubscribePacketV4(
       packetId,
@@ -140,7 +142,7 @@ export class MqttClientV4 extends EventEmitter {
 
     const resolver = (response: SubackPacketV4) => response.returnCodeList;
 
-    return this.waitForResponse(packet, selector, resolver, 10);
+    return await this.waitForResponse(packet, selector, resolver, 10);
   }
 
   /**

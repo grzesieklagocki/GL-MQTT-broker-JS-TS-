@@ -12,6 +12,7 @@ import {
   AnyPacketV4,
   ConnackPacketV4,
   ConnackReturnCodeV4,
+  SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
 import { ConnectionStatus } from "@src/mqtt/client/shared/types";
 
@@ -375,72 +376,103 @@ describe("MqttClientV4", () => {
     });
 
     describe("subscribe()", () => {
+      const subscriptionList: SubscriptionV4[] = [
+        ["t/1", 2],
+        ["t/2", 0],
+        ["t/3", 1],
+      ];
+      const returnCodeList = subscriptionList.map((sub) => sub[1]);
+
+      const subscribePacket = (identifier = 1) =>
+        MqttPacketV4Factory.createSubscribePacketV4(
+          identifier,
+          subscriptionList
+        );
+
+      const subackPacket = (identifier = 1) =>
+        MqttPacketV4Factory.createSubackPacketV4(identifier, returnCodeList);
+
+      const expectSubscribeSent = (identifier = 1) => {
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          subscribePacket(identifier)
+        );
+      };
+
       it("rejects when SUBACK is not received before timeout", async () => {
-        const promise = client.subscribe([]);
+        await connectAndClearSendMock();
 
-        vi.advanceTimersByTime(10_100);
+        const promise = client.subscribe(subscriptionList);
+        const assertion = expect(promise).rejects.toThrow(/timeout/);
 
-        await expect(promise).rejects.toThrow(/timeout/);
+        await vi.advanceTimersByTimeAsync(10_000);
+
+        await assertion;
+
+        expectSubscribeSent();
       });
 
       it("returns SUBACK return codes when SUBACK is received before timeout", async () => {
-        const suback = MqttPacketV4Factory.createSubackPacketV4(1, [2, 0, 1]);
+        await connectAndClearSendMock();
 
-        transportMock.send.mockImplementation(() => {
-          setTimeout(() => {
-            transportMock.emit("packetReceived", suback);
-          }, 9_900);
+        transportMock.send.mockImplementationOnce(() => {
+          transportMock.emit("packetReceived", subackPacket());
         });
 
-        const promise = client.subscribe([]);
+        await expect(client.subscribe(subscriptionList)).resolves.toEqual([
+          2, 0, 1,
+        ]);
 
-        vi.advanceTimersByTime(10_000);
-
-        await expect(promise).resolves.toEqual([2, 0, 1]);
-        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createSubscribePacketV4(1, [])
-        );
+        expectSubscribeSent();
       });
 
       it("rejects when SUBACK is received with a different packet identifier", async () => {
-        const suback = MqttPacketV4Factory.createSubackPacketV4(2, [2, 0, 1]);
+        await connectAndClearSendMock();
 
-        transportMock.send.mockImplementation(() => {
-          setTimeout(() => {
-            transportMock.emit("packetReceived", suback);
-          }, 9_900);
+        transportMock.send.mockImplementationOnce(() => {
+          transportMock.emit("packetReceived", subackPacket(55));
         });
 
-        const promise = client.subscribe([]);
+        const promise = client.subscribe(subscriptionList);
+        const assertion = expect(promise).rejects.toThrow(/timeout/);
 
-        vi.advanceTimersByTime(10_000);
+        await vi.advanceTimersByTimeAsync(10_000);
 
-        await expect(promise).rejects.toThrow(/timeout/);
-        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createSubscribePacketV4(1, [])
-        );
+        await assertion;
+
+        expectSubscribeSent();
       });
 
       it("rejects when respond with a different packet type than SUBACK", async () => {
-        const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
-          PacketType.UNSUBACK,
-          1
-        );
+        await connectAndClearSendMock();
 
-        transportMock.send.mockImplementation(() => {
-          setTimeout(() => {
-            transportMock.emit("packetReceived", unsuback);
-          }, 9_900);
+        transportMock.send.mockImplementationOnce(() => {
+          transportMock.emit(
+            "packetReceived",
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              PacketType.UNSUBACK,
+              55
+            )
+          );
         });
 
-        const promise = client.subscribe([]);
+        const promise = client.subscribe(subscriptionList);
+        const assertion = expect(promise).rejects.toThrow(/timeout/);
 
-        vi.advanceTimersByTime(10_000);
+        await vi.advanceTimersByTimeAsync(10_000);
 
-        await expect(promise).rejects.toThrow(/timeout/);
-        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createSubscribePacketV4(1, [])
+        await assertion;
+
+        expectSubscribeSent();
+      });
+
+      it("rejects when client is not connected", async () => {
+        expect(client.isConnected).toBe(false);
+
+        await expect(client.subscribe(subscriptionList)).rejects.toThrow(
+          /not connected/
         );
+
+        expect(transportMock.send).not.toHaveBeenCalled();
       });
     });
 
