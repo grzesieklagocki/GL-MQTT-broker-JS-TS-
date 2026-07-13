@@ -143,7 +143,9 @@ export class MqttClientV4 extends EventEmitter {
    * @param topicFilterList - The list of topic filters to unsubscribe from.
    * @returns A promise that resolves when the unsubscription is successful or rejects with an error if the timeout is reached.
    */
-  public unsubscribe(topicFilterList: string[]): Promise<void> {
+  public async unsubscribe(topicFilterList: string[]): Promise<void> {
+    this._assertClientConnected();
+
     const packetId = this.packetIdManager.allocateIdentifier();
     const packet = MqttPacketV4Factory.createUnsubscribePacketV4(
       packetId,
@@ -162,16 +164,26 @@ export class MqttClientV4 extends EventEmitter {
   }
 
   public async disconnect(): Promise<void> {
+    this._assertClientConnected();
+
     const packet = MqttPacketV4Factory.createSimplePacketV4(
       PacketType.DISCONNECT
     );
 
-    this._assertClientConnected();
-
     this.sendPacket(packet); // send disconnect packet to broker
 
-    this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
-    this.handleDisconnect(); // emit disconnect event and perform cleanup
+    let disconnectError;
+
+    try {
+      this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
+    } catch (error) {
+      disconnectError = new AppError(
+        "Transport disconnection failed: ",
+        error as Error
+      );
+    }
+
+    this.handleDisconnect(disconnectError); // emit disconnect event and perform cleanup
   }
 
   /**
@@ -262,6 +274,13 @@ export class MqttClientV4 extends EventEmitter {
   private handlePublishPacketReceived(
     packet: PublishPacketV4
   ): AnyPacketV4 | undefined {
+    if (packet.flags.qosLevel == 2) {
+      const error = new AppError("QOS 2 is currently not supported.");
+
+      this.transport.disconnect(error);
+      this.handleDisconnect(error);
+    }
+
     this.emit("publish", packet.topicName, packet.applicationMessage);
 
     if (packet.flags.qosLevel === 1)
