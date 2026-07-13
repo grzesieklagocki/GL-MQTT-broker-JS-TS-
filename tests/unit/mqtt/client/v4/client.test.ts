@@ -425,6 +425,16 @@ describe("MqttClientV4", () => {
 
         await assertion;
       });
+
+      it("rejects when client is not disconnected", async () => {
+        await testConnect(connackAccepted);
+
+        expect(client.isConnected).toBe(true);
+
+        expect(testConnect(connackAccepted)).rejects.toThrow(
+          /not disconnected/
+        );
+      });
     });
 
     describe("subscribe()", () => {

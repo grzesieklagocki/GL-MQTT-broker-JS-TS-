@@ -59,7 +59,7 @@ export class MqttClientV4 extends EventEmitter {
     this.transport.on("packetReceived", (packet) => {
       this.handleReceivedPacket(packet);
     });
-    
+
     this.transport.on("disconnect", (error) => this.handleDisconnect(error));
   }
 
@@ -73,6 +73,8 @@ export class MqttClientV4 extends EventEmitter {
     returnCode: ConnackReturnCodeV4;
     sessionPresent: boolean;
   }> {
+    this._assertClientDisconnected();
+
     try {
       await this.waitForTransport(() => this.transport.connect(), 5);
     } catch (error) {
@@ -367,6 +369,13 @@ export class MqttClientV4 extends EventEmitter {
     if (!this.isConnected)
       throw new AppError(
         `Client is not connected. Current status: ${ConnectionStatus[this.mqttConnectionStatus]}`
+      );
+  }
+
+  private _assertClientDisconnected() {
+    if (this.getConnectionStatus() !== ConnectionStatus.DISCONNECTED)
+      throw new AppError(
+        `Client is not disconnected. Current status: ${ConnectionStatus[this.mqttConnectionStatus]}`
       );
   }
 }
