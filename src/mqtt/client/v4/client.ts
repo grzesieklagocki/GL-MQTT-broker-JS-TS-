@@ -104,14 +104,19 @@ export class MqttClientV4 extends EventEmitter {
     // set the connection status to connecting before sending the connect packet
     this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
 
-    const promise = this.createRequest(packet, selector, resolver, 10);
+    const waitForResponse = this.waitForResponse(
+      packet,
+      selector,
+      resolver,
+      10
+    );
 
-    promise.catch(() => {
+    waitForResponse.catch(() => {
       // if the connection fails set the status back to disconnected
       this.setConectionStatus(ConnectionStatus.DISCONNECTED);
     });
 
-    return promise;
+    return await waitForResponse;
   }
 
   /**
@@ -135,7 +140,7 @@ export class MqttClientV4 extends EventEmitter {
 
     const resolver = (response: SubackPacketV4) => response.returnCodeList;
 
-    return this.createRequest(packet, selector, resolver, 10);
+    return this.waitForResponse(packet, selector, resolver, 10);
   }
 
   /**
@@ -160,7 +165,7 @@ export class MqttClientV4 extends EventEmitter {
 
     const resolver = () => {};
 
-    return this.createRequest(packet, selector, resolver, 10);
+    await this.waitForResponse(packet, selector, resolver, 10);
   }
 
   public async disconnect(): Promise<void> {
@@ -187,14 +192,14 @@ export class MqttClientV4 extends EventEmitter {
   }
 
   /**
-   * Creates a request by sending a packet and waiting for a matching response packet.
+   * Waits for a specific response packet from the broker after sending a request packet.
    * @param packet - The packet to send.
    * @param responseSelector - A function that checks if a received packet matches the expected response packet and if so, returns the response packet.
    * @param resolver - A function that extracts the desired result from the received response packet.
    * @param timeout_s - The timeout in seconds for waiting for the response packet.
    * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
    */
-  private createRequest<TResponse extends AnyPacketV4, TResult>(
+  private waitForResponse<TResponse extends AnyPacketV4, TResult>(
     packet: AnyPacketV4,
     responseSelector: (response: AnyPacketV4) => TResponse | undefined,
     resolver: (response: TResponse) => TResult,
