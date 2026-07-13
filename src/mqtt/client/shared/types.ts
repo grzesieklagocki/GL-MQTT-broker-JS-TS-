@@ -23,7 +23,7 @@ export interface IMqttTransportAdapter<
    * Sends a packet to the transport layer.
    * @param packet - The MQTT packet to be sent.
    */
-  send(packet: PacketType): void;
+  send(packet: PacketType): Promise<void>;
 
   /**
    * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.

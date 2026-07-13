@@ -30,7 +30,7 @@ describe("MqttClientV4", () => {
 
     // create mocks for tests
     transportMock = Object.assign(new EventEmitter(), {
-      connect: vi.fn(async () => {}),
+      connect: vi.fn(),
       send: vi.fn(),
       disconnect: vi.fn(),
     });
@@ -71,7 +71,7 @@ describe("MqttClientV4", () => {
       });
 
       [1, 0xa1, 0xff].forEach((packetId) => {
-        it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, () => {
+        it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, async () => {
           const flags = MqttPacketV4Factory.createPublishFlagsV4(1); // qos: 1
           const packet = MqttPacketV4Factory.createPublishPacketV4(
             topic,
@@ -83,7 +83,7 @@ describe("MqttClientV4", () => {
           expect(packet.typeId).toBe(PacketType.PUBLISH);
           expect(packet.flags.qosLevel).toBe(1);
 
-          transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+          await transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
 
           expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
             MqttPacketV4Factory.createPacketWithIdentifierV4(
@@ -372,6 +372,58 @@ describe("MqttClientV4", () => {
         await testConnect(connackAccepted);
 
         expect(transportMock.connect).toHaveBeenCalledOnce();
+      });
+
+      it("disconnects when transport adapter emits disconnect event", async () => {
+        const error = new Error("DISONNECT TEST");
+
+        await testConnect(connackAccepted);
+
+        expect(client.isConnected).toBe(true);
+
+        transportMock.emit("disconnect", error);
+
+        expect(client.isConnected).toBe(false);
+      });
+
+      it("call disconnect event with error when transport adapter emits disconnect event", async () => {
+        const onDisconnect = vi.fn();
+        const error = new Error("DISONNECT TEST");
+
+        await testConnect(connackAccepted);
+
+        client.on("disconnect", onDisconnect);
+        transportMock.emit("disconnect", error);
+        client.off("disconnect", onDisconnect);
+
+        expect(onDisconnect).toHaveBeenCalledExactlyOnceWith(error);
+      });
+
+      it("rejects when transport connect() rejects", async () => {
+        transportMock.connect.mockRejectedValueOnce(
+          new Error("TRANSPORT CONNECT ERROR")
+        );
+
+        const promise = client.connect("");
+
+        expect(transportMock.connect).toHaveBeenCalledExactlyOnceWith();
+
+        await expect(promise).rejects.toThrow(/TRANSPORT CONNECT ERROR/);
+      });
+
+      it("rejects when transport connect() takes too long to resolve", async () => {
+        transportMock.connect.mockImplementationOnce(
+          () => new Promise(() => {})
+        );
+
+        const promise = client.connect("");
+        const assertion = expect(promise).rejects.toThrow(/timeout/i);
+
+        expect(transportMock.connect).toHaveBeenCalledExactlyOnceWith();
+
+        await vi.advanceTimersByTimeAsync(5_000);
+
+        await assertion;
       });
     });
 

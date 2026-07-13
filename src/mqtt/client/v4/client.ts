@@ -54,9 +54,13 @@ export class MqttClientV4 extends EventEmitter {
   ) {
     super();
 
+    // register events
+
     this.transport.on("packetReceived", (packet) => {
       this.handleReceivedPacket(packet);
     });
+    
+    this.transport.on("disconnect", (error) => this.handleDisconnect(error));
   }
 
   public async connect(
@@ -70,9 +74,9 @@ export class MqttClientV4 extends EventEmitter {
     sessionPresent: boolean;
   }> {
     try {
-      await this.transport.connect();
+      await this.waitForTransport(() => this.transport.connect(), 5);
     } catch (error) {
-      throw new AppError("Transport connection failed: ", error as Error);
+      throw new AppError("Connection failed -> " + (error as Error).message);
     }
 
     const packet = MqttPacketV4Factory.createConnectPacketV4(
@@ -173,25 +177,12 @@ export class MqttClientV4 extends EventEmitter {
   public async disconnect(): Promise<void> {
     this._assertClientConnected();
 
-    const packet = MqttPacketV4Factory.createSimplePacketV4(
-      PacketType.DISCONNECT
-    );
-
-    this.sendPacket(packet); // send disconnect packet to broker
-
-    let disconnectError;
-
-    try {
-      this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
-    } catch (error) {
-      disconnectError = new AppError(
-        "Transport disconnection failed: ",
-        error as Error
-      );
-    }
-
-    this.handleDisconnect(disconnectError); // emit disconnect event and perform cleanup
+    await this.handleDisconnect();
   }
+
+  //
+  // helpers
+  //
 
   /**
    * Waits for a specific response packet from the broker after sending a request packet.
@@ -229,7 +220,11 @@ export class MqttClientV4 extends EventEmitter {
       const timeout = setTimeout(() => {
         // if the expected packet is not received in defined time
         cleanup();
-        reject(new AppError("timeout"));
+        reject(
+          new AppError(
+            `timeout: MQTT client did not receive expected packet within ${timeout_s} seconds.`
+          )
+        );
       }, timeout_s * 1000);
 
       this.transport.on("packetReceived", waitForPacket);
@@ -237,20 +232,50 @@ export class MqttClientV4 extends EventEmitter {
     });
   }
 
-  private sendPacket = (packet: AnyPacketV4) => {
-    this.transport.send(packet);
+  private async waitForTransport<T>(
+    operation: () => Promise<T>,
+    timeout_s: number,
+    timeoutMessage = `timeout: transport adapter did not respond within ${timeout_s} seconds.`
+  ): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        reject(new AppError(timeoutMessage));
+      }, timeout_s * 1000);
+    });
+
+    try {
+      const operationPromise = operation();
+
+      return await Promise.race([operationPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(timeout!);
+    }
+  }
+
+  private sendPacket = async (packet: AnyPacketV4) => {
+    try {
+      await this.waitForTransport(() => this.transport.send(packet), 5);
+    } catch (error) {
+      await this.handleDisconnect(error as Error);
+    }
   };
+
+  //
+  // handlers
+  //
 
   /**
    * Handles a received MQTT packet and sends response if necessary.
    * @param packet - The received MQTT packet.
    */
-  private handleReceivedPacket(packet: AnyPacketV4) {
+  private async handleReceivedPacket(packet: AnyPacketV4) {
     let response: AnyPacketV4 | undefined;
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
-        response = this.handlePublishPacketReceived(packet);
+        response = await this.handlePublishPacketReceived(packet);
         break;
 
       case PacketType.PUBREC:
@@ -268,24 +293,23 @@ export class MqttClientV4 extends EventEmitter {
         break;
 
       default:
-        this.handleDisconnect(
+        await this.handleDisconnect(
           new AppError(
             `Client received disallowed packet type: ${PacketType[packet.typeId]}`
           )
         );
     }
 
-    if (response) this.sendPacket(response);
+    if (response) await this.sendPacket(response);
   }
 
-  private handlePublishPacketReceived(
+  private async handlePublishPacketReceived(
     packet: PublishPacketV4
-  ): AnyPacketV4 | undefined {
+  ): Promise<AnyPacketV4 | undefined> {
     if (packet.flags.qosLevel == 2) {
       const error = new AppError("QOS 2 is currently not supported.");
 
-      this.transport.disconnect(error);
-      this.handleDisconnect(error);
+      await this.handleDisconnect(error);
     }
 
     this.emit("publish", packet.topicName, packet.applicationMessage);
@@ -303,10 +327,38 @@ export class MqttClientV4 extends EventEmitter {
    * Handles the disconnection of the MQTT client and emits a disconnect event.
    * @param error - Optional error that caused the disconnection.
    */
-  private handleDisconnect(error?: AppError) {
+  private async handleDisconnect(error?: Error) {
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
+
+    if (!error) {
+      // clean disconnect
+
+      const packet = MqttPacketV4Factory.createSimplePacketV4(
+        PacketType.DISCONNECT
+      );
+
+      await this.sendPacket(packet); // send disconnect packet to broker
+
+      try {
+        await this.waitForTransport(
+          () => this.transport.disconnect(),
+
+          5
+        ); // disconnect the transport layer (e.g., close TCP connection)
+      } catch (error) {
+        error = new AppError(
+          "Transport disconnection failed: ",
+          error as Error
+        );
+      }
+    }
+
     this.emit("disconnect", error);
   }
+
+  //
+  // assertions
+  //
 
   /**
    * Asserts that the MQTT client is currently connected.
