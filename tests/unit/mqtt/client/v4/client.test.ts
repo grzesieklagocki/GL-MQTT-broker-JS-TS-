@@ -374,6 +374,14 @@ describe("MqttClientV4", () => {
         expect(transportMock.connect).toHaveBeenCalledOnce();
       });
 
+      it("calls send() on transport adapter", async () => {
+        await testConnect(connackAccepted);
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
+        );
+      });
+
       it("disconnects when transport adapter emits disconnect event", async () => {
         const error = new Error("DISONNECT TEST");
 
@@ -536,6 +544,20 @@ describe("MqttClientV4", () => {
 
         expect(transportMock.send).not.toHaveBeenCalled();
       });
+
+      it("calls send() on transport adapter", async () => {
+        await connectAndClearSendMock();
+
+        transportMock.send.mockImplementationOnce(() => {
+          transportMock.emit("packetReceived", subackPacket());
+        });
+
+        expect(client.subscribe(subscriptionList)).resolves;
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          subscribePacket()
+        );
+      });
     });
 
     describe("unsubscribe()", () => {
@@ -623,9 +645,39 @@ describe("MqttClientV4", () => {
 
         expect(transportMock.send).not.toHaveBeenCalled();
       });
+
+      it("calls send() on transport adapter", async () => {
+        await connectAndClearSendMock();
+
+        transportMock.send.mockImplementationOnce(() => {
+          transportMock.emit("packetReceived", unsubackPacket());
+        });
+
+        expect(client.unsubscribe([])).resolves;
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          unsubscribePacket()
+        );
+      });
     });
 
     describe("disconnect()", () => {
+      it("rejects when client is not connected", async () => {
+        expect(client.isConnected).toBe(false);
+
+        await expect(client.disconnect()).rejects.toThrow(/not connected/);
+      });
+
+      it("calls send() on transport adapter", async () => {
+        await connectAndClearSendMock();
+
+        expect(client.disconnect()).resolves;
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+        );
+      });
+
       it("calls disconnect() on transport adapter", async () => {
         await testConnect(connackAccepted);
         expect(client.isConnected).toBe(true);
@@ -633,12 +685,6 @@ describe("MqttClientV4", () => {
         expect(transportMock.disconnect).not.toHaveBeenCalled();
         await client.disconnect();
         expect(transportMock.disconnect).toHaveBeenCalledExactlyOnceWith();
-      });
-
-      it("rejects when client is not connected", async () => {
-        expect(client.isConnected).toBe(false);
-
-        await expect(client.disconnect()).rejects.toThrow(/not connected/);
       });
     });
   });
