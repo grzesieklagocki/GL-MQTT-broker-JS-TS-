@@ -11,6 +11,7 @@ import {
   AnyPacketV4,
   ConnackPacketV4,
   ConnackReturnCodeV4,
+  PublishFlagsV4,
   PublishPacketV4,
   SubackPacketV4,
   SubackReturnCodeV4,
@@ -125,6 +126,45 @@ export class MqttClientV4 extends EventEmitter {
     return await waitForResponse;
   }
 
+  public async publish(
+    topic: string,
+    message?: Uint8Array,
+    flags?: PublishFlagsV4
+  ): Promise<void> {
+    this._assertClientConnected();
+
+    const packetId =
+      (flags?.qosLevel ?? 0) === 0
+        ? undefined // for QoS 0
+        : this.packetIdManager.allocateIdentifier(); // for QoS 1 and 2
+
+    const packet = MqttPacketV4Factory.createPublishPacketV4(
+      topic,
+      message,
+      flags,
+      packetId
+    );
+
+    const qos = flags ? flags.qosLevel : 0;
+
+    switch (qos) {
+      case 0:
+        return await this.sendPacket(packet);
+
+      case 1:
+        const selector = (response: AnyPacketV4) =>
+          response.typeId === PacketType.PUBACK &&
+          response.identifier === packetId
+            ? response
+            : undefined;
+
+        return await this.waitForResponse(packet, selector, () => {}, 10);
+
+      case 2:
+        throw new AppError("QOS 2 is currently not supported.");
+    }
+  }
+
   /**
    * Subscribes to a list of topics and returns the corresponding return codes from the broker.
    * @param subscriptionList - The list of topics to subscribe to, along with their requested QoS levels.
@@ -171,9 +211,7 @@ export class MqttClientV4 extends EventEmitter {
         ? response
         : undefined;
 
-    const resolver = () => {};
-
-    await this.waitForResponse(packet, selector, resolver, 10);
+    await this.waitForResponse(packet, selector, () => {}, 10);
   }
 
   public async disconnect(): Promise<void> {

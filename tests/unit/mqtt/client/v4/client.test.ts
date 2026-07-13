@@ -1,6 +1,6 @@
 import { AppError } from "@src/AppError";
 import { MqttClientV4 } from "@mqtt/client/v4/client";
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType, QoS } from "@mqtt/protocol/shared/types";
 import {
   MqttPacketV4Factory,
   Will,
@@ -404,6 +404,120 @@ describe("MqttClientV4", () => {
         expect(testConnect(connackAccepted)).rejects.toThrow(
           /not disconnected/
         );
+      });
+    });
+
+    describe("publish()", () => {
+      const topic = "TEST TOPIC";
+      const message = new Uint8Array([0x01, 0x53]);
+
+      const publishFlags = (qos: QoS = 0) =>
+        MqttPacketV4Factory.createPublishFlagsV4(qos);
+
+      const publishPacket = (identifier: number | undefined, qos: QoS = 0) =>
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          message,
+          publishFlags(qos),
+          identifier
+        );
+
+      const pubackPacket = (identifier = 1) =>
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBACK,
+          identifier
+        );
+
+      const expectPublishSent = (
+        identifier: number | undefined,
+        qos: QoS = 0
+      ) => {
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          publishPacket(identifier, qos)
+        );
+      };
+
+      describe("QoS 0", () => {
+        it("sends PUBLISH without packet identifier and resolves without waiting for PUBACK", async () => {
+          await connectAndClearSendMock();
+
+          await expect(client.publish(topic, message)).resolves.toBeUndefined();
+
+          expectPublishSent(undefined, 0);
+        });
+      });
+
+      describe("QoS 1", () => {
+        it("sends PUBLISH with packet identifier and resolves when matching PUBACK is received", async () => {
+          await connectAndClearSendMock();
+
+          transportMock.send.mockImplementationOnce(() => {
+            transportMock.emit("packetReceived", pubackPacket(1));
+          });
+
+          await expect(
+            client.publish(topic, message, publishFlags(1))
+          ).resolves.toBeUndefined();
+
+          expectPublishSent(1, 1);
+        });
+
+        it("rejects when PUBACK is not received before timeout", async () => {
+          await connectAndClearSendMock();
+
+          const promise = client.publish(topic, message, publishFlags(1));
+          const assertion = expect(promise).rejects.toThrow(/timeout/);
+
+          await vi.advanceTimersByTimeAsync(10_000);
+
+          await assertion;
+
+          expectPublishSent(1, 1);
+        });
+
+        it("ignores PUBACK with different packet identifier and rejects after timeout", async () => {
+          await connectAndClearSendMock();
+
+          transportMock.send.mockImplementationOnce(() => {
+            transportMock.emit("packetReceived", pubackPacket(55));
+          });
+
+          const promise = client.publish(topic, message, publishFlags(1));
+          const assertion = expect(promise).rejects.toThrow(/timeout/);
+
+          await vi.advanceTimersByTimeAsync(10_000);
+
+          await assertion;
+
+          expectPublishSent(1, 1);
+        });
+
+        it("ignores different packet type and rejects after timeout", async () => {
+          await connectAndClearSendMock();
+
+          transportMock.send.mockImplementationOnce(() => {
+            transportMock.emit(
+              "packetReceived",
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.UNSUBACK,
+                1
+              )
+            );
+          });
+
+          const promise = client.publish(topic, message, publishFlags(1));
+          const assertion = expect(promise).rejects.toThrow(/timeout/);
+
+          await vi.advanceTimersByTimeAsync(10_000);
+
+          await assertion;
+
+          expectPublishSent(1, 1);
+        });
+      });
+
+      describe("QoS 2", () => {
+        it.todo("TODO QoS 2");
       });
     });
 
