@@ -19,6 +19,9 @@ import {
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
 
+/**
+ * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
+ */
 export class MqttClientV4 extends EventEmitter {
   /**
    * Indicates whether the MQTT client is currently connected to the broker.
@@ -64,6 +67,16 @@ export class MqttClientV4 extends EventEmitter {
     this.transport.on("disconnect", (error) => this.handleDisconnect(error));
   }
 
+  /**
+   * Connects to the MQTT broker with the specified parameters and returns the connection result.
+   * @param clientIdentifie - The unique identifier for the MQTT client.
+   * @param auth - Optional authentication credentials (username and password) for the MQTT broker.
+   * @param will - Optional last will message to be sent by the broker if the client disconnects unexpectedly.
+   * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
+   * @param cleanSession - A boolean indicating whether to start a clean session (true) or resume a previous session (false).
+   * @returns A promise that resolves with an object containing the return code from the broker and a flag indicating whether a previous session is present.
+   * @throws AppError if the connection fails or if the client is not disconnected before attempting to connect.
+   */
   public async connect(
     clientIdentifier: string,
     auth?: MqttAuth,
@@ -126,6 +139,14 @@ export class MqttClientV4 extends EventEmitter {
     return await waitForResponse;
   }
 
+  /**
+   * Publishes a message to a specific topic with the given flags and returns a promise that resolves when the publish operation is complete.
+   * @param topic - The topic to which the message should be published.
+   * @param message - The message payload to be published, represented as a Uint8Array. If not provided, an empty message will be sent.
+   * @param flags - Optional flags that specify the quality of service (QoS) level and other publish options.
+   * @returns A promise that resolves when the publish operation is complete or rejects with an error if the timeout is reached or if QoS 2 is requested (which is not supported).
+   * @throws AppError if the client is not connected or if QoS 2 is requested.
+   */
   public async publish(
     topic: string,
     message?: Uint8Array,
@@ -169,6 +190,7 @@ export class MqttClientV4 extends EventEmitter {
    * Subscribes to a list of topics and returns the corresponding return codes from the broker.
    * @param subscriptionList - The list of topics to subscribe to, along with their requested QoS levels.
    * @returns A promise that resolves with an array of return codes indicating the result of each subscription request.
+   * @throws AppError if the client is not connected or if the subscription operation times out.
    */
   public async subscribe(
     subscriptionList: SubscriptionV4[]
@@ -195,6 +217,7 @@ export class MqttClientV4 extends EventEmitter {
    * Unsubscribes from a list of topics.
    * @param topicFilterList - The list of topic filters to unsubscribe from.
    * @returns A promise that resolves when the unsubscription is successful or rejects with an error if the timeout is reached.
+   * @throws AppError if the client is not connected or if the unsubscription operation times out.
    */
   public async unsubscribe(topicFilterList: string[]): Promise<void> {
     this._assertClientConnected();
@@ -231,6 +254,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param resolver - A function that extracts the desired result from the received response packet.
    * @param timeout_s - The timeout in seconds for waiting for the response packet.
    * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
+   * @throws AppError if the expected response packet is not received within the specified timeout.
    */
   private waitForResponse<TResponse extends AnyPacketV4, TResult>(
     packet: AnyPacketV4,
@@ -272,6 +296,14 @@ export class MqttClientV4 extends EventEmitter {
     });
   }
 
+  /**
+   * Waits for a transport operation to complete within a specified timeout period. If the operation does not complete in time, it rejects with an error.
+   * @param operation - A function that returns a promise representing the transport operation to be performed.
+   * @param timeout_s - The timeout period in seconds for the transport operation.
+   * @param timeoutMessage - An optional custom message for the timeout error. If not provided, a default message will be used.
+   * @returns A promise that resolves with the result of the transport operation if it completes successfully within the timeout period, or rejects with an error if the operation times out.
+   * @throws AppError if the transport operation does not complete within the specified timeout period.
+   */
   private async waitForTransport<T>(
     operation: () => Promise<T>,
     timeout_s: number,
@@ -294,6 +326,11 @@ export class MqttClientV4 extends EventEmitter {
     }
   }
 
+  /**
+   * Sends an MQTT packet using the transport adapter and handles any errors that may occur during the sending process. If an error occurs, it triggers the disconnection handling process.
+   * @param packet - The MQTT packet to be sent.
+   * @throws AppError if there is an error while sending the packet or if the transport layer fails to send the packet.
+   */
   private sendPacket = async (packet: AnyPacketV4) => {
     try {
       await this.waitForTransport(() => this.transport.send(packet), 5);
@@ -343,6 +380,13 @@ export class MqttClientV4 extends EventEmitter {
     if (response) await this.sendPacket(response);
   }
 
+  /**
+   * Handles a received PUBLISH packet and emits a "publish" event with the topic name and application message.
+   * If the QoS level is 1, it returns a PUBACK packet to acknowledge the receipt of the message.
+   * If the QoS level is 2, it triggers a disconnection with an error since QoS 2 is not supported.
+   * @param packet - The received PUBLISH packet.
+   * @returns A promise that resolves with a PUBACK packet if the QoS level is 1, or undefined if the QoS level is 0. If the QoS level is 2, it triggers a disconnection and does not return a response.
+   */
   private async handlePublishPacketReceived(
     packet: PublishPacketV4
   ): Promise<AnyPacketV4 | undefined> {
@@ -410,6 +454,9 @@ export class MqttClientV4 extends EventEmitter {
       );
   }
 
+  /**
+   * Asserts that the MQTT client is currently disconnected.
+   */
   private _assertClientDisconnected() {
     if (this.getConnectionStatus() !== ConnectionStatus.DISCONNECTED)
       throw new AppError(
