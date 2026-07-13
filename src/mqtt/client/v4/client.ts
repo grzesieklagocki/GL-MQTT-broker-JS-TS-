@@ -19,6 +19,12 @@ import {
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
 
+enum PingTimeoutAction {
+  SET,
+  CLEAR,
+  RESET,
+}
+
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
  */
@@ -47,6 +53,9 @@ export class MqttClientV4 extends EventEmitter {
   private mqttConnectionStatus: ConnectionStatus =
     ConnectionStatus.DISCONNECTED;
 
+  private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
+  private keepAlive_s: number = 0;
+  
   /**
    * Creates an instance of ClientV4.
    * @param transport - The transport adapter responsible for sending and receiving MQTT packets.
@@ -109,11 +118,13 @@ export class MqttClientV4 extends EventEmitter {
 
     const resolver = (response: ConnackPacketV4) => {
       //set the connection status based on the return code from the CONNACK packet
-      this.setConectionStatus(
+      if (
         response.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
-          ? ConnectionStatus.CONNECTED
-          : ConnectionStatus.DISCONNECTED
-      );
+      ) {
+        this.handleConnect(packet.keepAlive); // if the connection is accepted, set the status to connected and start the ping timeout
+      } else {
+        this.setConectionStatus(ConnectionStatus.DISCONNECTED); // if the connection is not accepted, set the status back to disconnected
+      }
 
       return {
         returnCode: response.connectReturnCode,
@@ -248,6 +259,19 @@ export class MqttClientV4 extends EventEmitter {
   //
 
   /**
+   * Sends a PINGREQ packet to the broker and waits for a PINGRESP packet with the keep-alive timeout.
+   */
+  private async ping() {
+    this._assertClientConnected();
+
+    const packet = MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ);
+    const selector = (response: AnyPacketV4) =>
+      response.typeId === PacketType.PINGRESP ? response : undefined;
+
+    await this.waitForResponse(packet, selector, () => {}, this.keepAlive_s);
+  }
+
+  /**
    * Waits for a specific response packet from the broker after sending a request packet.
    * @param packet - The packet to send.
    * @param responseSelector - A function that checks if a received packet matches the expected response packet and if so, returns the response packet.
@@ -327,13 +351,17 @@ export class MqttClientV4 extends EventEmitter {
   }
 
   /**
-   * Sends an MQTT packet using the transport adapter and handles any errors that may occur during the sending process. If an error occurs, it triggers the disconnection handling process.
+   * Sends an MQTT packet using the transport adapter and handles any errors that may occur during the sending process.
+   * If an error occurs, it triggers the disconnection handling process.
+   * Ping timeout is reset after a successful send operation to ensure the keep-alive mechanism is maintained.
    * @param packet - The MQTT packet to be sent.
    * @throws AppError if there is an error while sending the packet or if the transport layer fails to send the packet.
    */
   private sendPacket = async (packet: AnyPacketV4) => {
     try {
       await this.waitForTransport(() => this.transport.send(packet), 5);
+
+      this.pingTimeout(PingTimeoutAction.RESET);
     } catch (error) {
       await this.handleDisconnect(error as Error);
     }
@@ -381,6 +409,52 @@ export class MqttClientV4 extends EventEmitter {
   }
 
   /**
+   * Handles the connection process after receiving a successful CONNACK packet from the broker. It sets the keep-alive interval, updates the connection status to CONNECTED, and initiates the ping timeout mechanism.
+   * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
+   */
+  private handleConnect(keepAlive: number) {
+    this.keepAlive_s = keepAlive;
+    this.setConectionStatus(ConnectionStatus.CONNECTED);
+    this.pingTimeout(PingTimeoutAction.SET);
+  }
+
+  /**
+   * Manages the ping timeout mechanism for the MQTT client based on the specified action (SET, CLEAR, RESET).
+   * @param action - The action to perform on the ping timeout (SET, CLEAR, RESET).
+   */
+  private pingTimeout(action: PingTimeoutAction): void {
+    let pingTimeout;
+
+    switch (action) {
+      case PingTimeoutAction.SET:
+        if (this.keepAlive_s === 0) return; // if keepAlive is 0, keep alive mechanism is disabled, so no need to set a ping timeout\
+
+        this.pingTimeoutId = setTimeout(async () => {
+          try {
+            await this.ping();
+          } catch (error) {
+            this.handleDisconnect(error as Error);
+          }
+        }, this.keepAlive_s * 1000);
+        break;
+
+      case PingTimeoutAction.CLEAR:
+        if (this.pingTimeoutId) {
+          clearTimeout(this.pingTimeoutId);
+          this.pingTimeoutId = undefined;
+        }
+        break;
+
+      case PingTimeoutAction.RESET:
+        this.pingTimeout(PingTimeoutAction.CLEAR);
+        this.pingTimeout(PingTimeoutAction.SET);
+        break;
+      default:
+        throw new AppError(`Invalid ping timeout action: ${action}`);
+    }
+  }
+
+  /**
    * Handles a received PUBLISH packet and emits a "publish" event with the topic name and application message.
    * If the QoS level is 1, it returns a PUBACK packet to acknowledge the receipt of the message.
    * If the QoS level is 2, it triggers a disconnection with an error since QoS 2 is not supported.
@@ -412,6 +486,7 @@ export class MqttClientV4 extends EventEmitter {
    * @param error - Optional error that caused the disconnection.
    */
   private async handleDisconnect(error?: Error) {
+    this.pingTimeout(PingTimeoutAction.CLEAR);
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
 
     if (!error) {

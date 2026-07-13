@@ -820,6 +820,76 @@ describe("MqttClientV4", () => {
     });
   });
 
+  describe("keep alive mechanism", () => {
+    const pingreqPacket = () =>
+      MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ);
+
+    const pingrespPacket = () =>
+      MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGRESP);
+
+    const emitPingresp = () => {
+      transportMock.emit("packetReceived", pingrespPacket());
+    };
+
+    const expectPingreqSentOnce = () => {
+      expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+        pingreqPacket()
+      );
+    };
+
+    it("sends PINGREQ when keep alive expires and no other packet is sent", async () => {
+      await connectAndClearSendMock();
+
+      transportMock.send.mockClear();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expectPingreqSentOnce();
+    });
+
+    it("sends PINGREQ repeatedly after each PINGRESP", async () => {
+      await connectAndClearSendMock();
+
+      transportMock.send.mockClear();
+
+      for (let i = 1; i <= 50; i++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(transportMock.send).toHaveBeenCalledTimes(i);
+        expect(transportMock.send).toHaveBeenLastCalledWith(pingreqPacket());
+
+        emitPingresp();
+      }
+    });
+
+    it("does not send PINGREQ when another packet is sent before keep alive expires", async () => {
+      await connectAndClearSendMock();
+
+      transportMock.send.mockClear();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await client.publish("TEST TOPIC", new Uint8Array([1, 2]));
+
+      transportMock.send.mockClear();
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(transportMock.send).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expectPingreqSentOnce();
+    });
+
+    it("disconnects when PINGRESP is not received before the next keep alive interval", async () => {
+      await connectAndClearSendMock();
+
+      transportMock.send.mockClear();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expectPingreqSentOnce();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(client.isConnected).toBe(false);
+    });
+  });
+
   //
   // helpers
   //
