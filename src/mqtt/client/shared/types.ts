@@ -29,7 +29,7 @@ export interface IMqttTransportAdapter<
    * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
    * @param error - Optional error that caused the disconnect.
    */
-  disconnect(error?: Error): Promise<void>;
+  disconnect(error?: Error): void;
 
   /**
    * Registers an event listener for a specific event emitted by the transport adapter.
@@ -49,4 +49,26 @@ export enum ConnectionStatus {
   DISCONNECTED, // The client is not connected to the broker.
   CONNECTING, // The client is in the process of establishing a connection to the broker.
   CONNECTED, // The client is successfully connected to the broker.
+}
+
+/**
+ * Interface for a codec that handles encoding and decoding of MQTT packets of a specific type.
+ */
+export interface IMqttPacketCodec<PacketType extends AnyPacket> {
+  /**
+   * Prepares for manage new stream of bytes, resetting any internal state.
+   */
+  resetState(): void;
+
+  /**
+   * Decodes a buffer of bytes into an MQTT packet.
+   * @param packet - The buffer of bytes to be decoded.
+   */
+  encode(packet: PacketType): Uint8Array;
+
+  /**
+   * Event emitted when a packet is received and decoded.
+   * @param packet - The decoded MQTT packet.
+   */
+  onPacketEvent: (packet: PacketType) => void;
 }

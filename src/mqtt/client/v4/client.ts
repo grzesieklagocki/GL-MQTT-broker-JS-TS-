@@ -55,7 +55,7 @@ export class MqttClientV4 extends EventEmitter {
 
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
-  
+
   /**
    * Creates an instance of ClientV4.
    * @param transport - The transport adapter responsible for sending and receiving MQTT packets.
@@ -499,11 +499,7 @@ export class MqttClientV4 extends EventEmitter {
       await this.sendPacket(packet); // send disconnect packet to broker
 
       try {
-        await this.waitForTransport(
-          () => this.transport.disconnect(),
-
-          5
-        ); // disconnect the transport layer (e.g., close TCP connection)
+        this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
       } catch (error) {
         error = new AppError(
           "Transport disconnection failed: ",
