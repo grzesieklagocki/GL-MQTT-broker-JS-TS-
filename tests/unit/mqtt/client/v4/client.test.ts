@@ -54,96 +54,151 @@ describe("MqttClientV4", () => {
       ConnackReturnCodeV4.CONNECTION_ACCEPTED
     );
 
-  describe("on receiving packets", () => {
-    describe("PUBLISH", () => {
-      const topic = "a/b";
-      const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
+  describe("on event", () => {
+    describe("packetReceived", () => {
+      describe("PUBLISH", () => {
+        const topic = "a/b";
+        const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
 
-      it("sends nothing when received PUBLISH packet with QOS 0", () => {
-        const packet = MqttPacketV4Factory.createPublishPacketV4("topic");
-
-        expect(packet.typeId).toBe(PacketType.PUBLISH);
-        expect(packet.flags.qosLevel).toBe(0);
-
-        transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
-
-        expect(transportMock.send).not.toBeCalled();
-      });
-
-      [1, 0xa1, 0xff].forEach((packetId) => {
-        it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, async () => {
-          const flags = MqttPacketV4Factory.createPublishFlagsV4(1); // qos: 1
-          const packet = MqttPacketV4Factory.createPublishPacketV4(
-            topic,
-            message,
-            flags,
-            packetId // packet identifier
-          );
+        it("sends nothing when received PUBLISH packet with QOS 0", () => {
+          const packet = MqttPacketV4Factory.createPublishPacketV4("topic");
 
           expect(packet.typeId).toBe(PacketType.PUBLISH);
-          expect(packet.flags.qosLevel).toBe(1);
+          expect(packet.flags.qosLevel).toBe(0);
 
-          await transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+          transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
 
-          expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-            MqttPacketV4Factory.createPacketWithIdentifierV4(
-              PacketType.PUBACK,
-              packetId
-            )
-          );
+          expect(transportMock.send).not.toBeCalled();
         });
+
+        [1, 0xa1, 0xff].forEach((packetId) => {
+          it(`sends PUBACK packet with same packet identifier (${packetId}) when received PUBLISH packet with QOS 1`, async () => {
+            const flags = MqttPacketV4Factory.createPublishFlagsV4(1); // qos: 1
+            const packet = MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              message,
+              flags,
+              packetId // packet identifier
+            );
+
+            expect(packet.typeId).toBe(PacketType.PUBLISH);
+            expect(packet.flags.qosLevel).toBe(1);
+
+            await transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+
+            expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBACK,
+                packetId
+              )
+            );
+          });
+        });
+
+        it.todo("TODO: when received PUBLISH packet with QOS 2");
       });
 
-      it.todo("TODO: when received PUBLISH packet with QOS 2");
+      // disallowed packets to receive for client
+      describe("disallowed packets", () => {
+        beforeEach(() => {
+          connectAndClearSendMock();
+        });
+
+        // disallowed packets to receive for client
+        const disallowed = [
+          // CONNECT
+          MqttPacketV4Factory.createConnectPacketV4(
+            true, // clean session
+            60, // keep alive
+            "clientID"
+          ),
+
+          // SUBSCRIBE
+          MqttPacketV4Factory.createSubscribePacketV4(
+            3722, // packet identifier
+            [] // empty subscription list
+          ),
+
+          // UNSUBSCRIBE
+          MqttPacketV4Factory.createUnsubscribePacketV4(
+            82445, // packet identifier
+            [] // empty subscription list
+          ),
+
+          // PINGREQ
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ),
+
+          // DISCONNECT
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT),
+        ];
+
+        disallowed.forEach((packet) => {
+          it(`call disconnect event with error when received ${PacketType[packet.typeId]} packet`, () => {
+            // set event listener for disconnect event
+            const onDisconnect = vi.fn();
+            client.on("disconnect", onDisconnect);
+
+            transportMock.emit("packetReceived", packet); // simulate receiving disallowed packet by client
+
+            expect(onDisconnect).toHaveBeenCalledExactlyOnceWith(
+              new AppError(
+                `Client received disallowed packet type: ${PacketType[packet.typeId]}`
+              )
+            );
+          });
+        });
+      });
     });
 
-    // disallowed packets to receive for client
-    describe("disallowed packets", () => {
-      // disallowed packets to receive for client
-      [
-        // CONNECT
-        MqttPacketV4Factory.createConnectPacketV4(
-          true, // clean session
-          60, // keep alive
-          "clientID"
-        ),
+    describe("disconnect", () => {
+      const disconnectListener = vi.fn();
+      const error = new Error("TRANSPORT DISCONNECT");
 
-        // SUBSCRIBE
-        MqttPacketV4Factory.createSubscribePacketV4(
-          3722, // packet identifier
-          [] // empty subscription list
-        ),
+      beforeEach(async () => {
+        await connectAndClearSendMock();
 
-        // UNSUBSCRIBE
-        MqttPacketV4Factory.createUnsubscribePacketV4(
-          82445, // packet identifier
-          [] // empty subscription list
-        ),
+        client.on("disconnect", disconnectListener);
+        disconnectListener.mockReset();
+      });
 
-        // PINGREQ
-        MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ),
+      it("emits disconnect event when transport emits disconnect event", async () => {
+        transportMock.emit("disconnect", error);
 
-        // DISCONNECT
-        MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT),
-      ].forEach((packet) => {
-        it(`call disconnect event with error when received ${PacketType[packet.typeId]} packet`, () => {
-          // set event listener for disconnect event
-          const onDisconnect = vi.fn();
-          client.on("disconnect", onDisconnect);
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
+      });
 
-          transportMock.emit("packetReceived", packet); // simulate receiving disallowed packet by client
+      it("emits disconnect event with undefined error when transport emits disconnect event without error", async () => {
+        transportMock.emit("disconnect");
 
-          expect(onDisconnect).toHaveBeenCalledExactlyOnceWith(
-            new AppError(
-              `Client received disallowed packet type: ${PacketType[packet.typeId]}`
-            )
-          );
-        });
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
+      });
+
+      it("does not emit disconnect event when transport emits disconnect event after client disconnects", async () => {
+        await client.disconnect();
+
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
+        disconnectListener.mockReset();
+
+        expect(client.isConnected).toBe(false);
+
+        transportMock.emit("disconnect", error);
+        expect(disconnectListener).not.toHaveBeenCalled();
+      });
+
+      it("does not emit disconnect event when transport emits disconnect event before calling connect() on client", async () => {
+        client = new MqttClientV4(transportMock, managerMock);
+        expect(client.isConnected).toBe(false);
+
+        const disconnectListener = vi.fn();
+        client.on("disconnect", disconnectListener);
+
+        transportMock.emit("disconnect", error);
+        expect(disconnectListener).not.toHaveBeenCalled();
       });
     });
   });
 
-  describe("getters", () => {
+  describe("getter", () => {
     describe("isConnected", () => {
       it("returns false when client is not connected", () => {
         expect(client.isConnected).toBe(false);
@@ -197,7 +252,7 @@ describe("MqttClientV4", () => {
     });
   });
 
-  describe("methods", () => {
+  describe("method", () => {
     describe("getConnectionStatus()", () => {
       it("returns DISCONNECTED status when client is not connected", () => {
         expect(client.getConnectionStatus()).toBe(

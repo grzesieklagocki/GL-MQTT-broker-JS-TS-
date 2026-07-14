@@ -251,7 +251,13 @@ export class MqttClientV4 extends EventEmitter {
   public async disconnect(): Promise<void> {
     this._assertClientConnected();
 
-    await this.handleDisconnect();
+    const packet = MqttPacketV4Factory.createSimplePacketV4(
+      PacketType.DISCONNECT
+    );
+
+    await this.sendPacket(packet);
+
+    this.handleDisconnect();
   }
 
   //
@@ -363,7 +369,7 @@ export class MqttClientV4 extends EventEmitter {
 
       this.pingTimeout(PingTimeoutAction.RESET);
     } catch (error) {
-      await this.handleDisconnect(error as Error);
+      this.handleDisconnect(error as Error);
     }
   };
 
@@ -398,7 +404,7 @@ export class MqttClientV4 extends EventEmitter {
         break;
 
       default:
-        await this.handleDisconnect(
+        this.handleDisconnect(
           new AppError(
             `Client received disallowed packet type: ${PacketType[packet.typeId]}`
           )
@@ -485,30 +491,19 @@ export class MqttClientV4 extends EventEmitter {
    * Handles the disconnection of the MQTT client and emits a disconnect event.
    * @param error - Optional error that caused the disconnection.
    */
-  private async handleDisconnect(error?: Error) {
+  private handleDisconnect(error?: Error) {
+    if (!this.isConnected) return;
+
     this.pingTimeout(PingTimeoutAction.CLEAR);
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
 
-    if (!error) {
-      // clean disconnect
-
-      const packet = MqttPacketV4Factory.createSimplePacketV4(
-        PacketType.DISCONNECT
-      );
-
-      await this.sendPacket(packet); // send disconnect packet to broker
-
-      try {
-        this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
-      } catch (error) {
-        error = new AppError(
-          "Transport disconnection failed: ",
-          error as Error
-        );
-      }
-    }
-
     this.emit("disconnect", error);
+
+    try {
+      this.transport.disconnect(); // disconnect the transport layer (e.g., close TCP connection)
+    } catch (error) {
+      error = new AppError("Transport disconnection failed: ", error as Error);
+    }
   }
 
   //
