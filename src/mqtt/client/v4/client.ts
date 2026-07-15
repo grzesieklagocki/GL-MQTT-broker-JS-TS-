@@ -18,6 +18,7 @@ import {
   SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
+import { generateRandomClientId } from "../../shared/generateRandomClientId";
 
 enum PingTimeoutAction {
   SET,
@@ -78,16 +79,16 @@ export class MqttClientV4 extends EventEmitter {
 
   /**
    * Connects to the MQTT broker with the specified parameters and returns the connection result.
-   * @param clientIdentifie - The unique identifier for the MQTT client.
+   * @param clientIdentifie - The unique identifier for the MQTT client. If not provided, a random client identifier will be generated.
    * @param auth - Optional authentication credentials (username and password) for the MQTT broker.
    * @param will - Optional last will message to be sent by the broker if the client disconnects unexpectedly.
    * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
    * @param cleanSession - A boolean indicating whether to start a clean session (true) or resume a previous session (false).
-   * @returns A promise that resolves with an object containing the return code from the broker and a flag indicating whether a previous session is present.
+   * @returns A promise that resolves with an object containing the return code from the broker, a flag indicating whether a previous session is present and the client identifier used for the connection.
    * @throws AppError if the connection fails or if the client is not disconnected before attempting to connect.
    */
   public async connect(
-    clientIdentifier: string,
+    clientIdentifier?: string,
     auth?: MqttAuth,
     will?: Will,
     keepAlive: number = 60,
@@ -95,6 +96,7 @@ export class MqttClientV4 extends EventEmitter {
   ): Promise<{
     returnCode: ConnackReturnCodeV4;
     sessionPresent: boolean;
+    clientIdentifier: string;
   }> {
     this._assertClientDisconnected();
 
@@ -103,6 +105,9 @@ export class MqttClientV4 extends EventEmitter {
     } catch (error) {
       throw new AppError("Connection failed -> " + (error as Error).message);
     }
+
+    if (clientIdentifier === undefined)
+      clientIdentifier = generateRandomClientId();
 
     const packet = MqttPacketV4Factory.createConnectPacketV4(
       cleanSession,
@@ -129,6 +134,7 @@ export class MqttClientV4 extends EventEmitter {
       return {
         returnCode: response.connectReturnCode,
         sessionPresent: response.sessionPresentFlag,
+        clientIdentifier: clientIdentifier,
       };
     };
 

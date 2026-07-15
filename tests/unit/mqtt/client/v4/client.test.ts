@@ -323,6 +323,7 @@ describe("MqttClientV4", () => {
         await expect(promise).resolves.toEqual({
           returnCode: ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED,
           sessionPresent: true,
+          clientIdentifier: "",
         });
         expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
           MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
@@ -371,6 +372,7 @@ describe("MqttClientV4", () => {
         await expect(promise).resolves.toEqual({
           returnCode: ConnackReturnCodeV4.CONNECTION_ACCEPTED,
           sessionPresent: true,
+          clientIdentifier: "clientID",
         });
 
         expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
