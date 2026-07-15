@@ -462,6 +462,26 @@ describe("MqttClientV4", () => {
           /not disconnected/
         );
       });
+
+      it("returns generated client identifier when client identifier is not provided", async () => {
+        const connack = MqttPacketV4Factory.createConnackPacketV4(
+          true,
+          ConnackReturnCodeV4.CONNECTION_ACCEPTED
+        );
+
+        transportMock.send.mockImplementation(() => {
+          if (connack) {
+            transportMock.emit("packetReceived", connack);
+          }
+        });
+
+        const response =
+          // no client identifier provided
+          await client.connect();
+
+        expect(response.clientIdentifier.length).toBeGreaterThanOrEqual(1);
+        expect(response.clientIdentifier.length).toBeLessThanOrEqual(23);
+      });
     });
 
     describe("publish()", () => {
