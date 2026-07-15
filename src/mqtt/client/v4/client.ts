@@ -20,6 +20,11 @@ import {
 import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
 
+type MqttClientEvents = {
+  publish: [topic: string, payload?: Uint8Array];
+  disconnect: [error?: Error];
+};
+
 enum PingTimeoutAction {
   SET,
   CLEAR,
@@ -29,7 +34,7 @@ enum PingTimeoutAction {
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
  */
-export class MqttClientV4 extends EventEmitter {
+export class MqttClientV4 {
   /**
    * Indicates whether the MQTT client is currently connected to the broker.
    */
@@ -57,6 +62,12 @@ export class MqttClientV4 extends EventEmitter {
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
 
+  private readonly events = new EventEmitter();
+
+  //
+  // constructor
+  //
+
   /**
    * Creates an instance of ClientV4.
    * @param transport - The transport adapter responsible for sending and receiving MQTT packets.
@@ -66,8 +77,6 @@ export class MqttClientV4 extends EventEmitter {
     private readonly transport: IMqttTransportAdapterV4,
     private readonly packetIdManager: IPacketIdentifierManager
   ) {
-    super();
-
     // register events
 
     this.transport.on("packetReceived", (packet) => {
@@ -76,6 +85,50 @@ export class MqttClientV4 extends EventEmitter {
 
     this.transport.on("disconnect", (error) => this.handleDisconnect(error));
   }
+
+  //
+  // events
+  //
+
+  /**
+   * Registers an event listener for a specific event emitted by the MQTT client.
+   * @param event - The name of the event to listen for.
+   * @param listener - The callback function to be invoked when the event occurs.
+   */
+  public on<Event extends keyof MqttClientEvents>(
+    event: Event,
+    listener: (...args: MqttClientEvents[Event]) => void
+  ) {
+    this.events.on(event, listener);
+  }
+
+  /**
+   * Removes an event listener for a specific event emitted by the MQTT client.
+   * @param event - The name of the event for which the listener should be removed.
+   * @param listener - The callback function that was previously registered as a listener for the event.
+   */
+  public off<Event extends keyof MqttClientEvents>(
+    event: Event,
+    listener: (...args: MqttClientEvents[Event]) => void
+  ) {
+    this.events.off(event, listener);
+  }
+
+  /**
+   * Registers a one-time event listener for a specific event emitted by the MQTT client. The listener will be invoked only once and then removed.
+   * @param event - The name of the event to listen for.
+   * @param listener - The callback function to be invoked when the event occurs.
+   */
+  public once<Event extends keyof MqttClientEvents>(
+    event: Event,
+    listener: (...args: MqttClientEvents[Event]) => void
+  ) {
+    this.events.once(event, listener);
+  }
+
+  //
+  // public methods
+  //
 
   /**
    * Connects to the MQTT broker with the specified parameters and returns the connection result.
@@ -378,6 +431,19 @@ export class MqttClientV4 extends EventEmitter {
       this.handleDisconnect(error as Error);
     }
   };
+
+  /**
+   * Emits an event with the specified name and arguments to all registered listeners for that event.
+   * @param event - The name of the event to emit.
+   * @param args - The arguments to pass to the event listeners.
+   * @returns A boolean indicating whether the event had listeners and was successfully emitted.
+   */
+  private emit<Event extends keyof MqttClientEvents>(
+    event: Event,
+    ...args: MqttClientEvents[Event]
+  ): boolean {
+    return this.events.emit(event, ...args);
+  }
 
   //
   // handlers
