@@ -6,7 +6,7 @@ import {
   MqttPacketV4Factory,
   Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType, PacketWithIdentifier } from "@mqtt/protocol/shared/types";
 import {
   AnyPacketV4,
   ConnackPacketV4,
@@ -152,6 +152,10 @@ export class MqttClientV4 {
     clientIdentifier: string;
   }> {
     this._assertClientDisconnected();
+    // set the connection status to connecting before sending the connect packet
+    this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
+
+    this.keepAlive_s = keepAlive;
 
     try {
       await this.waitForTransport(() => this.transport.connect(), 5);
@@ -179,7 +183,7 @@ export class MqttClientV4 {
       if (
         response.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
       ) {
-        this.handleConnect(packet.keepAlive); // if the connection is accepted, set the status to connected and start the ping timeout
+        this.handleConnect(); // if the connection is accepted, set the status to connected and start the ping timeout
       } else {
         this.setConectionStatus(ConnectionStatus.DISCONNECTED); // if the connection is not accepted, set the status back to disconnected
       }
@@ -190,9 +194,6 @@ export class MqttClientV4 {
         clientIdentifier: clientIdentifier,
       };
     };
-
-    // set the connection status to connecting before sending the connect packet
-    this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
 
     const waitForResponse = this.waitForResponse(
       packet,
@@ -380,7 +381,7 @@ export class MqttClientV4 {
         );
       }, timeout_s * 1000);
 
-      this.transport.on("packetReceived", waitForPacket);
+      this.transport.once("packetReceived", waitForPacket);
       this.sendPacket(packet);
     });
   }
@@ -490,11 +491,21 @@ export class MqttClientV4 {
    * Handles the connection process after receiving a successful CONNACK packet from the broker. It sets the keep-alive interval, updates the connection status to CONNECTED, and initiates the ping timeout mechanism.
    * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
    */
-  private handleConnect(keepAlive: number) {
-    this.keepAlive_s = keepAlive;
+  private handleConnect = () => {
     this.setConectionStatus(ConnectionStatus.CONNECTED);
-    this.pingTimeout(PingTimeoutAction.SET);
-  }
+    this.transport.on("packetReceived", this.disconnectOnConnack);
+  };
+
+  private disconnectOnConnack = (packet: AnyPacketV4) => {
+    if (packet.typeId !== PacketType.CONNACK) return;
+
+    this.handleDisconnect(
+      new AppError(
+        "Client received unexpected CONNACK packet. Current status: " +
+          ConnectionStatus[this.mqttConnectionStatus]
+      )
+    );
+  };
 
   /**
    * Manages the ping timeout mechanism for the MQTT client based on the specified action (SET, CLEAR, RESET).
@@ -527,6 +538,7 @@ export class MqttClientV4 {
         this.pingTimeout(PingTimeoutAction.CLEAR);
         this.pingTimeout(PingTimeoutAction.SET);
         break;
+
       default:
         throw new AppError(`Invalid ping timeout action: ${action}`);
     }
@@ -568,6 +580,8 @@ export class MqttClientV4 {
 
     this.pingTimeout(PingTimeoutAction.CLEAR);
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
+
+    this.transport.off("packetReceived", this.disconnectOnConnack);
 
     this.emit("disconnect", error);
 

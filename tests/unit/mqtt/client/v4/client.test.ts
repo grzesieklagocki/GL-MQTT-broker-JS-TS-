@@ -56,6 +56,26 @@ describe("MqttClientV4", () => {
 
   describe("on event", () => {
     describe("packetReceived", () => {
+      describe("CONNACK", () => {
+        it("emit disconnect event with error when received CONNACK packet if client is already connected", async () => {
+          await testConnect(connackAccepted);
+          expect(client.isConnected).toBe(true);
+
+          const disconnectListener = vi.fn();
+          client.on("disconnect", disconnectListener);
+
+          transportMock.emit("packetReceived", connackAccepted);
+
+          expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(
+            new AppError(
+              "Client received unexpected CONNACK packet. Current status: CONNECTED"
+            )
+          );
+
+          client.off("disconnect", disconnectListener);
+        });
+      });
+
       describe("PUBLISH", () => {
         const topic = "a/b";
         const message = new Uint8Array([0x00, 0x03, 0x6d, 0x73, 0x67]);
@@ -991,7 +1011,7 @@ describe("MqttClientV4", () => {
     keepAlive?: number,
     cleanSession?: boolean
   ) => {
-    transportMock.send.mockImplementation(() => {
+    transportMock.send.mockImplementationOnce(() => {
       if (beforeConnack) beforeConnack();
 
       if (response) {
@@ -1020,6 +1040,6 @@ describe("MqttClientV4", () => {
       MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
     );
 
-    transportMock.send.mockClear();
+    transportMock.send.mockReset();
   };
 });
