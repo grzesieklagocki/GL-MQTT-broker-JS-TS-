@@ -4,7 +4,6 @@ import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 export type IMqttTransportAdapterEvents = {
   packetReceived: [packet: AnyPacketV4];
   disconnect: [error?: Error];
-  connect: [];
 };
 
 /**
@@ -84,6 +83,12 @@ export interface IMqttPacketCodec<PacketType extends AnyPacket> {
    * @param packet - The buffer of bytes to be decoded.
    */
   encode(packet: PacketType): Uint8Array;
+
+  /**
+   * Decodes a buffer of bytes into an MQTT packet.
+   * @param bytes - The buffer of bytes to be decoded.
+   */
+  decode(bytes: Uint8Array): PacketType | undefined;
 
   /**
    * Event emitted when a packet is received and decoded.
