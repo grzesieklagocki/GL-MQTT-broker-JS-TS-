@@ -13,6 +13,8 @@ describe("MqttTransportAdapterV4", () => {
 
   let socketMock: EventEmitter & {
     connect: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
   };
 
   let createSocketMock: () => Socket;
@@ -22,12 +24,15 @@ describe("MqttTransportAdapterV4", () => {
   beforeEach(() => {
     codecMock = {
       encode: vi.fn(),
+      decode: vi.fn(),
       onPacketEvent: vi.fn(),
       resetState: vi.fn(),
     };
 
     socketMock = Object.assign(new EventEmitter(), {
       connect: vi.fn(),
+      end: vi.fn(),
+      destroy: vi.fn(),
     });
     createSocketMock = () => socketMock as unknown as Socket;
 
@@ -103,8 +108,8 @@ describe("MqttTransportAdapterV4", () => {
       await promise;
 
       expect(socketMock.listenerCount("connect")).toBe(0);
-      expect(socketMock.listenerCount("close")).toBe(0);
-      expect(socketMock.listenerCount("error")).toBe(0);
+      expect(socketMock.listenerCount("close")).toBe(1); // new listener still listening for disconnects
+      expect(socketMock.listenerCount("error")).toBe(1); // new listener still listening for disconnects
     });
 
     it("removes socket listeners after an error", async () => {
@@ -127,6 +132,96 @@ describe("MqttTransportAdapterV4", () => {
       await expect(promise).rejects.toThrow();
 
       expect(socketMock.listenerCount("connect")).toBe(0);
+      expect(socketMock.listenerCount("close")).toBe(0);
+      expect(socketMock.listenerCount("error")).toBe(0);
+    });
+  });
+
+  describe("disconnect()", () => {
+    it("throws an error if called when the adapter is not connected", async () => {
+      const promise = adapter.disconnect();
+
+      expect(promise).rejects.toThrow();
+    });
+  });
+  describe("disconnect()", () => {
+    const error = new Error("ERROR");
+    let endCallback: (() => void) | undefined;
+
+    beforeEach(async () => {
+      // connect
+      const promise = adapter.connect();
+      socketMock.emit("connect");
+      await promise;
+
+      // mock socket.end to capture the callback
+      socketMock.end.mockImplementation((callback?: () => void) => {
+        endCallback = callback;
+      });
+    });
+
+    it("emits 'disconnect' event when called without an error", async () => {
+      const disconnectListener = vi.fn();
+      adapter.on("disconnect", disconnectListener);
+
+      const promise = adapter.disconnect();
+      endCallback!(); // simulate socket closing
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
+    });
+
+    it("emits 'disconnect' event when called with an error", async () => {
+      const disconnectListener = vi.fn();
+      adapter.on("disconnect", disconnectListener);
+
+      const promise = adapter.disconnect(error);
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
+    });
+
+    it("calls socket.end() when called without an error", async () => {
+      const promise = adapter.disconnect();
+
+      expect(socketMock.end).toHaveBeenCalledExactlyOnceWith(endCallback);
+      expect(endCallback).toBeTypeOf("function");
+
+      endCallback!(); // simulate socket closing
+      await expect(promise).resolves.toBeUndefined();
+    });
+
+    it("calls socket.destroy() when called with an error", async () => {
+      const promise = adapter.disconnect(error);
+
+      expect(socketMock.destroy).toHaveBeenCalledExactlyOnceWith(error);
+
+      await expect(promise).resolves.toBeUndefined();
+    });
+
+    it("clears the socket reference when called without an error", async () => {
+      expect(socketMock.listenerCount("data")).toBe(1);
+      expect(socketMock.listenerCount("close")).toBe(1);
+      expect(socketMock.listenerCount("error")).toBe(1);
+
+      const promise = adapter.disconnect();
+      endCallback!(); // simulate socket closing
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(socketMock.listenerCount("data")).toBe(0);
+      expect(socketMock.listenerCount("close")).toBe(0);
+      expect(socketMock.listenerCount("error")).toBe(0);
+    });
+
+    it("clears the socket reference when called with an error", async () => {
+      expect(socketMock.listenerCount("data")).toBe(1);
+      expect(socketMock.listenerCount("close")).toBe(1);
+      expect(socketMock.listenerCount("error")).toBe(1);
+
+      const promise = adapter.disconnect(error);
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(socketMock.listenerCount("data")).toBe(0);
       expect(socketMock.listenerCount("close")).toBe(0);
       expect(socketMock.listenerCount("error")).toBe(0);
     });

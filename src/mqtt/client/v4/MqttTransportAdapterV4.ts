@@ -1,5 +1,5 @@
-import { EventEmitter } from "events";
-import { Socket } from "net";
+import { EventEmitter } from "node:events";
+import { Socket } from "node:net";
 import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { IMqttPacketCodec, IMqttTransportAdapterEvents } from "../shared/types";
@@ -8,18 +8,15 @@ import { AppError } from "@src/AppError";
 /**
  * Implementation of the IMqttTransportAdapterV4 interface that handles MQTT V4 packets.
  */
-
 export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   private socket?: Socket;
   private readonly events = new EventEmitter();
-
-  private _isActive = false;
 
   /**
    * Indicates whether the transport adapter is currently connected.
    */
   public get isActive(): boolean {
-    return this._isActive;
+    return this.socket !== undefined;
   }
 
   //
@@ -71,15 +68,13 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
       const onConnect = () => {
         removeConnectionListeners();
 
-        this._isActive = true;
+        this.addSocketListeners(socket);
 
         resolve();
       };
 
       const onClose = () => {
-        rejectConnection(
-          new AppError("Socket closed.")
-        );
+        rejectConnection(new AppError("Socket closed."));
       };
 
       const onError = (error: Error) => {
@@ -107,7 +102,27 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
    * @param error - Optional error that caused the disconnect.
    */
   public async disconnect(error?: Error): Promise<void> {
-    throw new Error("Method not implemented.");
+    if (!this.isActive)
+      throw new AppError("Transport adapter is not connected.");
+
+    const socket = this.socket!; // asserted because isActive check ensure that socket is defined
+    this.socket = undefined; // clear the socket reference to indicate that the adapter not active
+
+    this.removeSocketListeners(socket);
+    this.emit("disconnect", error);
+
+    return new Promise<void>((resolve) => {
+      if (error) {
+        socket.destroy(error);
+        resolve();
+      } else
+        socket.end(
+          // wait for the socket to close before resolving
+          () => {
+            resolve();
+          }
+        );
+    });
   }
 
   //
@@ -150,6 +165,10 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.events.off(eventName, listener);
   }
 
+  //
+  // helpers
+  //
+
   /**
    * Emits an event with the specified name and arguments to all registered listeners for that event.
    * @param event - The name of the event to emit.
@@ -162,4 +181,24 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   ): boolean {
     return this.events.emit(event, ...args);
   }
+
+  private addSocketListeners(socket: Socket) {
+    socket.on("data", this.tryDecodeAndSendPacket);
+    socket.on("close", this.handleDisconnect);
+    socket.on("error", this.handleDisconnect);
+  }
+
+  private removeSocketListeners(socket: Socket) {
+    socket.off("data", this.tryDecodeAndSendPacket);
+    socket.off("close", this.handleDisconnect);
+    socket.off("error", this.handleDisconnect);
+  }
+
+  private handleDisconnect(error?: Error) {
+    throw new Error("Method not implemented.");
+  }
+
+  private tryDecodeAndSendPacket = (bytes: Uint8Array) => {
+    throw new Error("Method not implemented.");
+  };
 }
