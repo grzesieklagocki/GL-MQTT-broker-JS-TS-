@@ -6,7 +6,7 @@ import {
   MqttPacketV4Factory,
   Will,
 } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { PacketType, PacketWithIdentifier } from "@mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 import {
   AnyPacketV4,
   ConnackPacketV4,
@@ -95,9 +95,9 @@ export class MqttClientV4 {
    * @param event - The name of the event to listen for.
    * @param listener - The callback function to be invoked when the event occurs.
    */
-  public on<Event extends keyof MqttClientEvents>(
-    event: Event,
-    listener: (...args: MqttClientEvents[Event]) => void
+  public on<EventName extends keyof MqttClientEvents>(
+    event: EventName,
+    listener: (...args: MqttClientEvents[EventName]) => void
   ) {
     this.events.on(event, listener);
   }
@@ -107,9 +107,9 @@ export class MqttClientV4 {
    * @param event - The name of the event for which the listener should be removed.
    * @param listener - The callback function that was previously registered as a listener for the event.
    */
-  public off<Event extends keyof MqttClientEvents>(
-    event: Event,
-    listener: (...args: MqttClientEvents[Event]) => void
+  public off<EventName extends keyof MqttClientEvents>(
+    event: EventName,
+    listener: (...args: MqttClientEvents[EventName]) => void
   ) {
     this.events.off(event, listener);
   }
@@ -119,9 +119,9 @@ export class MqttClientV4 {
    * @param event - The name of the event to listen for.
    * @param listener - The callback function to be invoked when the event occurs.
    */
-  public once<Event extends keyof MqttClientEvents>(
-    event: Event,
-    listener: (...args: MqttClientEvents[Event]) => void
+  public once<EventName extends keyof MqttClientEvents>(
+    event: EventName,
+    listener: (...args: MqttClientEvents[EventName]) => void
   ) {
     this.events.once(event, listener);
   }

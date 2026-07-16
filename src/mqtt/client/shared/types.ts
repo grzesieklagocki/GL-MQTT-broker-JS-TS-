@@ -1,11 +1,10 @@
 import { AnyPacket } from "@mqtt/protocol/shared/types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
-import { EventEmitter } from "node:events";
 
-type IMqttTransportAdapterEvents = {
-  packetReceived: (packet: AnyPacketV4) => void;
-  disconnect: (error?: Error) => void;
-  connect: () => void;
+export type IMqttTransportAdapterEvents = {
+  packetReceived: [packet: AnyPacketV4];
+  disconnect: [error?: Error];
+  connect: [];
 };
 
 /**
@@ -13,7 +12,7 @@ type IMqttTransportAdapterEvents = {
  */
 export interface IMqttTransportAdapter<
   PacketType extends AnyPacket,
-> extends EventEmitter /* for emitting events: connected, disconnected, packetReceived */ {
+> /* for emitting events: connected, disconnected, packetReceived */ {
   /**
    * Connects to the transport layer (e.g. TCP) and will emit the "connected" event.
    */
@@ -38,8 +37,28 @@ export interface IMqttTransportAdapter<
    */
   on<EventName extends keyof IMqttTransportAdapterEvents>(
     eventName: EventName,
-    listener: IMqttTransportAdapterEvents[EventName]
-  ): this;
+    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
+  ): void;
+
+  /**
+   * Registers a one-time event listener for a specific event emitted by the MQTT client. The listener will be invoked only once and then removed.
+   * @param eventName - The name of the event to listen for.
+   * @param listener 1- The callback function to be invoked when the event occurs.
+   */
+  once<EventName extends keyof IMqttTransportAdapterEvents>(
+    eventName: EventName,
+    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
+  ): void;
+
+  /**
+   * Removes an event listener for a specific event emitted by the MQTT client.
+   * @param eventName - The name of the event for which the listener should be removed.
+   * @param listener - The callback function that was previously registered as a listener for the event.
+   */
+  off<EventName extends keyof IMqttTransportAdapterEvents>(
+    eventName: EventName,
+    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
+  ): void;
 }
 
 /**
