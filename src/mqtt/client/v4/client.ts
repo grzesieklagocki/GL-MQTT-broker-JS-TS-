@@ -35,7 +35,7 @@ export class MqttClientV4 {
    * Indicates whether the MQTT client is currently connected to the broker.
    */
   public get isConnected(): boolean {
-    return this.getConnectionStatus() === ConnectionStatus.CONNECTED;
+    return this.getConnectionStatus() === "CONNECTED";
   }
 
   /**
@@ -52,8 +52,7 @@ export class MqttClientV4 {
   }
 
   // The current connection status of the MQTT client. Initialized to DISCONNECTED.
-  private mqttConnectionStatus: ConnectionStatus =
-    ConnectionStatus.DISCONNECTED;
+  private mqttConnectionStatus: ConnectionStatus = "DISCONNECTED";
 
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
@@ -149,7 +148,7 @@ export class MqttClientV4 {
   }> {
     this._assertClientDisconnected();
     // set the connection status to connecting before sending the connect packet
-    this.mqttConnectionStatus = ConnectionStatus.CONNECTING;
+    this.mqttConnectionStatus = "CONNECTING";
 
     this.keepAlive_s = keepAlive;
 
@@ -181,7 +180,7 @@ export class MqttClientV4 {
       ) {
         this.handleConnect(); // if the connection is accepted, set the status to connected and start the ping timeout
       } else {
-        this.setConectionStatus(ConnectionStatus.DISCONNECTED); // if the connection is not accepted, set the status back to disconnected
+        this.setConectionStatus("DISCONNECTED"); // if the connection is not accepted, set the status back to disconnected
       }
 
       return {
@@ -200,7 +199,7 @@ export class MqttClientV4 {
 
     waitForResponse.catch(() => {
       // if the connection fails set the status back to disconnected
-      this.setConectionStatus(ConnectionStatus.DISCONNECTED);
+      this.setConectionStatus("DISCONNECTED");
     });
 
     return await waitForResponse;
@@ -466,11 +465,11 @@ export class MqttClientV4 {
 
       case PacketType.CONNACK:
         // CONNACK packet is only allowed while client is in CONNECTING state
-        if (this.getConnectionStatus() !== ConnectionStatus.CONNECTING)
+        if (this.getConnectionStatus() !== "CONNECTING")
           this.handleDisconnect(
             new AppError(
               "Client received unexpected CONNACK packet. Current status: " +
-                ConnectionStatus[this.mqttConnectionStatus]
+                this.mqttConnectionStatus
             )
           );
 
@@ -497,7 +496,7 @@ export class MqttClientV4 {
    * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
    */
   private handleConnect = () => {
-    this.setConectionStatus(ConnectionStatus.CONNECTED);
+    this.setConectionStatus("CONNECTED");
     //this.transport.on("packetReceived", this.disconnectOnConnack);
   };
 
@@ -573,7 +572,7 @@ export class MqttClientV4 {
     if (!this.isConnected) return;
 
     this.pingTimeout("CLEAR");
-    this.setConectionStatus(ConnectionStatus.DISCONNECTED);
+    this.setConectionStatus("DISCONNECTED");
 
     this.emit("disconnect", error);
 
@@ -594,7 +593,7 @@ export class MqttClientV4 {
   private _assertClientConnected() {
     if (!this.isConnected)
       throw new AppError(
-        `Client is not connected. Current status: ${ConnectionStatus[this.mqttConnectionStatus]}`
+        `Client is not connected. Current status: ${this.mqttConnectionStatus}`
       );
   }
 
@@ -602,9 +601,9 @@ export class MqttClientV4 {
    * Asserts that the MQTT client is currently disconnected.
    */
   private _assertClientDisconnected() {
-    if (this.getConnectionStatus() !== ConnectionStatus.DISCONNECTED)
+    if (this.getConnectionStatus() !== "DISCONNECTED")
       throw new AppError(
-        `Client is not disconnected. Current status: ${ConnectionStatus[this.mqttConnectionStatus]}`
+        `Client is not disconnected. Current status: ${this.mqttConnectionStatus}`
       );
   }
 }

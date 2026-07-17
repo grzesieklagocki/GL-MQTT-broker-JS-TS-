@@ -275,28 +275,26 @@ describe("MqttClientV4", () => {
   describe("method", () => {
     describe("getConnectionStatus()", () => {
       it("returns DISCONNECTED status when client is not connected", () => {
-        expect(client.getConnectionStatus()).toBe(
-          ConnectionStatus.DISCONNECTED
-        );
+        expect(client.getConnectionStatus()).toBe("DISCONNECTED");
       });
 
       it("returns CONNECTING status while connecting", async () => {
         let status = client.getConnectionStatus();
-        expect(status).toBe(ConnectionStatus.DISCONNECTED);
+        expect(status).toBe("DISCONNECTED");
 
         await testConnect(
           connackAccepted,
           // get connection status while connecting
           () => (status = client.getConnectionStatus()) // will be called before receiving CONNACK packet
         );
-        expect(status).toBe(ConnectionStatus.CONNECTING);
+        expect(status).toBe("CONNECTING");
       });
 
       it(`returns CONNECTED status after cuccessfully connected with ${ConnackReturnCodeV4[connackAccepted.connectReturnCode]} code`, async () => {
         const status = await testConnect(connackAccepted);
 
         expect(status.returnCode).toBe(ConnackReturnCodeV4.CONNECTION_ACCEPTED);
-        expect(client.getConnectionStatus()).toBe(ConnectionStatus.CONNECTED);
+        expect(client.getConnectionStatus()).toBe("CONNECTED");
       });
 
       ///
@@ -318,9 +316,7 @@ describe("MqttClientV4", () => {
 
           expect(status.returnCode).toBe(refusedCode);
           expect(status.sessionPresent).toBe(true);
-          expect(client.getConnectionStatus()).toBe(
-            ConnectionStatus.DISCONNECTED
-          );
+          expect(client.getConnectionStatus()).toBe("DISCONNECTED");
         });
       });
     });
