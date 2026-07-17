@@ -25,11 +25,7 @@ type MqttClientEvents = {
   disconnect: [error?: Error];
 };
 
-enum PingTimeoutAction {
-  SET,
-  CLEAR,
-  RESET,
-}
+type PingTimeoutAction = "SET" | "CLEAR" | "RESET";
 
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
@@ -427,7 +423,7 @@ export class MqttClientV4 {
     try {
       await this.waitForTransport(() => this.transport.send(packet), 5);
 
-      this.pingTimeout(PingTimeoutAction.RESET);
+      this.pingTimeout("RESET");
     } catch (error) {
       this.handleDisconnect(error as Error);
     }
@@ -513,7 +509,7 @@ export class MqttClientV4 {
     let pingTimeout;
 
     switch (action) {
-      case PingTimeoutAction.SET:
+      case "SET":
         if (this.keepAlive_s === 0) return; // if keepAlive is 0, keep alive mechanism is disabled, so no need to set a ping timeout\
 
         this.pingTimeoutId = setTimeout(async () => {
@@ -525,16 +521,16 @@ export class MqttClientV4 {
         }, this.keepAlive_s * 1000);
         break;
 
-      case PingTimeoutAction.CLEAR:
+      case "CLEAR":
         if (this.pingTimeoutId) {
           clearTimeout(this.pingTimeoutId);
           this.pingTimeoutId = undefined;
         }
         break;
 
-      case PingTimeoutAction.RESET:
-        this.pingTimeout(PingTimeoutAction.CLEAR);
-        this.pingTimeout(PingTimeoutAction.SET);
+      case "RESET":
+        this.pingTimeout("CLEAR");
+        this.pingTimeout("SET");
         break;
 
       default:
@@ -576,7 +572,7 @@ export class MqttClientV4 {
   private handleDisconnect(error?: Error) {
     if (!this.isConnected) return;
 
-    this.pingTimeout(PingTimeoutAction.CLEAR);
+    this.pingTimeout("CLEAR");
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
 
     this.emit("disconnect", error);
