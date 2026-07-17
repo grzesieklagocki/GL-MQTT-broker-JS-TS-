@@ -469,6 +469,15 @@ export class MqttClientV4 {
         break;
 
       case PacketType.CONNACK:
+        // CONNACK packet is only allowed while client is in CONNECTING state
+        if (this.getConnectionStatus() !== ConnectionStatus.CONNECTING)
+          this.handleDisconnect(
+            new AppError(
+              "Client received unexpected CONNACK packet. Current status: " +
+                ConnectionStatus[this.mqttConnectionStatus]
+            )
+          );
+
       case PacketType.PUBACK:
       case PacketType.SUBACK:
       case PacketType.UNSUBACK:
@@ -493,18 +502,7 @@ export class MqttClientV4 {
    */
   private handleConnect = () => {
     this.setConectionStatus(ConnectionStatus.CONNECTED);
-    this.transport.on("packetReceived", this.disconnectOnConnack);
-  };
-
-  private disconnectOnConnack = (packet: AnyPacketV4) => {
-    if (packet.typeId !== PacketType.CONNACK) return;
-
-    this.handleDisconnect(
-      new AppError(
-        "Client received unexpected CONNACK packet. Current status: " +
-          ConnectionStatus[this.mqttConnectionStatus]
-      )
-    );
+    //this.transport.on("packetReceived", this.disconnectOnConnack);
   };
 
   /**
@@ -580,8 +578,6 @@ export class MqttClientV4 {
 
     this.pingTimeout(PingTimeoutAction.CLEAR);
     this.setConectionStatus(ConnectionStatus.DISCONNECTED);
-
-    this.transport.off("packetReceived", this.disconnectOnConnack);
 
     this.emit("disconnect", error);
 
