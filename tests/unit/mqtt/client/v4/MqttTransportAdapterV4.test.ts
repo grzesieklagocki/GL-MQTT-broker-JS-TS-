@@ -44,9 +44,27 @@ describe("MqttTransportAdapterV4", () => {
     );
   });
 
-  describe("connect()", () => {
-    it("calls socket.connect() with the correct host and port", async () => {
-      const promise = adapter.connect();
+  describe("method", () => {
+    describe("connect()", () => {
+      it("throws an error if called when the adapter is already connected", async () => {
+        expect(adapter.isActive).toBe(false);
+
+        // first connect
+        const promise1 = adapter.connect();
+        socketMock.emit("connect");
+        await expect(promise1).resolves.toBeUndefined();
+
+        expect(adapter.isActive).toBe(true);
+
+        // second connect
+        const promise2 = adapter.connect();
+        await expect(promise2).rejects.toThrow(
+          /Transport adapter is already connected/
+        );
+      });
+
+      it("calls socket.connect() with the correct host and port", async () => {
+        const promise = adapter.connect();
 
       expect(socketMock.connect).toHaveBeenCalledExactlyOnceWith(port, host);
 
