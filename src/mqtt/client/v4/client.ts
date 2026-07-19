@@ -58,6 +58,11 @@ export class MqttClientV4 {
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
 
+  private waitForPingresp = {
+    resolve: () => {},
+    reject: () => {},
+  };
+
   private readonly events = new EventEmitter();
 
   //
@@ -327,10 +332,24 @@ export class MqttClientV4 {
     this._assertClientConnected();
 
     const packet = MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ);
-    const selector = (response: AnyPacketV4) =>
-      response.typeId === PacketType.PINGRESP ? response : undefined;
 
-    await this.waitForResponse(packet, selector, () => {}, this.keepAlive_s);
+    const action = async () => {
+      const waitForPingresp = new Promise<void>((resolve, reject) => {
+        this.waitForPingresp.resolve = resolve;
+        this.waitForPingresp.reject = reject;
+      });
+
+      await this.sendPacket(packet);
+      await waitForPingresp;
+    };
+
+    await performActionWithTimeout(
+      action,
+      this.keepAlive_s,
+      new AppError(
+        `timeout: MQTT client did not receive PINGRESP packet within ${this.keepAlive_s} seconds.`
+      )
+    );
   }
 
   /**
@@ -462,13 +481,13 @@ export class MqttClientV4 {
                 this.mqttConnectionStatus
             )
           );
+      case PacketType.PINGRESP:
+        this.waitForPingresp.resolve();
+        break;
 
       case PacketType.PUBACK:
       case PacketType.SUBACK:
       case PacketType.UNSUBACK:
-      case PacketType.PINGRESP:
-        // ignore, should to be handled by the createRequest method
-        break;
 
       default:
         this.handleDisconnect(
