@@ -411,13 +411,14 @@ export class MqttClientV4 {
    */
   private waitForTransport = <T>(
     operation: () => Promise<T>,
-    timeout_s: number,
-    timeoutMessage = `timeout: transport adapter did not respond within ${timeout_s} seconds.`
+    timeout_s: number
   ): Promise<T> =>
     performActionWithTimeout(
       operation,
       timeout_s,
-      new AppError(timeoutMessage)
+      new AppError(
+        `timeout: transport adapter did not respond within ${timeout_s} seconds.`
+      )
     );
 
   /**
