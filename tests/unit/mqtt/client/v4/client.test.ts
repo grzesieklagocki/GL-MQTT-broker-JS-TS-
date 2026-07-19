@@ -14,7 +14,6 @@ import {
   ConnackReturnCodeV4,
   SubscriptionV4,
 } from "@mqtt/protocol/v4/types";
-import { ConnectionStatus } from "@src/mqtt/client/shared/types";
 
 describe("MqttClientV4", () => {
   let managerMock: IPacketIdentifierManager;
@@ -933,8 +932,6 @@ describe("MqttClientV4", () => {
     it("sends PINGREQ when keep alive expires and no other packet is sent", async () => {
       await connectAndClearSendMock();
 
-      transportMock.send.mockClear();
-
       await vi.advanceTimersByTimeAsync(60_000);
 
       expectPingreqSentOnce();
@@ -942,8 +939,6 @@ describe("MqttClientV4", () => {
 
     it("sends PINGREQ repeatedly after each PINGRESP", async () => {
       await connectAndClearSendMock();
-
-      transportMock.send.mockClear();
 
       for (let i = 1; i <= 50; i++) {
         await vi.advanceTimersByTimeAsync(60_000);
@@ -958,7 +953,6 @@ describe("MqttClientV4", () => {
     it("does not send PINGREQ when another packet is sent before keep alive expires", async () => {
       await connectAndClearSendMock();
 
-      transportMock.send.mockClear();
       await vi.advanceTimersByTimeAsync(30_000);
       await client.publish("TEST TOPIC", new Uint8Array([1, 2]));
 
@@ -974,11 +968,11 @@ describe("MqttClientV4", () => {
     it("disconnects when PINGRESP is not received before the next keep alive interval", async () => {
       await connectAndClearSendMock();
 
-      transportMock.send.mockClear();
       await vi.advanceTimersByTimeAsync(60_000);
       expectPingreqSentOnce();
 
       await vi.advanceTimersByTimeAsync(60_000);
+      
       expect(client.isConnected).toBe(false);
     });
   });

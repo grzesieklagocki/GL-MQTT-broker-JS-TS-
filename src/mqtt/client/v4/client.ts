@@ -19,6 +19,7 @@ import {
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
+import { performActionWithTimeout } from "@src/mqtt/shared/performActionWithTimeout";
 
 type MqttClientEvents = {
   publish: [topic: string, payload?: Uint8Array];
@@ -389,27 +390,16 @@ export class MqttClientV4 {
    * @returns A promise that resolves with the result of the transport operation if it completes successfully within the timeout period, or rejects with an error if the operation times out.
    * @throws AppError if the transport operation does not complete within the specified timeout period.
    */
-  private async waitForTransport<T>(
+  private waitForTransport = <T>(
     operation: () => Promise<T>,
     timeout_s: number,
     timeoutMessage = `timeout: transport adapter did not respond within ${timeout_s} seconds.`
-  ): Promise<T> {
-    let timeout: ReturnType<typeof setTimeout>;
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeout = setTimeout(() => {
-        reject(new AppError(timeoutMessage));
-      }, timeout_s * 1000);
-    });
-
-    try {
-      const operationPromise = operation();
-
-      return await Promise.race([operationPromise, timeoutPromise]);
-    } finally {
-      clearTimeout(timeout!);
-    }
-  }
+  ): Promise<T> =>
+    performActionWithTimeout(
+      operation,
+      timeout_s,
+      new AppError(timeoutMessage)
+    );
 
   /**
    * Sends an MQTT packet using the transport adapter and handles any errors that may occur during the sending process.
