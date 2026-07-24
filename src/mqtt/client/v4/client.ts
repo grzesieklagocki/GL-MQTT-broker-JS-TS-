@@ -1,5 +1,10 @@
 import { AppError } from "@src/AppError";
-import { IMqttTransportAdapterV4 } from "./types";
+import {
+  ConnectResponse,
+  IMqttTransportAdapterV4,
+  MqttClientEvents,
+  PingTimeoutAction,
+} from "./types";
 import { IPacketIdentifierManager, MqttAuth } from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
 import {
@@ -19,14 +24,7 @@ import {
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
-import { performActionWithTimeout } from "@src/mqtt/shared/performActionWithTimeout";
-
-type MqttClientEvents = {
-  publish: [topic: string, payload?: Uint8Array];
-  disconnect: [error?: Error];
-};
-
-type PingTimeoutAction = "SET" | "CLEAR" | "RESET";
+import { performActionWithTimeout } from "@mqtt/shared/performActionWithTimeout";
 
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
@@ -57,6 +55,11 @@ export class MqttClientV4 {
 
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
+
+  private waitForConnack: {
+    resolve?: (resolve: ConnackPacketV4) => void;
+    reject?: (resolve: ConnackPacketV4) => void;
+  } = {};
 
   private waitForPingresp = {
     resolve: () => {},
@@ -147,11 +150,7 @@ export class MqttClientV4 {
     will?: Will,
     keepAlive: number = 60,
     cleanSession: boolean = true
-  ): Promise<{
-    returnCode: ConnackReturnCodeV4;
-    sessionPresent: boolean;
-    clientIdentifier: string;
-  }> {
+  ): Promise<ConnectResponse> {
     this._assertClientDisconnected();
     // set the connection status to connecting before sending the connect packet
     this.mqttConnectionStatus = "CONNECTING";
@@ -161,6 +160,8 @@ export class MqttClientV4 {
     try {
       await this.waitForTransport(() => this.transport.connect(), 5);
     } catch (error) {
+      this.setConectionStatus("DISCONNECTED");
+
       throw new AppError("Connection failed -> " + (error as Error).message);
     }
 
@@ -176,39 +177,40 @@ export class MqttClientV4 {
       will
     );
 
-    const selector = (response: AnyPacketV4) =>
-      response.typeId === PacketType.CONNACK ? response : undefined;
+    const action = async () => {
+      const waitForConnack = new Promise<ConnectResponse>((resolve) => {
+        this.waitForConnack.resolve = (packet) => {
+          this.setConectionStatus(
+            packet.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
+              ? "CONNECTED"
+              : "DISCONNECTED"
+          );
 
-    const resolver = (response: ConnackPacketV4) => {
-      //set the connection status based on the return code from the CONNACK packet
-      if (
-        response.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
-      ) {
-        this.handleConnect(); // if the connection is accepted, set the status to connected and start the ping timeout
-      } else {
-        this.setConectionStatus("DISCONNECTED"); // if the connection is not accepted, set the status back to disconnected
-      }
+          resolve({
+            returnCode: packet.connectReturnCode,
+            sessionPresent: packet.sessionPresentFlag,
+            clientIdentifier,
+          });
+        };
+      });
 
-      return {
-        returnCode: response.connectReturnCode,
-        sessionPresent: response.sessionPresentFlag,
-        clientIdentifier: clientIdentifier,
-      };
+      await this.sendPacket(packet);
+      return waitForConnack;
     };
 
-    const waitForResponse = this.waitForResponse(
-      packet,
-      selector,
-      resolver,
-      10
-    );
+    const timeoutSeconds = 10;
 
-    waitForResponse.catch(() => {
+    return await performActionWithTimeout(
+      action,
+      timeoutSeconds,
+      new Error(
+        `timeout: MQTT client did not receive CONNACK packet within ${timeoutSeconds} seconds.`
+      )
+    ).catch((error) => {
       // if the connection fails set the status back to disconnected
       this.setConectionStatus("DISCONNECTED");
+      throw error;
     });
-
-    return await waitForResponse;
   }
 
   /**
@@ -482,6 +484,10 @@ export class MqttClientV4 {
                 this.mqttConnectionStatus
             )
           );
+
+        if (this.waitForConnack.resolve) this.waitForConnack.resolve(packet);
+
+        break;
       case PacketType.PINGRESP:
         this.waitForPingresp.resolve();
         break;
