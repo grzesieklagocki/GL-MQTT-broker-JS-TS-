@@ -21,3 +21,11 @@ export type MqttAuth = {
   user: string;
   password?: Uint8Array;
 };
+
+/**
+ * Type representing the executor functions for a Promise, including resolve and reject callbacks.
+ */
+export type PromiseExecutor<T> = {
+  resolve?: (value: T) => void;
+  reject?: (error: Error) => void;
+};

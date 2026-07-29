@@ -5,7 +5,11 @@ import {
   MqttClientEvents,
   PingTimeoutAction,
 } from "./types";
-import { IPacketIdentifierManager, MqttAuth } from "@mqtt/shared/types";
+import {
+  IPacketIdentifierManager,
+  MqttAuth,
+  PromiseExecutor,
+} from "@mqtt/shared/types";
 import { ConnectionStatus } from "../shared/types";
 import {
   MqttPacketV4Factory,
@@ -56,15 +60,9 @@ export class MqttClientV4 {
   private pingTimeoutId?: NodeJS.Timeout; // used for keep-alive mechanism
   private keepAlive_s: number = 0;
 
-  private waitForConnack: {
-    resolve?: (resolve: ConnackPacketV4) => void;
-    reject?: (resolve: ConnackPacketV4) => void;
-  } = {};
+  private waitForConnack: PromiseExecutor<ConnackPacketV4> = {};
 
-  private waitForPingresp = {
-    resolve: () => {},
-    reject: () => {},
-  };
+  private waitForPingresp: PromiseExecutor<void> = {};
 
   private readonly events = new EventEmitter();
 
@@ -179,17 +177,18 @@ export class MqttClientV4 {
 
     const action = async () => {
       const waitForConnack = new Promise<ConnectResponse>((resolve) => {
-        this.waitForConnack.resolve = (packet) => {
+        this.waitForConnack.resolve = (connack) => {
           this.setConectionStatus(
-            packet.connectReturnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED
+            connack.connectReturnCode ===
+              ConnackReturnCodeV4.CONNECTION_ACCEPTED
               ? "CONNECTED"
               : "DISCONNECTED"
           );
 
           resolve({
-            returnCode: packet.connectReturnCode,
-            sessionPresent: packet.sessionPresentFlag,
-            clientIdentifier,
+            clientIdentifier: clientIdentifier,
+            returnCode: connack.connectReturnCode,
+            sessionPresent: connack.sessionPresentFlag,
           });
         };
       });
@@ -485,10 +484,13 @@ export class MqttClientV4 {
             )
           );
 
-        if (this.waitForConnack.resolve) this.waitForConnack.resolve(packet);
+        this.waitForConnack.resolve!(packet); // if status is CONNECTING, then waitForConnack.resolve is defined
 
         break;
       case PacketType.PINGRESP:
+        if (this.waitForPingresp?.resolve === undefined)
+          throw new AppError("Client received unexpected PINGRESP packet.");
+
         this.waitForPingresp.resolve();
         break;
 
@@ -506,15 +508,6 @@ export class MqttClientV4 {
 
     if (response) await this.sendPacket(response);
   }
-
-  /**
-   * Handles the connection process after receiving a successful CONNACK packet from the broker. It sets the keep-alive interval, updates the connection status to CONNECTED, and initiates the ping timeout mechanism.
-   * @param keepAlive - The keep-alive interval in seconds, which specifies how often the client should send a ping to the broker to maintain the connection.
-   */
-  private handleConnect = () => {
-    this.setConectionStatus("CONNECTED");
-    //this.transport.on("packetReceived", this.disconnectOnConnack);
-  };
 
   /**
    * Manages the ping timeout mechanism for the MQTT client based on the specified action (SET, CLEAR, RESET).
@@ -566,7 +559,7 @@ export class MqttClientV4 {
     if (packet.flags.qosLevel == 2) {
       const error = new AppError("QOS 2 is currently not supported.");
 
-      await this.handleDisconnect(error);
+      this.handleDisconnect(error);
     }
 
     this.emit("publish", packet.topicName, packet.applicationMessage);
