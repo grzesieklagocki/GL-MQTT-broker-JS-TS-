@@ -1,3 +1,8 @@
+const ALLOWED_CHARS =
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+const MAX_INDEX = ALLOWED_CHARS.length - 1;
+
 /**
  * Generates a random client identifier for MQTT clients.
  * It ensures that the generated identifier adheres to the MQTT specification,
@@ -19,15 +24,8 @@ export const generateRandomClientId: () => string = () => {
   return identifier;
 };
 
-const getRandomChar: () => string = () => {
-  const allowedChars =
-    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-  const iMax = allowedChars.length - 1;
-  const i = getRandomNumber(0, iMax);
-
-  return allowedChars.charAt(i);
-};
+const getRandomChar: () => string = () =>
+  ALLOWED_CHARS.charAt(getRandomNumber(0, MAX_INDEX));
 
 const getRandomNumber = (from: number, to: number) =>
   Math.floor(from + to * Math.random());
