@@ -83,7 +83,7 @@ describe("MqttClientV4", () => {
       });
 
       const promise = testContext.client.unsubscribe([]);
-      const assertion = expect(promise).rejects.toThrow(/timeout/);
+      const assertion = expect(promise).rejects.toThrow(/not matches/);
 
       await vi.advanceTimersByTimeAsync(10_000);
 

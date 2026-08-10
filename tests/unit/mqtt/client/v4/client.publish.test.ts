@@ -118,7 +118,7 @@ describe("MqttClientV4", () => {
           message,
           publishFlags(1)
         );
-        const assertion = expect(promise).rejects.toThrow(/timeout/);
+        const assertion = expect(promise).rejects.toThrow(/not matches/);
 
         await vi.advanceTimersByTimeAsync(10_000);
 

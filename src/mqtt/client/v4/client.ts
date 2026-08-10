@@ -29,6 +29,7 @@ import {
 import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
 import { performActionWithTimeout } from "@mqtt/shared/performActionWithTimeout";
+import { RequestManager } from "@mqtt/shared/RequestManager";
 
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
@@ -61,8 +62,9 @@ export class MqttClientV4 {
   private keepAlive_s: number = 0;
 
   private waitForConnack: PromiseExecutor<ConnackPacketV4> = {};
-
   private waitForPingresp: PromiseExecutor<void> = {};
+
+  private requestManager: RequestManager;
 
   private readonly events = new EventEmitter();
 
@@ -79,6 +81,7 @@ export class MqttClientV4 {
     private readonly transport: IMqttTransportAdapterV4,
     private readonly packetIdManager: IPacketIdentifierManager
   ) {
+    this.requestManager = new RequestManager(this.sendPacket);
     // register events
 
     this.transport.on("packetReceived", (packet) => {
@@ -246,13 +249,8 @@ export class MqttClientV4 {
         return await this.sendPacket(packet);
 
       case 1:
-        const selector = (response: AnyPacketV4) =>
-          response.typeId === PacketType.PUBACK &&
-          response.identifier === packetId
-            ? response
-            : undefined;
-
-        return await this.waitForResponse(packet, selector, () => {}, 10);
+        await this.sendAndWaitForResponse(packet);
+        break;
 
       case 2:
         throw new AppError("QOS 2 is currently not supported.");
@@ -276,14 +274,13 @@ export class MqttClientV4 {
       subscriptionList
     );
 
-    const selector = (response: AnyPacketV4) =>
-      response.typeId === PacketType.SUBACK && response.identifier === packetId
-        ? response
-        : undefined;
+    const response = (await this.sendAndWaitForResponse(
+      packet
+    )) as SubackPacketV4;
 
-    const resolver = (response: SubackPacketV4) => response.returnCodeList;
+    this.packetIdManager.releaseIdentifier(packetId);
 
-    return await this.waitForResponse(packet, selector, resolver, 10);
+    return response.returnCodeList;
   }
 
   /**
@@ -301,13 +298,7 @@ export class MqttClientV4 {
       topicFilterList
     );
 
-    const selector = (response: AnyPacketV4) =>
-      response.typeId === PacketType.UNSUBACK &&
-      response.identifier === packetId
-        ? response
-        : undefined;
-
-    await this.waitForResponse(packet, selector, () => {}, 10);
+    await this.sendAndWaitForResponse(packet);
   }
 
   public async disconnect(): Promise<void> {
@@ -354,53 +345,16 @@ export class MqttClientV4 {
   }
 
   /**
-   * Waits for a specific response packet from the broker after sending a request packet.
-   * @param packet - The packet to send.
-   * @param responseSelector - A function that checks if a received packet matches the expected response packet and if so, returns the response packet.
-   * @param resolver - A function that extracts the desired result from the received response packet.
-   * @param timeout_s - The timeout in seconds for waiting for the response packet.
-   * @returns A promise that resolves with the result extracted from the response packet or rejects with an error if the timeout is reached.
-   * @throws AppError if the expected response packet is not received within the specified timeout.
+   * Sends a packet and waits for the corresponding response packet from the broker. This method uses the RequestManager to handle the request-response mechanism.
+   * @param packet - The packet to send to the broker.
+   * @returns A promise that resolves with the response packet received from the broker or rejects with an error if the timeout is reached.
    */
-  private waitForResponse<TResponse extends AnyPacketV4, TResult>(
-    packet: AnyPacketV4,
-    responseSelector: (response: AnyPacketV4) => TResponse | undefined,
-    resolver: (response: TResponse) => TResult,
-    timeout_s: number
-  ): Promise<TResult> {
-    return new Promise((resolve, reject) => {
-      const packetId = this.packetIdManager.allocateIdentifier();
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        this.transport.off("packetReceived", waitForPacket); // remove listener for this packet
-        this.packetIdManager.releaseIdentifier(packetId); // release the allocated packet identifier
-      };
-
-      const waitForPacket = (receivedPacket: AnyPacketV4) => {
-        const response = responseSelector(receivedPacket);
-
-        if (!response) return;
-
-        // if the received packet is the expected packet
-        cleanup();
-        resolve(resolver(response));
-      };
-
-      const timeout = setTimeout(() => {
-        // if the expected packet is not received in defined time
-        cleanup();
-        reject(
-          new AppError(
-            `timeout: MQTT client did not receive expected packet within ${timeout_s} seconds.`
-          )
-        );
-      }, timeout_s * 1000);
-
-      this.transport.once("packetReceived", waitForPacket);
-      this.sendPacket(packet);
-    });
-  }
+  private sendAndWaitForResponse = async (packet: AnyPacketV4) =>
+    await this.requestManager.sendAndWaitForResponse(
+      packet,
+      10,
+      new AppError("timeout")
+    );
 
   /**
    * Waits for a transport operation to complete within a specified timeout period. If the operation does not complete in time, it rejects with an error.
@@ -497,6 +451,12 @@ export class MqttClientV4 {
       case PacketType.PUBACK:
       case PacketType.SUBACK:
       case PacketType.UNSUBACK:
+        try {
+          this.requestManager.complete(packet);
+        } catch (error) {
+          // TODO: handle error of receiving unexpected packets
+        }
+        break;
 
       default:
         this.handleDisconnect(
@@ -514,8 +474,6 @@ export class MqttClientV4 {
    * @param action - The action to perform on the ping timeout (SET, CLEAR, RESET).
    */
   private pingTimeout(action: PingTimeoutAction): void {
-    let pingTimeout;
-
     switch (action) {
       case "SET":
         if (this.keepAlive_s === 0) return; // if keepAlive is 0, keep alive mechanism is disabled, so no need to set a ping timeout\
