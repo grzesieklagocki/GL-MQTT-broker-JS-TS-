@@ -156,13 +156,6 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("disconnect()", () => {
-      it("throws an error if called when the adapter is not connected", async () => {
-        const promise = adapter.disconnect();
-
-        expect(promise).rejects.toThrow();
-      });
-    });
-    describe("disconnect()", () => {
       const error = new Error("ERROR");
       let endCallback: (() => void) | undefined;
 
@@ -176,6 +169,20 @@ describe("MqttTransportAdapterV4", () => {
         socketMock.end.mockImplementation((callback?: () => void) => {
           endCallback = callback;
         });
+      });
+
+      it("throws an error if called when the adapter is not connected", async () => {
+        // create independent adapter that is not connected
+        const adapter = new MqttTransportAdapterV4(
+          codecMock,
+          createSocketMock,
+          host,
+          port
+        );
+
+        const promise = adapter.disconnect();
+
+        expect(promise).rejects.toThrow(/Transport adapter is not connected/);
       });
 
       it("emits 'disconnect' event when called without an error", async () => {
