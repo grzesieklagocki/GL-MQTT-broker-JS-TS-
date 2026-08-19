@@ -4,6 +4,7 @@ import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { Socket } from "net";
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 
 describe("MqttTransportAdapterV4", () => {
   const host = "localhost";
@@ -152,6 +153,19 @@ describe("MqttTransportAdapterV4", () => {
         expect(socketMock.listenerCount("connect")).toBe(0);
         expect(socketMock.listenerCount("close")).toBe(0);
         expect(socketMock.listenerCount("error")).toBe(0);
+      });
+    });
+
+    describe("send()", () => {
+      it(" throws an error if called when the adapter is not connected", async () => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true,
+          30,
+          "clientId2"
+        );
+
+        const promise = adapter.send(packet);
+        expect(promise).rejects.toThrow(/Transport adapter is not connected/);
       });
     });
 

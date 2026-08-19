@@ -94,7 +94,8 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
    * @param packet - The MQTT packet to be sent.
    */
   public async send(packet: AnyPacketV4): Promise<void> {
-    throw new Error("Method not implemented.");
+    if (!this.isActive)
+      throw new AppError("Transport adapter is not connected.");
   }
 
   /**
