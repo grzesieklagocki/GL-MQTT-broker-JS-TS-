@@ -3,15 +3,16 @@ import { ConnectResponse } from "@mqtt/client/v4/types";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 import { ConnackPacketV4, ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
 import { IPacketIdentifierManager } from "@mqtt/shared/types";
-import EventEmitter from "node:events";
 import { expect, vi } from "vitest";
 
 export const createMqttClientV4TestContext = () => {
-  const transportMock = Object.assign(new EventEmitter(), {
+  const transportMock = {
     connect: vi.fn().mockResolvedValue(undefined),
     send: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
-  });
+    onPacketReceived: vi.fn(),
+    onDisconnect: vi.fn(),
+  };
 
   const managerMock = {
     allocateIdentifier: vi.fn().mockReturnValue(1),
@@ -29,7 +30,7 @@ export const createMqttClientV4TestContext = () => {
     connack: ConnackPacketV4 = connackAccepted
   ): Promise<ConnectResponse> => {
     transportMock.send.mockImplementationOnce(async () => {
-      transportMock.emit("packetReceived", connack);
+      transportMock.onPacketReceived(connack);
     });
 
     return client.connect("");

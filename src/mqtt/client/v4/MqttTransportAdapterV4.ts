@@ -2,15 +2,18 @@ import { EventEmitter } from "node:events";
 import { Socket } from "node:net";
 import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
-import { IMqttPacketCodec, IMqttTransportAdapterEvents } from "../shared/types";
+import { IMqttPacketCodec } from "../shared/types";
 import { AppError } from "@src/AppError";
 
 /**
  * Implementation of the IMqttTransportAdapterV4 interface that handles MQTT V4 packets.
  */
 export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
+  /**
+   * Socket used for communication.
+   * It is undefined when the adapter is not connected.
+   */
   private socket?: Socket;
-  private readonly events = new EventEmitter();
 
   /**
    * Indicates whether the transport adapter is currently connected.
@@ -110,7 +113,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.socket = undefined; // clear the socket reference to indicate that the adapter not active
 
     this.removeSocketListeners(socket);
-    this.emit("disconnect", error);
+    this.onDisconnect(error);
 
     return new Promise<void>((resolve) => {
       if (error) {
@@ -131,58 +134,25 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   //
 
   /**
-   * Registers an event listener for a specific event emitted by the transport adapter.
-   * @param eventName - The name of the event to listen for.
-   * @param listener - The callback function to be invoked when the event occurs.
+   * Callback function to be invoked when a packet is received from the transport layer.
+   * @param packet - The MQTT packet that was received.
+   * @returns True if the packet was handled successfully, or an Error if there was an issue processing the packet.
    */
-  public on<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ) {
-    this.events.on(eventName, listener);
-  }
+  public onPacketReceived: (packet: AnyPacketV4) => true | Error = () => {
+    throw new Error("onPacketReceived callback is not set.");
+  };
 
   /**
-   * Registers a one-time event listener for a specific event emitted by the MQTT client. The listener will be invoked only once and then removed.
-   * @param eventName - The name of the event to listen for.
-   * @param listener 1- The callback function to be invoked when the event occurs.
+   * Callback function to be invoked when the transport layer is disconnected.
+   * @param error - Optional error that caused the disconnect.
    */
-  public once<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ): void {
-    this.events.once(eventName, listener);
-  }
-
-  /**
-   * Removes an event listener for a specific event emitted by the MQTT client.
-   * @param eventName - The name of the event for which the listener should be removed.
-   * @param listener - The callback function that was previously registered as a listener for the event.
-   */
-  public off<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ): void {
-    this.events.off(eventName, listener);
-  }
+  public onDisconnect: (error?: Error) => void = () => {
+    throw new Error("onDisconnect callback is not set.");
+  };
 
   //
   // helpers
   //
-
-  /**
-   * Emits an event with the specified name and arguments to all registered listeners for that event.
-   * @param event - The name of the event to emit.
-   * @param args - The arguments to pass to the event listeners.
-   * @returns A boolean indicating whether the event had listeners and was successfully emitted.
-   */
-  private emit<EventName extends keyof IMqttTransportAdapterEvents>(
-    event: EventName,
-    ...args: IMqttTransportAdapterEvents[EventName]
-  ): boolean {
-    return this.events.emit(event, ...args);
-  }
-
   private addSocketListeners(socket: Socket) {
     socket.on("data", this.tryDecodeAndSendPacket);
     socket.on("close", this.handleDisconnect);

@@ -58,7 +58,7 @@ describe("MqttClientV4", () => {
     describe("QoS 1", () => {
       it("sends PUBLISH with packet identifier and resolves when matching PUBACK is received", async () => {
         testContext.transportMock.send.mockImplementationOnce(() => {
-          testContext.transportMock.emit("packetReceived", pubackPacket(1));
+          testContext.transportMock.onPacketReceived(pubackPacket(1));
         });
 
         await expect(
@@ -85,7 +85,7 @@ describe("MqttClientV4", () => {
 
       it("ignores PUBACK with different packet identifier and rejects after timeout", async () => {
         testContext.transportMock.send.mockImplementationOnce(() => {
-          testContext.transportMock.emit("packetReceived", pubackPacket(55));
+          testContext.transportMock.onPacketReceived(pubackPacket(55));
         });
 
         const promise = testContext.client.publish(
@@ -104,8 +104,7 @@ describe("MqttClientV4", () => {
 
       it("ignores different packet type and rejects after timeout", async () => {
         testContext.transportMock.send.mockImplementationOnce(() => {
-          testContext.transportMock.emit(
-            "packetReceived",
+          testContext.transportMock.onPacketReceived(
             MqttPacketV4Factory.createPacketWithIdentifierV4(
               PacketType.UNSUBACK,
               1
@@ -138,7 +137,7 @@ describe("MqttClientV4", () => {
       expect(packet.typeId).toBe(PacketType.PUBLISH);
       expect(packet.flags.qosLevel).toBe(0);
 
-      testContext.transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
+      testContext.transportMock.onPacketReceived(packet); // simulate receiving a PUBLISH packet
 
       vi.waitFor(() => {
         expect(testContext.transportMock.send).not.toBeCalled();
@@ -158,7 +157,7 @@ describe("MqttClientV4", () => {
         expect(packet.typeId).toBe(PacketType.PUBLISH);
         expect(packet.flags.qosLevel).toBe(1);
 
-        testContext.transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet by client
+        testContext.transportMock.onPacketReceived(packet); // simulate receiving a PUBLISH packet by client
 
         vi.waitFor(() => {
           expect(
@@ -202,7 +201,7 @@ describe("MqttClientV4", () => {
         const onPublish = vi.fn();
         testContext.client.on("publish", onPublish);
 
-        testContext.transportMock.emit("packetReceived", packet); // simulate receiving a PUBLISH packet
+        testContext.transportMock.onPacketReceived(packet); // simulate receiving a PUBLISH packet
 
         expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
       });

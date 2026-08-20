@@ -171,6 +171,7 @@ describe("MqttTransportAdapterV4", () => {
 
     describe("disconnect()", () => {
       const error = new Error("ERROR");
+      let disconnectListener: (error?: Error) => void;
       let endCallback: (() => void) | undefined;
 
       beforeEach(async () => {
@@ -178,6 +179,10 @@ describe("MqttTransportAdapterV4", () => {
         const promise = adapter.connect();
         socketMock.emit("connect");
         await promise;
+
+        // mock onDisconnect callback
+        disconnectListener = vi.fn();
+        adapter.onDisconnect = disconnectListener;
 
         // mock socket.end to capture the callback
         socketMock.end.mockImplementation((callback?: () => void) => {
@@ -199,10 +204,7 @@ describe("MqttTransportAdapterV4", () => {
         expect(promise).rejects.toThrow(/Transport adapter is not connected/);
       });
 
-      it("emits 'disconnect' event when called without an error", async () => {
-        const disconnectListener = vi.fn();
-        adapter.on("disconnect", disconnectListener);
-
+      it("invokes 'onDisconnect' callback when called without an error", async () => {
         const promise = adapter.disconnect();
         endCallback!(); // simulate socket closing
         await expect(promise).resolves.toBeUndefined();
@@ -210,10 +212,7 @@ describe("MqttTransportAdapterV4", () => {
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
       });
 
-      it("emits 'disconnect' event when called with an error", async () => {
-        const disconnectListener = vi.fn();
-        adapter.on("disconnect", disconnectListener);
-
+      it("invokes 'onDisconnect' callback when called with an error", async () => {
         const promise = adapter.disconnect(error);
         await expect(promise).resolves.toBeUndefined();
 

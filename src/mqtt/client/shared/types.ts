@@ -1,10 +1,4 @@
 import { AnyPacket } from "@mqtt/protocol/shared/types";
-import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
-
-export type IMqttTransportAdapterEvents = {
-  packetReceived: [packet: AnyPacketV4];
-  disconnect: [error?: Error];
-};
 
 /**
  * Interface for a transport adapter that handles MQTT packets of a specific type.
@@ -30,34 +24,17 @@ export interface IMqttTransportAdapter<
   disconnect(error?: Error): void;
 
   /**
-   * Registers an event listener for a specific event emitted by the transport adapter.
-   * @param eventName - The name of the event to listen for.
-   * @param listener - The callback function to be invoked when the event occurs.
+   * Callback function to be invoked when a packet is received from the transport layer.
+   * @param packet - The MQTT packet that was received.
+   * @returns True if the packet was handled successfully, or an Error if there was an issue processing the packet.
    */
-  on<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ): void;
+  onPacketReceived: (packet: PacketType) => true | Error;
 
   /**
-   * Registers a one-time event listener for a specific event emitted by the MQTT client. The listener will be invoked only once and then removed.
-   * @param eventName - The name of the event to listen for.
-   * @param listener 1- The callback function to be invoked when the event occurs.
+   * Callback function to be invoked when the transport layer is disconnected.
+   * @param error - Optional error that caused the disconnect.
    */
-  once<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ): void;
-
-  /**
-   * Removes an event listener for a specific event emitted by the MQTT client.
-   * @param eventName - The name of the event for which the listener should be removed.
-   * @param listener - The callback function that was previously registered as a listener for the event.
-   */
-  off<EventName extends keyof IMqttTransportAdapterEvents>(
-    eventName: EventName,
-    listener: (...args: IMqttTransportAdapterEvents[EventName]) => void
-  ): void;
+  onDisconnect: (error?: Error) => void;
 }
 
 /**

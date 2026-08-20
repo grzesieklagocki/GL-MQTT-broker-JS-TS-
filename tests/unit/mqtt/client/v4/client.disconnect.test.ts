@@ -58,7 +58,7 @@ describe("disconnect()", () => {
   });
 
   it("emits disconnect event when transport emits disconnect event", async () => {
-    testContext.transportMock.emit("disconnect", error);
+    testContext.transportMock.onDisconnect(error);
 
     vi.waitFor(() => {
       expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
@@ -66,7 +66,7 @@ describe("disconnect()", () => {
   });
 
   it("emits disconnect event with undefined error when transport emits disconnect event without error", async () => {
-    testContext.transportMock.emit("disconnect");
+    testContext.transportMock.onDisconnect();
 
     vi.waitFor(() => {
       expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
@@ -81,7 +81,7 @@ describe("disconnect()", () => {
 
     expect(testContext.client.isConnected).toBe(false);
 
-    testContext.transportMock.emit("disconnect", error);
+    testContext.transportMock.onDisconnect(error);
 
     vi.waitFor(() => {
       expect(disconnectListener).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe("disconnect()", () => {
     const disconnectListener = vi.fn();
     testContext.client.on("disconnect", disconnectListener);
 
-    testContext.transportMock.emit("disconnect", error);
+    testContext.transportMock.onDisconnect(error);
 
     vi.waitFor(() => {
       expect(disconnectListener).not.toHaveBeenCalled();
@@ -110,7 +110,7 @@ describe("disconnect()", () => {
     const error = new Error("TRANSPORT DISCONNECT");
 
     testContext.client.on("disconnect", disconnectListener);
-    testContext.transportMock.emit("disconnect", error);
+    testContext.transportMock.onDisconnect(error);
 
     vi.waitFor(() => {
       expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);

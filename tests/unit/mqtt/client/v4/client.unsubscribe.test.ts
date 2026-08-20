@@ -47,7 +47,7 @@ describe("MqttClientV4", () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
-        testContext.transportMock.emit("packetReceived", unsubackPacket(1));
+        testContext.transportMock.onPacketReceived(unsubackPacket(1));
       });
 
       await expect(testContext.client.unsubscribe([])).resolves.toBeUndefined();
@@ -59,7 +59,7 @@ describe("MqttClientV4", () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
-        testContext.transportMock.emit("packetReceived", unsubackPacket(55));
+        testContext.transportMock.onPacketReceived(unsubackPacket(55));
       });
 
       const promise = testContext.client.unsubscribe([]);
@@ -76,8 +76,7 @@ describe("MqttClientV4", () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
-        testContext.transportMock.emit(
-          "packetReceived",
+        testContext.transportMock.onPacketReceived(
           MqttPacketV4Factory.createSubackPacketV4(1, [])
         );
       });
@@ -106,7 +105,7 @@ describe("MqttClientV4", () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
-        testContext.transportMock.emit("packetReceived", unsubackPacket());
+        testContext.transportMock.onPacketReceived(unsubackPacket());
       });
 
       expect(testContext.client.unsubscribe([])).resolves.toBeUndefined();

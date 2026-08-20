@@ -139,7 +139,7 @@ describe("connect()", () => {
 
     it("generates a valid client identifier when it is not provided", async () => {
       transportMock.send.mockImplementationOnce(async () => {
-        transportMock.emit("packetReceived", testContext.connackAccepted);
+        transportMock.onPacketReceived(testContext.connackAccepted);
       });
 
       const response = await client.connect();
@@ -168,7 +168,7 @@ describe("connect()", () => {
       const disconnectListener = vi.fn();
       client.on("disconnect", disconnectListener);
 
-      transportMock.emit("packetReceived", testContext.connackAccepted);
+      transportMock.onPacketReceived(testContext.connackAccepted);
 
       expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(
         new AppError(
@@ -270,7 +270,7 @@ const connectWithResponse = (
 ) => {
   transportMock.send.mockImplementationOnce(async () => {
     options.beforeResponse?.();
-    transportMock.emit("packetReceived", response);
+    transportMock.onPacketReceived(response);
   });
 
   return client.connect(

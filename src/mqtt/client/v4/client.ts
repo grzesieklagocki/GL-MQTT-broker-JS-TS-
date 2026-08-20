@@ -82,13 +82,10 @@ export class MqttClientV4 {
     private readonly packetIdManager: IPacketIdentifierManager
   ) {
     this.requestManager = new RequestManager(this.sendPacket);
-    // register events
 
-    this.transport.on("packetReceived", (packet) => {
-      this.handleReceivedPacket(packet);
-    });
-
-    this.transport.on("disconnect", (error) => this.handleDisconnect(error));
+    // register callbacks
+    this.transport.onPacketReceived = this.handleReceivedPacket;
+    this.transport.onDisconnect = this.handleDisconnect;
   }
 
   //
@@ -414,12 +411,12 @@ export class MqttClientV4 {
    * Handles a received MQTT packet and sends response if necessary.
    * @param packet - The received MQTT packet.
    */
-  private async handleReceivedPacket(packet: AnyPacketV4) {
+  private handleReceivedPacket = (packet: AnyPacketV4): true | Error => {
     let response: AnyPacketV4 | undefined;
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
-        response = await this.handlePublishPacketReceived(packet);
+        response = this.handlePublishPacketReceived(packet);
         break;
 
       case PacketType.PUBREC:
@@ -464,10 +461,16 @@ export class MqttClientV4 {
             `Client received disallowed packet type: ${PacketType[packet.typeId]}`
           )
         );
+
+        return new Error(
+          `Client received disallowed packet type: ${PacketType[packet.typeId]}`
+        );
     }
 
-    if (response) await this.sendPacket(response);
-  }
+    if (response) this.sendPacket(response);
+    
+    return true;
+  };
 
   /**
    * Manages the ping timeout mechanism for the MQTT client based on the specified action (SET, CLEAR, RESET).
@@ -511,9 +514,9 @@ export class MqttClientV4 {
    * @param packet - The received PUBLISH packet.
    * @returns A promise that resolves with a PUBACK packet if the QoS level is 1, or undefined if the QoS level is 0. If the QoS level is 2, it triggers a disconnection and does not return a response.
    */
-  private async handlePublishPacketReceived(
+  private handlePublishPacketReceived(
     packet: PublishPacketV4
-  ): Promise<AnyPacketV4 | undefined> {
+  ): AnyPacketV4 | undefined {
     if (packet.flags.qosLevel == 2) {
       const error = new AppError("QOS 2 is currently not supported.");
 

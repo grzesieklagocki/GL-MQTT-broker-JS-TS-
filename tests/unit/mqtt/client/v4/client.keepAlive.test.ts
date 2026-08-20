@@ -15,7 +15,7 @@ describe("MqttClientV4", () => {
       MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGRESP);
 
     const emitPingresp = () => {
-      testContext.transportMock.emit("packetReceived", pingrespPacket());
+      testContext.transportMock.onPacketReceived(pingrespPacket());
     };
 
     const expectPingreqSentOnce = () => {
