@@ -3,7 +3,7 @@ import { MqttTransportAdapterV4 } from "@mqtt/client/v4/MqttTransportAdapterV4";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { Socket } from "net";
 import { EventEmitter } from "node:events";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, Mock, vi } from "vitest";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
 
 describe("MqttTransportAdapterV4", () => {
@@ -16,6 +16,7 @@ describe("MqttTransportAdapterV4", () => {
     connect: ReturnType<typeof vi.fn>;
     end: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
+    write: ReturnType<typeof vi.fn>;
   };
 
   let createSocketMock: () => Socket;
@@ -34,6 +35,7 @@ describe("MqttTransportAdapterV4", () => {
       connect: vi.fn(),
       end: vi.fn(),
       destroy: vi.fn(),
+      write: vi.fn(),
     });
     createSocketMock = () => socketMock as unknown as Socket;
 
@@ -157,15 +159,67 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("send()", () => {
-      it(" throws an error if called when the adapter is not connected", async () => {
-        const packet = MqttPacketV4Factory.createConnectPacketV4(
-          true,
-          30,
-          "clientId2"
-        );
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        30,
+        "clientId2"
+      );
 
+      it("throws an error if called when the adapter is not connected", async () => {
         const promise = adapter.send(packet);
         expect(promise).rejects.toThrow(/Transport adapter is not connected/);
+      });
+
+      it("calls codec.encode() with the correct packet", async () => {
+        const connectPromise = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise;
+
+        await adapter.send(packet);
+
+        expect(codecMock.encode).toHaveBeenCalledExactlyOnceWith(packet);
+      });
+
+      it("calls socket.write() with the encoded packet", async () => {
+        const encodedPacket = new Uint8Array([1, 2, 3, 5]);
+
+        (codecMock.encode as Mock).mockReturnValueOnce(encodedPacket);
+
+        const connectPromise = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise;
+
+        await adapter.send(packet);
+
+        expect(socketMock.write).toHaveBeenCalledExactlyOnceWith(encodedPacket);
+      });
+
+      it("throws encode error when codec.encode() throws an error", async () => {
+        (codecMock.encode as Mock).mockImplementationOnce(() => {
+          throw new Error("ENCODING error");
+        });
+
+        const connectPromise = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise;
+
+        const sendPromise = adapter.send(packet);
+
+        await expect(sendPromise).rejects.toThrow(/Encoding error/);
+      });
+
+      it("throws transport error when socket.write() throws an error", async () => {
+        (socketMock.write as Mock).mockImplementationOnce(() => {
+          throw new Error("TRANSPORT error");
+        });
+
+        const connectPromise = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise;
+
+        const sendPromise = adapter.send(packet);
+
+        await expect(sendPromise).rejects.toThrow(/Transport error/);
       });
     });
 

@@ -1,4 +1,3 @@
-import { EventEmitter } from "node:events";
 import { Socket } from "node:net";
 import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
@@ -99,6 +98,20 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   public async send(packet: AnyPacketV4): Promise<void> {
     if (!this.isActive)
       throw new AppError("Transport adapter is not connected.");
+
+    let bytes; // for encoding the packet to bytes
+
+    try {
+      bytes = this.codec.encode(packet);
+    } catch (error) {
+      throw new AppError("Encoding error", error as Error);
+    }
+
+    try {
+      this.socket!.write(bytes); // asserted because isActive check ensure that socket is defined
+    } catch (error) {
+      throw new AppError("Transport error", error as Error);
+    }
   }
 
   /**
