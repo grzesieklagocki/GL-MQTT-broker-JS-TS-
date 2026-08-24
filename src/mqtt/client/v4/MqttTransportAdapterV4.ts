@@ -118,7 +118,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
    * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
    * @param error - Optional error that caused the disconnect.
    */
-  public async disconnect(error?: Error): Promise<void> {
+  public disconnect = async (error?: Error): Promise<void> => {
     if (!this.isActive)
       throw new AppError("Transport adapter is not connected.");
 
@@ -126,7 +126,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.socket = undefined; // clear the socket reference to indicate that the adapter not active
 
     this.removeSocketListeners(socket);
-    this.onDisconnect(error);
+    this.onDisconnect(error); // invoke callback
 
     return new Promise<void>((resolve) => {
       if (error) {
@@ -140,7 +140,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
           }
         );
     });
-  }
+  };
 
   //
   // events
@@ -167,22 +167,25 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   // helpers
   //
   private addSocketListeners(socket: Socket) {
-    socket.on("data", this.tryDecodeAndSendPacket);
-    socket.on("close", this.handleDisconnect);
-    socket.on("error", this.handleDisconnect);
+    socket.on("data", this.receiveBytes);
+    socket.on("close", this.disconnect);
+    socket.on("error", this.disconnect);
   }
 
   private removeSocketListeners(socket: Socket) {
-    socket.off("data", this.tryDecodeAndSendPacket);
-    socket.off("close", this.handleDisconnect);
-    socket.off("error", this.handleDisconnect);
+    socket.off("data", this.receiveBytes);
+    socket.off("close", this.disconnect);
+    socket.off("error", this.disconnect);
   }
 
-  private handleDisconnect(error?: Error) {
-    throw new Error("Method not implemented.");
-  }
+  private receiveBytes = (bytes: Uint8Array) => {
+    const packet = this.codec.decode(bytes);
 
-  private tryDecodeAndSendPacket = (bytes: Uint8Array) => {
-    throw new Error("Method not implemented.");
+    if (packet) {
+      // notify about received packet and get the status of the processing
+      const status = this.onPacketReceived(packet);
+
+      if (status !== true) this.disconnect(status);
+    }
   };
 }

@@ -89,8 +89,6 @@ describe("MqttTransportAdapterV4", () => {
 
         const promise = adapter.connect().then(onResolved);
 
-        await Promise.resolve();
-
         expect(onResolved).not.toHaveBeenCalled();
 
         socketMock.emit("connect");
@@ -167,7 +165,9 @@ describe("MqttTransportAdapterV4", () => {
 
       it("throws an error if called when the adapter is not connected", async () => {
         const promise = adapter.send(packet);
-        expect(promise).rejects.toThrow(/Transport adapter is not connected/);
+        await expect(promise).rejects.toThrow(
+          /Transport adapter is not connected/
+        );
       });
 
       it("calls codec.encode() with the correct packet", async () => {
@@ -255,7 +255,9 @@ describe("MqttTransportAdapterV4", () => {
 
         const promise = adapter.disconnect();
 
-        expect(promise).rejects.toThrow(/Transport adapter is not connected/);
+        await expect(promise).rejects.toThrow(
+          /Transport adapter is not connected/
+        );
       });
 
       it("invokes 'onDisconnect' callback when called without an error", async () => {
@@ -316,6 +318,84 @@ describe("MqttTransportAdapterV4", () => {
         expect(socketMock.listenerCount("data")).toBe(0);
         expect(socketMock.listenerCount("close")).toBe(0);
         expect(socketMock.listenerCount("error")).toBe(0);
+      });
+    });
+  });
+
+  describe("on socket event", () => {
+    const data = new Uint8Array([1, 2, 3, 4]);
+
+    const packet = MqttPacketV4Factory.createConnectPacketV4(
+      true,
+      30,
+      "clientId2"
+    );
+
+    beforeEach(async () => {
+      // connect the adapter before testing socket events
+      const connectPromise = adapter.connect();
+      socketMock.emit("connect");
+      await connectPromise;
+    });
+
+    describe("data", () => {
+      it("throws an error if onPacketReceived callback is not set when socket emits data", () => {
+        (codecMock.decode as Mock).mockReturnValueOnce(packet);
+
+        expect(() => socketMock.emit("data", data)).toThrow(
+          /onPacketReceived callback is not set/
+        );
+      });
+
+      it("invoke codec.decode() with provided bytes when socket emits data", () => {
+        socketMock.emit("data", data);
+
+        expect(codecMock.decode).toHaveBeenCalledExactlyOnceWith(data);
+      });
+
+      it("invoke onPacketReceived() callback when socket emits data and codec.decode() returns a packet", () => {
+        (codecMock.decode as Mock).mockReturnValueOnce(packet);
+        adapter.onPacketReceived = vi.fn((() => true) as () => true | Error);
+
+        socketMock.emit("data", data);
+
+        expect(adapter.onPacketReceived).toHaveBeenCalledExactlyOnceWith(
+          packet
+        );
+      });
+    });
+
+    describe("close", () => {
+      it("throws an error if onDisconnect callback is not set when socket emits close", async () => {
+        const closeListener = socketMock.listeners(
+          "close"
+        )[0] as () => Promise<void>;
+
+        await expect(closeListener()).rejects.toThrow(
+          /onDisconnect callback is not set/
+        );
+      });
+
+      it("invokes onDisconnect() callback when socket emits close without error", () => {
+        const disconnectListener = vi.fn();
+
+        adapter.onDisconnect = disconnectListener;
+
+        socketMock.emit("close");
+
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
+      });
+
+      it("invokes onDisconnect() callback when socket emits close with error", () => {
+        const disconnectListener = vi.fn();
+
+        adapter.onDisconnect = disconnectListener;
+
+        const error = new Error("ERR");
+
+        socketMock.emit("close", error);
+
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
       });
     });
   });
