@@ -51,7 +51,7 @@ describe("MqttClientV4", () => {
         const onDisconnect = vi.fn();
         testContext.client.on("disconnect", onDisconnect);
 
-        testContext.transportMock.onPacketReceived(packet); // simulate receiving disallowed packet by client
+        testContext.sendBack(packet); // simulate receiving disallowed packet by client
 
         vi.waitFor(() => {
           expect(onDisconnect).toHaveBeenCalledExactlyOnceWith(

@@ -3,6 +3,7 @@ import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { IMqttPacketCodec } from "../shared/types";
 import { AppError } from "@src/AppError";
+import { PacketType } from "@mqtt/protocol/shared/types";
 
 /**
  * Implementation of the IMqttTransportAdapterV4 interface that handles MQTT V4 packets.
@@ -36,7 +37,9 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     private readonly createSocket: () => Socket,
     private readonly host: string,
     private readonly port: number
-  ) {}
+  ) {
+    codec.onPacketReady = this.handlePacket;
+  }
 
   //
   // private methods
@@ -147,12 +150,16 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   //
 
   /**
-   * Callback function to be invoked when a packet is received from the transport layer.
-   * @param packet - The MQTT packet that was received.
-   * @returns True if the packet was handled successfully, or an Error if there was an issue processing the packet.
+   * Callback function to be invoked when a packet is framed and ready to be decoded.
+   * @param packetType - The type of the MQTT packet that was framed.
+   * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
+   * @returns true if the packet was successfully handled, or an Error if there was an issue.
    */
-  public onPacketReceived: (packet: AnyPacketV4) => true | Error = () => {
-    throw new Error("onPacketReceived callback is not set.");
+  public onPacketReady: (
+    packetType: PacketType,
+    decodePacket: () => AnyPacketV4
+  ) => true | Error = () => {
+    throw new Error("onPacketReady callback is not set.");
   };
 
   /**
@@ -179,13 +186,21 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   }
 
   private receiveBytes = (bytes: Uint8Array) => {
-    const packet = this.codec.decode(bytes);
+    this.codec.feed(bytes);
+  };
 
-    if (packet) {
-      // notify about received packet and get the status of the processing
-      const status = this.onPacketReceived(packet);
+  private handlePacket = (
+    typeId: PacketType,
+    decodePacket: () => AnyPacketV4
+  ) => {
+    // invoke the callback to process the packet by client or server
+    const processingStatus: true | Error = this.onPacketReady(
+      typeId,
+      decodePacket
+    );
 
-      if (status !== true) this.disconnect(status);
-    }
+    if (processingStatus !== true) this.disconnect(processingStatus);
+
+    return processingStatus;
   };
 }

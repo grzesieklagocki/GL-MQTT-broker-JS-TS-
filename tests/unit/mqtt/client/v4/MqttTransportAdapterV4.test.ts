@@ -5,6 +5,7 @@ import { Socket } from "net";
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, Mock, vi } from "vitest";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import { PacketType } from "@src/mqtt/protocol/shared/types";
 
 describe("MqttTransportAdapterV4", () => {
   const host = "localhost";
@@ -26,8 +27,8 @@ describe("MqttTransportAdapterV4", () => {
   beforeEach(() => {
     codecMock = {
       encode: vi.fn(),
-      decode: vi.fn(),
-      onPacketEvent: vi.fn(),
+      feed: vi.fn(),
+      onPacketReady: vi.fn(),
       resetState: vi.fn(),
     };
 
@@ -325,12 +326,6 @@ describe("MqttTransportAdapterV4", () => {
   describe("on socket event", () => {
     const data = new Uint8Array([1, 2, 3, 4]);
 
-    const packet = MqttPacketV4Factory.createConnectPacketV4(
-      true,
-      30,
-      "clientId2"
-    );
-
     beforeEach(async () => {
       // connect the adapter before testing socket events
       const connectPromise = adapter.connect();
@@ -339,29 +334,29 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("data", () => {
-      it("throws an error if onPacketReceived callback is not set when socket emits data", () => {
-        (codecMock.decode as Mock).mockReturnValueOnce(packet);
-
-        expect(() => socketMock.emit("data", data)).toThrow(
-          /onPacketReceived callback is not set/
-        );
+      it("throws an error if onPacketReceived callback is not set when codec emits a packet", () => {
+        expect(() =>
+          codecMock.onPacketReady(PacketType.CONNECT, vi.fn())
+        ).toThrow(/onPacketReady callback is not set/);
       });
 
-      it("invoke codec.decode() with provided bytes when socket emits data", () => {
+      it("invoke codec.feed() with provided bytes when socket emits data", () => {
         socketMock.emit("data", data);
 
-        expect(codecMock.decode).toHaveBeenCalledExactlyOnceWith(data);
+        expect(codecMock.feed).toHaveBeenCalledExactlyOnceWith(data);
       });
 
-      it("invoke onPacketReceived() callback when socket emits data and codec.decode() returns a packet", () => {
-        (codecMock.decode as Mock).mockReturnValueOnce(packet);
-        adapter.onPacketReceived = vi.fn((() => true) as () => true | Error);
+      it("invoke onPacketReady() callback when codec emits a packet", () => {
+        const decodePacketMock = vi.fn();
+        adapter.onPacketReady = vi.fn((() => true) as () => true | Error);
 
-        socketMock.emit("data", data);
+        codecMock.onPacketReady(PacketType.CONNECT, decodePacketMock);
 
-        expect(adapter.onPacketReceived).toHaveBeenCalledExactlyOnceWith(
-          packet
+        expect(adapter.onPacketReady).toHaveBeenCalledExactlyOnceWith(
+          PacketType.CONNECT,
+          decodePacketMock
         );
+        expect(decodePacketMock).not.toHaveBeenCalled(); // the decode function is just passed through
       });
     });
 

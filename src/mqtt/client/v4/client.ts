@@ -84,7 +84,7 @@ export class MqttClientV4 {
     this.requestManager = new RequestManager(this.sendPacket);
 
     // register callbacks
-    this.transport.onPacketReceived = this.handleReceivedPacket;
+    this.transport.onPacketReady = this.handleReceivedPacket;
     this.transport.onDisconnect = this.handleDisconnect;
   }
 
@@ -411,8 +411,32 @@ export class MqttClientV4 {
    * Handles a received MQTT packet and sends response if necessary.
    * @param packet - The received MQTT packet.
    */
-  private handleReceivedPacket = (packet: AnyPacketV4): true | Error => {
+  private handleReceivedPacket = (
+    packetType: PacketType,
+    decodePacket: () => AnyPacketV4
+  ): true | Error => {
+    if (
+      packetType === PacketType.CONNECT ||
+      packetType === PacketType.SUBSCRIBE ||
+      packetType === PacketType.UNSUBSCRIBE ||
+      packetType === PacketType.PINGREQ ||
+      packetType === PacketType.DISCONNECT
+    ) {
+      this.handleDisconnect(
+        new AppError(
+          `Client received disallowed packet type: ${PacketType[packetType]}`
+        )
+      );
+
+      return new Error(
+        `Client received disallowed packet type: ${PacketType[packetType]}`
+      );
+    }
+
     let response: AnyPacketV4 | undefined;
+    let packet: AnyPacketV4;
+
+    packet = decodePacket();
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
@@ -454,21 +478,10 @@ export class MqttClientV4 {
           // TODO: handle error of receiving unexpected packets
         }
         break;
-
-      default:
-        this.handleDisconnect(
-          new AppError(
-            `Client received disallowed packet type: ${PacketType[packet.typeId]}`
-          )
-        );
-
-        return new Error(
-          `Client received disallowed packet type: ${PacketType[packet.typeId]}`
-        );
     }
 
     if (response) this.sendPacket(response);
-    
+
     return true;
   };
 
