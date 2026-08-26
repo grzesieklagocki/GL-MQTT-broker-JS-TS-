@@ -276,6 +276,21 @@ describe("MqttTransportAdapterV4", () => {
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
       });
 
+      it("calls codec.resetState() when called without an error", async () => {
+        const promise = adapter.disconnect();
+        endCallback!(); // simulate socket closing
+        await expect(promise).resolves.toBeUndefined();
+
+        expect(codecMock.resetState).toHaveBeenCalledExactlyOnceWith();
+      });
+
+      it("calls codec.resetState() when called with an error", async () => {
+        const promise = adapter.disconnect(error);
+        await expect(promise).resolves.toBeUndefined();
+
+        expect(codecMock.resetState).toHaveBeenCalledExactlyOnceWith();
+      });
+
       it("calls socket.end() when called without an error", async () => {
         const promise = adapter.disconnect();
 

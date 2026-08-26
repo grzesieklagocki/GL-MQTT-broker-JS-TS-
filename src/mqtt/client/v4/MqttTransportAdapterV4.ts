@@ -131,6 +131,8 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.removeSocketListeners(socket);
     this.onDisconnect(error); // invoke callback
 
+    this.codec.resetState();
+
     return new Promise<void>((resolve) => {
       if (error) {
         socket.destroy(error);
