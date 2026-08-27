@@ -200,6 +200,17 @@ describe("connect()", () => {
       await expect(client.connect("")).rejects.toThrow(/not disconnected/i);
     });
 
+    it("rejects with send error instead of waiting for CONNACK timeout", async () => {
+      transportMock.send.mockRejectedValueOnce(new AppError("Encoding error"));
+
+      await expect(client.connect("")).rejects.toThrow(/Encoding error/);
+
+      expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
+      );
+      expect(client.getConnectionStatus()).toBe("DISCONNECTED");
+    });
+
     describe("timeouts", () => {
       beforeEach(() => {
         vi.useFakeTimers();

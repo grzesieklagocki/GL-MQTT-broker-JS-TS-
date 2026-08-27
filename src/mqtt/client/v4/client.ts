@@ -387,6 +387,7 @@ export class MqttClientV4 {
       this.pingTimeout("RESET");
     } catch (error) {
       this.handleDisconnect(error as Error);
+      throw error;
     }
   };
 
