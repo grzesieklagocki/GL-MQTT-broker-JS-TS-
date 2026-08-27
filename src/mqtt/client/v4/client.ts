@@ -571,10 +571,10 @@ export class MqttClientV4 {
   //
 
   /**
-   * Asserts that the MQTT client is currently connected.
+   * Asserts that the MQTT client is currently not disconnected.
    */
   private _assertClientConnected() {
-    if (!this.isConnected)
+    if (this.getConnectionStatus() === "DISCONNECTED")
       throw new AppError(
         `Client is not connected. Current status: ${this.mqttConnectionStatus}`
       );
