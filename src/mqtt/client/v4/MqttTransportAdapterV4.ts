@@ -160,7 +160,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   public onPacketReady: (
     packetType: PacketType,
     decodePacket: () => AnyPacketV4
-  ) => true | Error = () => {
+  ) => void = () => {
     throw new Error("onPacketReady callback is not set.");
   };
 
@@ -192,17 +192,14 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   };
 
   private handlePacket = (
-    typeId: PacketType,
+    packetType: PacketType,
     decodePacket: () => AnyPacketV4
   ) => {
-    // invoke the callback to process the packet by client or server
-    const processingStatus: true | Error = this.onPacketReady(
-      typeId,
-      decodePacket
-    );
-
-    if (processingStatus !== true) this.disconnect(processingStatus);
-
-    return processingStatus;
+    try {
+      this.onPacketReady(packetType, decodePacket);
+    } catch (error) {
+      this.disconnect(error as Error);
+      throw error;
+    }
   };
 }

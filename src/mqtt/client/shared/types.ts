@@ -27,12 +27,11 @@ export interface IMqttTransportAdapter<
    * Callback function to be invoked when a packet is framed and ready to be decoded.
    * @param packetType - The type of the MQTT packet that was framed.
    * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
-   * @returns true if the packet was successfully handled, or an Error if there was an issue.
    */
   onPacketReady: (
     packetType: PacketType,
     decodePacket: () => TPacket
-  ) => true | Error;
+  ) => void;
 
   /**
    * Callback function to be invoked when the transport layer is disconnected.
@@ -78,5 +77,5 @@ export interface IMqttPacketCodec<TPacket extends AnyPacket> {
   onPacketReady: (
     packetType: PacketType,
     decode: () => TPacket
-  ) => true | Error;
+  ) => void;
 }

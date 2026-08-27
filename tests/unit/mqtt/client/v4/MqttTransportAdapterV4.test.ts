@@ -349,7 +349,9 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("data", () => {
-      it("throws an error if onPacketReceived callback is not set when codec emits a packet", () => {
+      it("throws an error if onPacketReady callback is not set when codec emits a packet", () => {
+        adapter.onDisconnect = vi.fn();
+
         expect(() =>
           codecMock.onPacketReady(PacketType.CONNECT, vi.fn())
         ).toThrow(/onPacketReady callback is not set/);

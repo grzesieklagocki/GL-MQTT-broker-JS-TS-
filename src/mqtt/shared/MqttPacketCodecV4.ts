@@ -47,7 +47,7 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
   public onPacketReady: (
     packetType: PacketType,
     decode: () => AnyPacketV4
-  ) => true | Error = () => new Error("onPacketReady callback is not set.");
+  ) => void = () => new Error("onPacketReady callback is not set.");
 
   private createDecoder() {
     const decoder = new MqttPacketDecoder(
