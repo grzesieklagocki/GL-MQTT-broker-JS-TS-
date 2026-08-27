@@ -30,6 +30,7 @@ import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
 import { performActionWithTimeout } from "@mqtt/shared/performActionWithTimeout";
 import { RequestManager } from "@mqtt/shared/RequestManager";
+import { PacketIdentifierManager } from "../shared/PacketIdentifierManager";
 
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
@@ -75,11 +76,11 @@ export class MqttClientV4 {
   /**
    * Creates an instance of ClientV4.
    * @param transport - The transport adapter responsible for sending and receiving MQTT packets.
-   * @param packetIdManager - The packet identifier manager responsible for generating unique packet identifiers.
+   * @param packetIdManager - The packet identifier manager responsible for generating unique packet identifiers. If not provided, a default PacketIdentifierManager will be used.
    */
   public constructor(
     private readonly transport: IMqttTransportAdapterV4,
-    private readonly packetIdManager: IPacketIdentifierManager
+    private readonly packetIdManager: IPacketIdentifierManager = new PacketIdentifierManager()
   ) {
     this.requestManager = new RequestManager(this.sendPacket);
 
