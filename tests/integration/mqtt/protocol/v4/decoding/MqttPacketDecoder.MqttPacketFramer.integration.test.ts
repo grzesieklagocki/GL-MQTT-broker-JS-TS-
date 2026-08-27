@@ -1,9 +1,9 @@
 import { MqttPacketDecoder } from "@mqtt/protocol/shared/MqttPacketDecoder";
 import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
-import { FixedHeader, PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 import { MQTTReaderV4 } from "@mqtt/protocol/v4/decoding/MQTTReaderV4";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
-import { parseMqttPacketV4 } from "@src/mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
+import { parseMqttPacketV4 } from "@mqtt/protocol/v4/decoding/parsers/parseMqttPacketV4";
 import { AnyPacketV4, PublishPacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, expect, it } from "vitest";
 
@@ -21,13 +21,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         },
       ] as AnyPacketV4[]);
 
-      expect(result.fixedHeaders).toStrictEqual([
-        {
-          packetType: PacketType.PINGREQ,
-          flags: 0,
-          remainingLength: 0,
-        },
-      ]);
+      expect(result.packetTypes).toStrictEqual([PacketType.PINGREQ]);
     });
 
     it("decodes one packet with payload", () => {
@@ -50,13 +44,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         },
       ] as AnyPacketV4[]);
 
-      expect(result.fixedHeaders).toStrictEqual([
-        {
-          packetType: PacketType.SUBACK,
-          flags: 0,
-          remainingLength: 3,
-        },
-      ]);
+      expect(result.packetTypes).toStrictEqual([PacketType.SUBACK]);
     });
 
     it("decodes PUBLISH packet with QoS 0", () => {
@@ -106,17 +94,9 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         },
       ] as AnyPacketV4[]);
 
-      expect(result.fixedHeaders).toStrictEqual([
-        {
-          packetType: PacketType.DISCONNECT,
-          flags: 0,
-          remainingLength: 0,
-        },
-        {
-          packetType: PacketType.PINGRESP,
-          flags: 0,
-          remainingLength: 0,
-        },
+      expect(result.packetTypes).toStrictEqual([
+        PacketType.DISCONNECT,
+        PacketType.PINGRESP,
       ]);
     });
 
@@ -299,7 +279,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
 
   describe("error handling", () => {
     it("propagates error for malformed Remaining Length encoded in more than 4 bytes", () => {
-      const { decoder, packets, fixedHeaders } = createDecoderV4();
+      const { decoder, packets, packetTypes } = createDecoderV4();
 
       expect(() =>
         decoder.write(
@@ -313,7 +293,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
       ).toThrow();
 
       expect(packets).toStrictEqual([]);
-      expect(fixedHeaders).toStrictEqual([]);
+      expect(packetTypes).toStrictEqual([]);
     });
   });
 });
@@ -321,7 +301,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
 function createDecoderV4(): {
   decoder: MqttPacketDecoder;
   packets: AnyPacketV4[];
-  fixedHeaders: FixedHeader[];
+  packetTypes: PacketType[];
 } {
   const decoder = new MqttPacketDecoder(
     new MqttPacketFramer(new FixedHeaderParserV4()),
@@ -333,34 +313,32 @@ function createDecoderV4(): {
   );
 
   const packets: AnyPacketV4[] = [];
-  const fixedHeaders: FixedHeader[] = [];
+  const packetTypes: PacketType[] = [];
 
-  decoder.onPacketFramed = (fixedHeader) => {
-    fixedHeaders.push(fixedHeader);
-  };
-
-  decoder.onPacketParsed = (packet) => {
-    packets.push(packet as AnyPacketV4);
+  // decoding is lazy
+  decoder.onPacketReady = (packetType, decodePacket) => {
+    packetTypes.push(packetType);
+    packets.push(decodePacket() as AnyPacketV4);
   };
 
   return {
     decoder,
     packets,
-    fixedHeaders,
+    packetTypes,
   };
 }
 
 function decodeSingleChunk(data: number[]): {
   packets: AnyPacketV4[];
-  fixedHeaders: FixedHeader[];
+  packetTypes: PacketType[];
 } {
-  const { decoder, packets, fixedHeaders } = createDecoderV4();
+  const { decoder, packets, packetTypes } = createDecoderV4();
 
   decoder.write(new Uint8Array(data));
 
   return {
     packets,
-    fixedHeaders,
+    packetTypes,
   };
 }
 

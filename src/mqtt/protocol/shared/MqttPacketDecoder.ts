@@ -1,4 +1,4 @@
-import { AnyPacket, FixedHeader, IMqttPacketFramer } from "./types";
+import { AnyPacket, FixedHeader, IMqttPacketFramer, PacketType } from "./types";
 
 export type MqttPacketParser = (
   fixedHeader: FixedHeader,
@@ -17,8 +17,7 @@ export class MqttPacketDecoder {
     private readonly parseFunction: MqttPacketParser
   ) {
     // Initialize empty event handlers for packet framing and parsing
-    this.onPacketFramed = () => {};
-    this.onPacketParsed = () => {};
+    this.onPacketReady = () => {};
   }
 
   /**
@@ -35,20 +34,18 @@ export class MqttPacketDecoder {
       // read the next complete raw packet from the framer
       const [fixedHeader, restOfPacket] = this.framer.readPacket();
 
-      // call event for packet framed (fixed header parsed)
-      this.onPacketFramed(fixedHeader);
-
-      // parse packet using the provided parse function
-      const packet = this.parseFunction(fixedHeader, restOfPacket);
-
-      // call event for packet parsed
-      this.onPacketParsed(packet);
+      /**
+       * Emits an event indicating that a packet has been framed and is ready to be decoded.
+       */
+      this.onPacketReady(fixedHeader.packetType, () =>
+        this.parseFunction(fixedHeader, restOfPacket)
+      );
     }
   }
 
   // event called when a packet has been framed (fixed header parsed)
-  public onPacketFramed: (fixedHeader: FixedHeader) => void;
-
-  // event called when a packet has been parsed
-  public onPacketParsed: (packet: AnyPacket) => void;
+  public onPacketReady: (
+    packetType: PacketType,
+    decodePacket: () => AnyPacket
+  ) => void;
 }
