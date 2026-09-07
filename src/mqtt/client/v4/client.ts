@@ -85,8 +85,8 @@ export class MqttClientV4 {
     this.requestManager = new RequestManager(this.sendPacket);
 
     // register callbacks
-    this.transport.onPacketReady = this.handleReceivedPacket;
-    this.transport.onDisconnect = this.handleDisconnect;
+    this.transport.packetReadyHandler = this.handleReceivedPacket;
+    this.transport.disconnectHandler = this.handleDisconnect;
   }
 
   //

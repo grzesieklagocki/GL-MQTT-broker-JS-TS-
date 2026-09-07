@@ -39,10 +39,10 @@ describe("MqttPacketCodecV4", () => {
   });
 
   describe("feed()", () => {
-    it("calls onPacketReady when complete packet is received", () => {
+    it("calls packetReadyHandler() when complete packet is received", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.onPacketReady = onPacketReady as () => true | Error;
+      codec.packetReadyHandler = onPacketReady as () => true | Error;
 
       codec.feed(
         new Uint8Array([
@@ -60,7 +60,7 @@ describe("MqttPacketCodecV4", () => {
     it("provides decoder which returns decoded packet", () => {
       let decodedPacket: AnyPacketV4 | undefined;
 
-      codec.onPacketReady = (packetType, decode) => {
+      codec.packetReadyHandler = (packetType, decode) => {
         decodedPacket = decode();
         return true;
       };
@@ -77,10 +77,10 @@ describe("MqttPacketCodecV4", () => {
       });
     });
 
-    it("does not call onPacketReady until complete packet is received", () => {
+    it("does not call packetReadyHandler() until complete packet is received", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.onPacketReady = onPacketReady as () => true | Error;
+      codec.packetReadyHandler = onPacketReady as () => true | Error;
 
       codec.feed(
         new Uint8Array([
@@ -105,7 +105,7 @@ describe("MqttPacketCodecV4", () => {
     it("handles multiple packets received in a single buffer", () => {
       const receivedPacketTypes: PacketType[] = [];
 
-      codec.onPacketReady = (packetType) => {
+      codec.packetReadyHandler = (packetType) => {
         receivedPacketTypes.push(packetType);
         return true;
       };
@@ -128,7 +128,7 @@ describe("MqttPacketCodecV4", () => {
     it("handles packets split across multiple buffers", () => {
       const decodedPackets: AnyPacketV4[] = [];
 
-      codec.onPacketReady = (_packetType, decode) => {
+      codec.packetReadyHandler = (_packetType, decode) => {
         decodedPackets.push(decode());
         return true;
       };
@@ -156,7 +156,7 @@ describe("MqttPacketCodecV4", () => {
     it("clears partially received packet", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.onPacketReady = onPacketReady as () => true | Error;
+      codec.packetReadyHandler = onPacketReady as () => true | Error;
 
       // Begin receiving PINGRESP, but do not provide Remaining Length.
       codec.feed(new Uint8Array([0xd0]));
@@ -173,10 +173,10 @@ describe("MqttPacketCodecV4", () => {
       );
     });
 
-    it("continues using onPacketReady callback after reset", () => {
+    it("continues using packetReadyHandler() callback after reset", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.onPacketReady = onPacketReady as () => true | Error;
+      codec.packetReadyHandler = onPacketReady as () => true | Error;
 
       codec.resetState();
 

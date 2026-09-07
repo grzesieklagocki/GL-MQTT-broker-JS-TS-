@@ -44,10 +44,10 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
    * @param decode - A function that, when called, will decode the framed packet into an MQTT packet of type AnyPacketV4.
    * @returns true if the packet was successfully handled, or an Error if there was an issue.
    */
-  public onPacketReady: (
+  public packetReadyHandler: (
     packetType: PacketType,
     decode: () => AnyPacketV4
-  ) => void = () => new Error("onPacketReady callback is not set.");
+  ) => void = () => new Error("packetReadyHandler callback is not set.");
 
   private createDecoder() {
     const decoder = new MqttPacketDecoder(
@@ -60,7 +60,7 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
     );
 
     decoder.onPacketReady = (packetType, decode) =>
-      this.onPacketReady(packetType, decode);
+      this.packetReadyHandler(packetType, decode);
 
     return decoder;
   }

@@ -28,7 +28,7 @@ export interface IMqttTransportAdapter<
    * @param packetType - The type of the MQTT packet that was framed.
    * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
    */
-  onPacketReady: (
+  packetReadyHandler: (
     packetType: PacketType,
     decodePacket: () => TPacket
   ) => void;
@@ -37,7 +37,7 @@ export interface IMqttTransportAdapter<
    * Callback function to be invoked when the transport layer is disconnected.
    * @param error - Optional error that caused the disconnect.
    */
-  onDisconnect: (error?: Error) => void;
+  disconnectHandler: (error?: Error) => void;
 }
 
 /**
@@ -74,8 +74,5 @@ export interface IMqttPacketCodec<TPacket extends AnyPacket> {
    * @param packetType - The type of the MQTT packet that was framed.
    * @param decode - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
    */
-  onPacketReady: (
-    packetType: PacketType,
-    decode: () => TPacket
-  ) => void;
+  packetReadyHandler: (packetType: PacketType, decode: () => TPacket) => void;
 }

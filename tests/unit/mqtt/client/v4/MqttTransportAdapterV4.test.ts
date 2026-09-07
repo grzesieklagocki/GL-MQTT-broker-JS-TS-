@@ -28,7 +28,7 @@ describe("MqttTransportAdapterV4", () => {
     codecMock = {
       encode: vi.fn(),
       feed: vi.fn(),
-      onPacketReady: vi.fn(),
+      packetReadyHandler: vi.fn(),
       resetState: vi.fn(),
     };
 
@@ -235,9 +235,9 @@ describe("MqttTransportAdapterV4", () => {
         socketMock.emit("connect");
         await promise;
 
-        // mock onDisconnect callback
+        // mock disconnectHandler() callback
         disconnectListener = vi.fn();
-        adapter.onDisconnect = disconnectListener;
+        adapter.disconnectHandler = disconnectListener;
 
         // mock socket.end to capture the callback
         socketMock.end.mockImplementation((callback?: () => void) => {
@@ -261,7 +261,7 @@ describe("MqttTransportAdapterV4", () => {
         );
       });
 
-      it("invokes 'onDisconnect' callback when called without an error", async () => {
+      it("invokes disconnectHandler() callback when called without an error", async () => {
         const promise = adapter.disconnect();
         endCallback!(); // simulate socket closing
         await expect(promise).resolves.toBeUndefined();
@@ -269,7 +269,7 @@ describe("MqttTransportAdapterV4", () => {
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
       });
 
-      it("invokes 'onDisconnect' callback when called with an error", async () => {
+      it("invokes disconnectHandler() callback when called with an error", async () => {
         const promise = adapter.disconnect(error);
         await expect(promise).resolves.toBeUndefined();
 
@@ -349,12 +349,12 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("data", () => {
-      it("throws an error if onPacketReady callback is not set when codec emits a packet", () => {
-        adapter.onDisconnect = vi.fn();
+      it("throws an error if packetReadyHandler callback is not set when codec emits a packet", () => {
+        adapter.disconnectHandler = vi.fn();
 
         expect(() =>
-          codecMock.onPacketReady(PacketType.CONNECT, vi.fn())
-        ).toThrow(/onPacketReady callback is not set/);
+          codecMock.packetReadyHandler(PacketType.CONNECT, vi.fn())
+        ).toThrow(/packetReadyHandler callback is not set/);
       });
 
       it("invoke codec.feed() with provided bytes when socket emits data", () => {
@@ -363,13 +363,13 @@ describe("MqttTransportAdapterV4", () => {
         expect(codecMock.feed).toHaveBeenCalledExactlyOnceWith(data);
       });
 
-      it("invoke onPacketReady() callback when codec emits a packet", () => {
+      it("invokes packetReadyHandler() callback when codec emits a packet", () => {
         const decodePacketMock = vi.fn();
-        adapter.onPacketReady = vi.fn((() => true) as () => true | Error);
+        adapter.packetReadyHandler = vi.fn((() => true) as () => true | Error);
 
-        codecMock.onPacketReady(PacketType.CONNECT, decodePacketMock);
+        codecMock.packetReadyHandler(PacketType.CONNECT, decodePacketMock);
 
-        expect(adapter.onPacketReady).toHaveBeenCalledExactlyOnceWith(
+        expect(adapter.packetReadyHandler).toHaveBeenCalledExactlyOnceWith(
           PacketType.CONNECT,
           decodePacketMock
         );
@@ -378,30 +378,30 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("close", () => {
-      it("throws an error if onDisconnect callback is not set when socket emits close", async () => {
+      it("throws an error if disconnectHandler callback is not set when socket emits close", async () => {
         const closeListener = socketMock.listeners(
           "close"
         )[0] as () => Promise<void>;
 
         await expect(closeListener()).rejects.toThrow(
-          /onDisconnect callback is not set/
+          /disconnectHandler callback is not set/
         );
       });
 
-      it("invokes onDisconnect() callback when socket emits close without error", () => {
+      it("invokes disconnectHandler() callback when socket emits close without error", () => {
         const disconnectListener = vi.fn();
 
-        adapter.onDisconnect = disconnectListener;
+        adapter.disconnectHandler = disconnectListener;
 
         socketMock.emit("close");
 
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
       });
 
-      it("invokes onDisconnect() callback when socket emits close with error", () => {
+      it("invokes disconnectHandler() callback when socket emits close with error", () => {
         const disconnectListener = vi.fn();
 
-        adapter.onDisconnect = disconnectListener;
+        adapter.disconnectHandler = disconnectListener;
 
         const error = new Error("ERR");
 

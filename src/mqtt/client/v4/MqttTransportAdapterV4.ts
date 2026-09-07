@@ -38,7 +38,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     private readonly host: string,
     private readonly port: number
   ) {
-    codec.onPacketReady = this.handlePacket;
+    codec.packetReadyHandler = this.handlePacket;
   }
 
   //
@@ -129,7 +129,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.socket = undefined; // clear the socket reference to indicate that the adapter not active
 
     this.removeSocketListeners(socket);
-    this.onDisconnect(error); // invoke callback
+    this.disconnectHandler(error); // invoke callback
 
     this.codec.resetState();
 
@@ -157,24 +157,25 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
    * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
    * @returns true if the packet was successfully handled, or an Error if there was an issue.
    */
-  public onPacketReady: (
+  public packetReadyHandler: (
     packetType: PacketType,
     decodePacket: () => AnyPacketV4
   ) => void = () => {
-    throw new Error("onPacketReady callback is not set.");
+    throw new Error("packetReadyHandler callback is not set.");
   };
 
   /**
    * Callback function to be invoked when the transport layer is disconnected.
    * @param error - Optional error that caused the disconnect.
    */
-  public onDisconnect: (error?: Error) => void = () => {
-    throw new Error("onDisconnect callback is not set.");
+  public disconnectHandler: (error?: Error) => void = () => {
+    throw new Error("disconnectHandler callback is not set.");
   };
 
   //
   // helpers
   //
+
   private addSocketListeners(socket: Socket) {
     socket.on("data", this.receiveBytes);
     socket.on("close", this.disconnect);
@@ -196,7 +197,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     decodePacket: () => AnyPacketV4
   ) => {
     try {
-      this.onPacketReady(packetType, decodePacket);
+      this.packetReadyHandler(packetType, decodePacket);
     } catch (error) {
       this.disconnect(error as Error);
       throw error;

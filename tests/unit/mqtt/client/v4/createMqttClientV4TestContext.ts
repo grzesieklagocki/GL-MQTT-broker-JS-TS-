@@ -14,8 +14,8 @@ export const createMqttClientV4TestContext = () => {
     connect: vi.fn().mockResolvedValue(undefined),
     send: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
-    onPacketReady: vi.fn(),
-    onDisconnect: vi.fn(),
+    packetReadyHandler: vi.fn(),
+    disconnectHandler: vi.fn(),
   };
 
   const managerMock = {
@@ -34,7 +34,7 @@ export const createMqttClientV4TestContext = () => {
     connack: ConnackPacketV4 = connackAccepted
   ): Promise<ConnectResponse> => {
     transportMock.send.mockImplementationOnce(async () => {
-      transportMock.onPacketReady(connack.typeId, () => connack);
+      transportMock.packetReadyHandler(connack.typeId, () => connack);
     });
 
     return client.connect("");
@@ -51,7 +51,7 @@ export const createMqttClientV4TestContext = () => {
   };
 
   const sendBack = (packet: AnyPacketV4) => {
-    transportMock.onPacketReady(packet.typeId, () => packet);
+    transportMock.packetReadyHandler(packet.typeId, () => packet);
   };
 
   return {
