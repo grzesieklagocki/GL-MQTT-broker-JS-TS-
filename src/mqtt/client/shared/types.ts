@@ -3,11 +3,9 @@ import { AnyPacket, PacketType } from "@mqtt/protocol/shared/types";
 /**
  * Interface for a transport adapter that handles MQTT packets of a specific type.
  */
-export interface IMqttTransportAdapter<
-  TPacket extends AnyPacket,
-> /* for emitting events: connected, disconnected, packetReceived */ {
+export interface IMqttTransportAdapter<TPacket extends AnyPacket> {
   /**
-   * Connects to the transport layer (e.g. TCP) and will emit the "connected" event.
+   * Connects to the transport layer (e.g. TCP)
    */
   connect(): Promise<void>;
 
@@ -18,7 +16,7 @@ export interface IMqttTransportAdapter<
   send(packet: TPacket): Promise<void>;
 
   /**
-   * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
+   * Disconnects the transport layer (e.g. TCP) and invokes the disconnect handler.
    * @param error - Optional error that caused the disconnect.
    */
   disconnect(error?: Error): void;
