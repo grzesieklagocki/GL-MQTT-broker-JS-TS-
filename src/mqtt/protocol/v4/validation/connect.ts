@@ -1,5 +1,6 @@
 import { AppError } from "@src/AppError";
 import { ConnectFlagsV4, ConnectionPayloadV4, ProtocolInfoV4 } from "../types";
+import { _assertValidTopicName } from "./topic";
 
 /**
  * Asserts that the given CONNECT packet has valid variable header according to MQTT v4 specs.
@@ -65,13 +66,14 @@ export function _assertValidConnectPacketV4(
   // If the Will Flag is set to 1, the Will QoS and Will Retain fields in the Connect Flags will be used by the Server,
   // and the Will Topic and Will Message fields MUST be present in the payload.
   // [MQTT-3.1.2-9]
-  if (
-    flags.willFlag &&
-    (payload.willTopic === undefined || payload.willMessage === undefined)
-  )
-    throw new AppError(
-      "If the Will Flag is set to 1 ...the Will Topic and Will Message fields MUST be present in the payload [MQTT-3.1.2-9]"
-    );
+  if (flags.willFlag) {
+    if (payload.willTopic === undefined || payload.willMessage === undefined)
+      throw new AppError(
+        "If the Will Flag is set to 1 ...the Will Topic and Will Message fields MUST be present in the payload [MQTT-3.1.2-9]"
+      );
+
+    _assertValidTopicName(payload.willTopic);
+  }
 
   // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
   // and the Will Topic and Will Message fields MUST NOT be present in the payload.

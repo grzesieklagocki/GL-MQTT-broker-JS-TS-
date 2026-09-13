@@ -91,8 +91,8 @@ export function createConnectReaderMock(
   const twoByteInts = [keepAlive];
 
   const strings: (string | Error)[] = [protocolName, clientId];
-  if (willTopic) strings.push(willTopic);
-  if (username) strings.push(username);
+  if (willTopic !== undefined) strings.push(willTopic);
+  if (username !== undefined) strings.push(username);
 
   const bytes: (Uint8Array | Error)[] = [];
   if (willMessage) bytes.push(willMessage);

@@ -174,6 +174,43 @@ describe("parseConnectPacketV4", () => {
     expect(readerMock.readBinaryData).toHaveBeenCalledOnce(); // will message
   });
 
+  it(`throws an Error for an empty Will Topic`, () => {
+    const readerMock = createConnectReaderMock(
+      [], // remaining values not needed
+      "MQTT", // protocol name
+      4, // protocol level
+      0b00000100, // Will Flag set
+      0x00, // keep alive
+      "id", // client id
+      "", // empty will topic
+      new Uint8Array() // will message
+    );
+
+    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+      /at least one character/
+    );
+  });
+
+  it.each(["will/+", "will/#"])(
+    `throws an Error for wildcard in Will Topic: %s`,
+    (willTopic) => {
+      const readerMock = createConnectReaderMock(
+        [], // remaining values not needed
+        "MQTT", // protocol name
+        4, // protocol level
+        0b00000100, // Will Flag set
+        0x00, // keep alive
+        "id", // client id
+        willTopic,
+        new Uint8Array() // will message
+      );
+
+      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
+        /wildcard characters/
+      );
+    }
+  );
+
   // If the Will Flag is set to 0 the Will QoS and Will Retain fields in the Connect Flags MUST be set to zero
   // and the Will Topic and Will Message fields MUST NOT be present in the payload
   // [MQTT-3.1.2-11].
