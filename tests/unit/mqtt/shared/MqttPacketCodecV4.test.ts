@@ -39,10 +39,10 @@ describe("MqttPacketCodecV4", () => {
   });
 
   describe("feed()", () => {
-    it("calls packetReadyHandler() when complete packet is received", () => {
+    it("calls packetDecodedHandler() when complete packet is received", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.packetReadyHandler = onPacketReady as () => true | Error;
+      codec.packetDecodedHandler = onPacketReady as () => true | Error;
 
       codec.feed(
         new Uint8Array([
@@ -51,18 +51,16 @@ describe("MqttPacketCodecV4", () => {
         ])
       );
 
-      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(
-        PacketType.PINGRESP,
-        expect.any(Function)
-      );
+      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith({
+        typeId: PacketType.PINGRESP,
+      });
     });
 
     it("provides decoder which returns decoded packet", () => {
       let decodedPacket: AnyPacketV4 | undefined;
 
-      codec.packetReadyHandler = (packetType, decode) => {
-        decodedPacket = decode();
-        return true;
+      codec.packetDecodedHandler = (packet) => {
+        decodedPacket = packet;
       };
 
       codec.feed(
@@ -80,7 +78,7 @@ describe("MqttPacketCodecV4", () => {
     it("does not call packetReadyHandler() until complete packet is received", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.packetReadyHandler = onPacketReady as () => true | Error;
+      codec.packetDecodedHandler = onPacketReady as () => true | Error;
 
       codec.feed(
         new Uint8Array([
@@ -96,18 +94,16 @@ describe("MqttPacketCodecV4", () => {
         ])
       );
 
-      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(
-        PacketType.PINGRESP,
-        expect.any(Function)
-      );
+      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith({
+        typeId: PacketType.PINGRESP,
+      });
     });
 
     it("handles multiple packets received in a single buffer", () => {
       const receivedPacketTypes: PacketType[] = [];
 
-      codec.packetReadyHandler = (packetType) => {
-        receivedPacketTypes.push(packetType);
-        return true;
+      codec.packetDecodedHandler = (packet) => {
+        receivedPacketTypes.push(packet.typeId);
       };
 
       codec.feed(
@@ -128,9 +124,8 @@ describe("MqttPacketCodecV4", () => {
     it("handles packets split across multiple buffers", () => {
       const decodedPackets: AnyPacketV4[] = [];
 
-      codec.packetReadyHandler = (_packetType, decode) => {
-        decodedPackets.push(decode());
-        return true;
+      codec.packetDecodedHandler = (packet) => {
+        decodedPackets.push(packet);
       };
 
       codec.feed(new Uint8Array([0xc0]));
@@ -147,8 +142,10 @@ describe("MqttPacketCodecV4", () => {
       ]);
     });
 
-    it("uses default onPacketReady callback when callback is not set", () => {
-      expect(() => codec.feed(new Uint8Array([0xd0, 0x00]))).not.toThrow();
+    it("throws when packetDecodedHandler callback is not set", () => {
+      expect(() => codec.feed(new Uint8Array([0xd0, 0x00]))).toThrow(
+        "packetDecodedHandler callback is not set."
+      );
     });
   });
 
@@ -156,7 +153,7 @@ describe("MqttPacketCodecV4", () => {
     it("clears partially received packet", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.packetReadyHandler = onPacketReady as () => true | Error;
+      codec.packetDecodedHandler = onPacketReady as () => true | Error;
 
       // Begin receiving PINGRESP, but do not provide Remaining Length.
       codec.feed(new Uint8Array([0xd0]));
@@ -167,25 +164,23 @@ describe("MqttPacketCodecV4", () => {
       // not as the second byte of the previous PINGRESP.
       codec.feed(new Uint8Array([0xc0, 0x00]));
 
-      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(
-        PacketType.PINGREQ,
-        expect.any(Function)
-      );
+      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith({
+        typeId: PacketType.PINGREQ,
+      });
     });
 
-    it("continues using packetReadyHandler() callback after reset", () => {
+    it("continues using packetDecodedHandler() callback after reset", () => {
       const onPacketReady = vi.fn(() => true);
 
-      codec.packetReadyHandler = onPacketReady as () => true | Error;
+      codec.packetDecodedHandler = onPacketReady as () => true | Error;
 
       codec.resetState();
 
       codec.feed(new Uint8Array([0xd0, 0x00]));
 
-      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(
-        PacketType.PINGRESP,
-        expect.any(Function)
-      );
+      expect(onPacketReady).toHaveBeenCalledExactlyOnceWith({
+        typeId: PacketType.PINGRESP,
+      });
     });
   });
 });

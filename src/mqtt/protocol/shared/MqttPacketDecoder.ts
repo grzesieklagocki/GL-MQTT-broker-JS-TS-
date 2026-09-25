@@ -15,10 +15,7 @@ export class MqttPacketDecoder {
   public constructor(
     private readonly framer: IMqttPacketFramer,
     private readonly parseFunction: MqttPacketParser
-  ) {
-    // Initialize empty event handlers for packet framing and parsing
-    this.onPacketReady = () => {};
-  }
+  ) {}
 
   /**
    * Decodes MQTT packets from the given chunk of bytes, emitting events for packet readiness and framing.
@@ -33,19 +30,14 @@ export class MqttPacketDecoder {
     while (this.framer.hasPacket) {
       // read the next complete raw packet from the framer
       const [fixedHeader, restOfPacket] = this.framer.readPacket();
+      const packet = this.parseFunction(fixedHeader, restOfPacket);
 
-      /**
-       * Emits an event indicating that a packet has been framed and is ready to be decoded.
-       */
-      this.onPacketReady(fixedHeader.packetType, () =>
-        this.parseFunction(fixedHeader, restOfPacket)
-      );
+      this.onPacketReady(packet);
     }
   }
 
   // event called when a packet has been framed (fixed header parsed)
-  public onPacketReady: (
-    packetType: PacketType,
-    decodePacket: () => AnyPacket
-  ) => void;
+  public onPacketReady: (packet: AnyPacket) => void = () => {
+    throw new Error("onPacketReady callback is not set.");
+  };
 }

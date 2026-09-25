@@ -1,6 +1,5 @@
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { IMqttPacketCodec } from "../client/shared/types";
-import { PacketType } from "@mqtt/protocol/shared/types";
 import { MqttPacketDecoder } from "@mqtt/protocol/shared/MqttPacketDecoder";
 import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
@@ -39,15 +38,12 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
   }
 
   /**
-   * Callback function to be invoked when a packet is framed and ready to be decoded.
-   * @param packetType - The type of the MQTT packet that was framed.
-   * @param decode - A function that, when called, will decode the framed packet into an MQTT packet of type AnyPacketV4.
-   * @returns true if the packet was successfully handled, or an Error if there was an issue.
+   * Callback function to be invoked when a packet is fully decoded.
+   * @param packet - The decoded MQTT packet.
    */
-  public packetReadyHandler: (
-    packetType: PacketType,
-    decode: () => AnyPacketV4
-  ) => void = () => new Error("packetReadyHandler callback is not set.");
+  public packetDecodedHandler: (packet: AnyPacketV4) => void = () => {
+    throw new Error("packetDecodedHandler callback is not set.");
+  };
 
   private createDecoder() {
     const decoder = new MqttPacketDecoder(
@@ -59,8 +55,10 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
         )
     );
 
-    decoder.onPacketReady = (packetType, decode) =>
-      this.packetReadyHandler(packetType, decode);
+    // Forward packets through a wrapper so the current packetDecodedHandler
+    // is always used, even when the handler is reassigned after construction
+    // or after resetState() creates a new decoder.
+    decoder.onPacketReady = (packet) => this.packetDecodedHandler(packet);
 
     return decoder;
   }

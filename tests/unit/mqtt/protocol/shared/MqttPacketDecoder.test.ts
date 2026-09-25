@@ -52,7 +52,7 @@ describe("MqttPacketDecoder.write", () => {
     expect(onPacketReady).not.toHaveBeenCalled();
   });
 
-  it("emits onPacketReady with packet type and a lazy decode function for one complete packet", () => {
+  it("emits onPacketReady with the parsed packet for one complete packet", () => {
     const fixedHeader = createFixedHeaderMock(PacketType.PINGREQ, 0);
     const restOfPacket = new Uint8Array();
     const parsedPacket = createPacketMock(PacketType.PINGREQ);
@@ -67,21 +67,13 @@ describe("MqttPacketDecoder.write", () => {
     expect(framer.write).toHaveBeenCalledOnce();
     expect(framer.readPacket).toHaveBeenCalledExactlyOnceWith();
 
-    // parsing is lazy: parseFunction must not run until decodePacket() is called
-    expect(parseFunction).not.toHaveBeenCalled();
-
-    expect(onPacketReady).toHaveBeenCalledOnce();
-
-    const [packetType, decodePacket] = onPacketReady.mock.calls[0];
-
-    expect(packetType).toBe(PacketType.PINGREQ);
-    expect(decodePacket).toBeInstanceOf(Function);
-
-    expect(decodePacket()).toBe(parsedPacket);
+    // parsing is eager: parseFunction runs during write()
     expect(parseFunction).toHaveBeenCalledExactlyOnceWith(
       fixedHeader,
       restOfPacket
     );
+
+    expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(parsedPacket);
   });
 
   it("passes undefined restOfPacket to parser when framer returns no rest", () => {
@@ -95,13 +87,11 @@ describe("MqttPacketDecoder.write", () => {
 
     decoder.write(new Uint8Array([0xe0, 0x00]));
 
-    const [, decodePacket] = onPacketReady.mock.calls[0];
-
-    expect(decodePacket()).toBe(parsedPacket);
     expect(parseFunction).toHaveBeenCalledExactlyOnceWith(
       fixedHeader,
       undefined
     );
+    expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(parsedPacket);
   });
 
   it("drains all packets available from framer after one write", () => {
@@ -124,15 +114,11 @@ describe("MqttPacketDecoder.write", () => {
     decoder.write(new Uint8Array([0xe0, 0x00, 0xd0, 0x00]));
 
     expect(framer.readPacket).toHaveBeenCalledTimes(2);
-    expect(onPacketReady).toHaveBeenCalledTimes(2);
-
-    expect(onPacketReady.mock.calls[0][0]).toBe(PacketType.DISCONNECT);
-    expect(onPacketReady.mock.calls[1][0]).toBe(PacketType.PINGRESP);
-
-    expect(onPacketReady.mock.calls[0][1]()).toBe(parsedPacket1);
-    expect(onPacketReady.mock.calls[1][1]()).toBe(parsedPacket2);
-
     expect(parseFunction).toHaveBeenCalledTimes(2);
+
+    expect(onPacketReady).toHaveBeenCalledTimes(2);
+    expect(onPacketReady).toHaveBeenNthCalledWith(1, parsedPacket1);
+    expect(onPacketReady).toHaveBeenNthCalledWith(2, parsedPacket2);
   });
 
   it("can read a packet only after a later write makes it available in framer", () => {
@@ -148,6 +134,7 @@ describe("MqttPacketDecoder.write", () => {
 
     expect(framer.write).toHaveBeenCalledTimes(1);
     expect(framer.readPacket).not.toHaveBeenCalled();
+    expect(parseFunction).not.toHaveBeenCalled();
     expect(onPacketReady).not.toHaveBeenCalled();
 
     decoder.write(new Uint8Array([0x00]));
@@ -155,15 +142,11 @@ describe("MqttPacketDecoder.write", () => {
     expect(framer.write).toHaveBeenCalledTimes(2);
     expect(framer.readPacket).toHaveBeenCalledOnce();
 
-    expect(onPacketReady).toHaveBeenCalledOnce();
-    expect(onPacketReady.mock.calls[0][0]).toBe(PacketType.PINGREQ);
-
-    expect(parseFunction).not.toHaveBeenCalled();
-    expect(onPacketReady.mock.calls[0][1]()).toBe(parsedPacket);
     expect(parseFunction).toHaveBeenCalledOnce();
+    expect(onPacketReady).toHaveBeenCalledExactlyOnceWith(parsedPacket);
   });
 
-  it("calls onPacketReady in order for every packet, with decoding deferred until invoked", () => {
+  it("calls onPacketReady in order for every packet, parsing each packet eagerly", () => {
     const fixedHeader1 = createFixedHeaderMock(PacketType.DISCONNECT, 0);
     const fixedHeader2 = createFixedHeaderMock(PacketType.PINGRESP, 0);
 
@@ -190,25 +173,22 @@ describe("MqttPacketDecoder.write", () => {
 
     const decoder = new MqttPacketDecoder(framer, parseFunction);
 
-    decoder.onPacketReady = (packetType, decodePacket) => {
-      events.push(`ready:${packetType}`);
-      events.push(`parsed:${decodePacket().typeId}`);
+    decoder.onPacketReady = (packet) => {
+      events.push(`ready:${packet.typeId}`);
     };
 
     decoder.write(new Uint8Array([0xe0, 0x00, 0xd0, 0x00]));
 
     expect(events).toStrictEqual([
-      `ready:${PacketType.DISCONNECT}`,
       `parse:${PacketType.DISCONNECT}`,
-      `parsed:${PacketType.DISCONNECT}`,
+      `ready:${PacketType.DISCONNECT}`,
 
-      `ready:${PacketType.PINGRESP}`,
       `parse:${PacketType.PINGRESP}`,
-      `parsed:${PacketType.PINGRESP}`,
+      `ready:${PacketType.PINGRESP}`,
     ]);
   });
 
-  it("does not require event handlers to be assigned manually", () => {
+  it("throws when onPacketReady handler is not assigned", () => {
     const fixedHeader = createFixedHeaderMock(PacketType.PINGREQ, 0);
     const parsedPacket = createPacketMock(PacketType.PINGREQ);
 
@@ -217,12 +197,14 @@ describe("MqttPacketDecoder.write", () => {
 
     const decoder = new MqttPacketDecoder(framer, parseFunction);
 
-    expect(() => decoder.write(new Uint8Array([0xc0, 0x00]))).not.toThrow();
+    expect(() => decoder.write(new Uint8Array([0xc0, 0x00]))).toThrow(
+      "onPacketReady callback is not set."
+    );
 
-    expect(parseFunction).not.toHaveBeenCalled();
+    expect(parseFunction).toHaveBeenCalledOnce();
   });
 
-  it("propagates parser errors only when decodePacket is invoked", () => {
+  it("propagates parser errors during write", () => {
     const fixedHeader = createFixedHeaderMock(PacketType.PUBLISH, 5);
 
     const framer = createFramerMock([
@@ -238,15 +220,11 @@ describe("MqttPacketDecoder.write", () => {
     const onPacketReady = vi.fn();
     decoder.onPacketReady = onPacketReady;
 
-    expect(() =>
-      decoder.write(new Uint8Array([0x30, 0x03, 1, 2, 3]))
-    ).not.toThrow();
+    expect(() => decoder.write(new Uint8Array([0x30, 0x03, 1, 2, 3]))).toThrow(
+      "parse failed"
+    );
 
-    expect(onPacketReady).toHaveBeenCalledOnce();
-
-    const [, decodePacket] = onPacketReady.mock.calls[0];
-
-    expect(decodePacket).toThrow("parse failed");
+    expect(onPacketReady).not.toHaveBeenCalled();
   });
 });
 

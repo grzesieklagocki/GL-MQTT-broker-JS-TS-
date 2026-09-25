@@ -3,7 +3,6 @@ import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { IMqttPacketCodec } from "../shared/types";
 import { AppError } from "@src/AppError";
-import { PacketType } from "@mqtt/protocol/shared/types";
 
 /**
  * Implementation of the IMqttTransportAdapterV4 interface that handles MQTT V4 packets.
@@ -38,7 +37,7 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     private readonly host: string,
     private readonly port: number
   ) {
-    codec.packetReadyHandler = this.handlePacket;
+    codec.packetDecodedHandler = this.handlePacket;
   }
 
   //
@@ -152,16 +151,11 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
   //
 
   /**
-   * Callback function to be invoked when a packet is framed and ready to be decoded.
-   * @param packetType - The type of the MQTT packet that was framed.
-   * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
-   * @returns true if the packet was successfully handled, or an Error if there was an issue.
+   * Callback function to be invoked when an MQTT packet is received from the transport layer.
+   * @param packet - The MQTT packet that was received from the transport layer.
    */
-  public packetReadyHandler: (
-    packetType: PacketType,
-    decodePacket: () => AnyPacketV4
-  ) => void = () => {
-    throw new Error("packetReadyHandler callback is not set.");
+  public packetReceivedHandler: (packet: AnyPacketV4) => void = () => {
+    throw new Error("packetReceivedHandler callback is not set.");
   };
 
   /**
@@ -192,12 +186,9 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
     this.codec.feed(bytes);
   };
 
-  private handlePacket = (
-    packetType: PacketType,
-    decodePacket: () => AnyPacketV4
-  ) => {
+  private handlePacket = (packet: AnyPacketV4) => {
     try {
-      this.packetReadyHandler(packetType, decodePacket);
+      this.packetReceivedHandler(packet);
     } catch (error) {
       this.disconnect(error as Error);
       throw error;

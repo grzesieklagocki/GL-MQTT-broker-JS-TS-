@@ -1,11 +1,11 @@
-import { IMqttPacketCodec } from "@src/mqtt/client/shared/types";
+import { IMqttPacketCodec } from "@mqtt/client/shared/types";
 import { MqttTransportAdapterV4 } from "@mqtt/client/v4/MqttTransportAdapterV4";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { Socket } from "net";
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, Mock, vi } from "vitest";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { PacketType } from "@src/mqtt/protocol/shared/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
 
 describe("MqttTransportAdapterV4", () => {
   const host = "localhost";
@@ -28,7 +28,7 @@ describe("MqttTransportAdapterV4", () => {
     codecMock = {
       encode: vi.fn(),
       feed: vi.fn(),
-      packetReadyHandler: vi.fn(),
+      packetDecodedHandler: vi.fn(),
       resetState: vi.fn(),
     };
 
@@ -349,31 +349,32 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("data", () => {
-      it("throws an error if packetReadyHandler callback is not set when codec emits a packet", () => {
+      const packet = MqttPacketV4Factory.createSimplePacketV4(
+        PacketType.PINGREQ
+      );
+
+      it("throws an error if packetReceivedHandler callback is not set when codec emits a packet", () => {
         adapter.disconnectHandler = vi.fn();
 
-        expect(() =>
-          codecMock.packetReadyHandler(PacketType.CONNECT, vi.fn())
-        ).toThrow(/packetReadyHandler callback is not set/);
+        expect(() => codecMock.packetDecodedHandler(packet)).toThrow(
+          /packetReceivedHandler callback is not set/
+        );
       });
 
-      it("invoke codec.feed() with provided bytes when socket emits data", () => {
+      it("invokes codec.feed() with provided bytes when socket emits data", () => {
         socketMock.emit("data", data);
 
         expect(codecMock.feed).toHaveBeenCalledExactlyOnceWith(data);
       });
 
-      it("invokes packetReadyHandler() callback when codec emits a packet", () => {
-        const decodePacketMock = vi.fn();
-        adapter.packetReadyHandler = vi.fn((() => true) as () => true | Error);
+      it("invokes packetReceivedHandler() callback when codec emits a packet", () => {
+        adapter.packetReceivedHandler = vi.fn();
 
-        codecMock.packetReadyHandler(PacketType.CONNECT, decodePacketMock);
+        codecMock.packetDecodedHandler(packet);
 
-        expect(adapter.packetReadyHandler).toHaveBeenCalledExactlyOnceWith(
-          PacketType.CONNECT,
-          decodePacketMock
+        expect(adapter.packetReceivedHandler).toHaveBeenCalledExactlyOnceWith(
+          packet
         );
-        expect(decodePacketMock).not.toHaveBeenCalled(); // the decode function is just passed through
       });
     });
 

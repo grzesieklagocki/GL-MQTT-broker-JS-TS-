@@ -85,7 +85,7 @@ export class MqttClientV4 {
     this.requestManager = new RequestManager(this.sendPacket);
 
     // register callbacks
-    this.transport.packetReadyHandler = this.handleReceivedPacket;
+    this.transport.packetReceivedHandler = this.handleReceivedPacket;
     this.transport.disconnectHandler = this.handleDisconnect;
   }
 
@@ -413,32 +413,27 @@ export class MqttClientV4 {
    * Handles a received MQTT packet and sends response if necessary.
    * @param packet - The received MQTT packet.
    */
-  private handleReceivedPacket = (
-    packetType: PacketType,
-    decodePacket: () => AnyPacketV4
-  ): true | Error => {
-    if (
-      packetType === PacketType.CONNECT ||
-      packetType === PacketType.SUBSCRIBE ||
-      packetType === PacketType.UNSUBSCRIBE ||
-      packetType === PacketType.PINGREQ ||
-      packetType === PacketType.DISCONNECT
-    ) {
-      this.handleDisconnect(
-        new AppError(
-          `Client received disallowed packet type: ${PacketType[packetType]}`
-        )
-      );
+  private handleReceivedPacket = (packet: AnyPacketV4): void => {
+    // TODO: packet type validation in fixed header parser
+    // if (
+    //   packetType === PacketType.CONNECT ||
+    //   packetType === PacketType.SUBSCRIBE ||
+    //   packetType === PacketType.UNSUBSCRIBE ||
+    //   packetType === PacketType.PINGREQ ||
+    //   packetType === PacketType.DISCONNECT
+    // ) {
+    //   this.handleDisconnect(
+    //     new AppError(
+    //       `Client received disallowed packet type: ${PacketType[packetType]}`
+    //     )
+    //   );
 
-      return new Error(
-        `Client received disallowed packet type: ${PacketType[packetType]}`
-      );
-    }
+    //   return new Error(
+    //     `Client received disallowed packet type: ${PacketType[packetType]}`
+    //   );
+    // }
 
     let response: AnyPacketV4 | undefined;
-    let packet: AnyPacketV4;
-
-    packet = decodePacket();
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
@@ -483,8 +478,6 @@ export class MqttClientV4 {
     }
 
     if (response) this.sendPacket(response);
-
-    return true;
   };
 
   /**

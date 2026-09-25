@@ -1,5 +1,5 @@
 import { PacketType } from "@mqtt/protocol/shared/types";
-import { ConnectPacketV4, IMQTTReaderV4 } from "@mqtt/protocol/v4/types";
+import { ConnectPacketV4 } from "@mqtt/protocol/v4/types";
 import { describe, it, expect } from "vitest";
 import { createConnectReaderMock } from "./mocks";
 import { AppError } from "@src/AppError";

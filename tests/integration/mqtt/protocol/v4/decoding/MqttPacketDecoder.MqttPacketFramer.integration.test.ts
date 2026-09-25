@@ -10,22 +10,20 @@ import { describe, expect, it } from "vitest";
 describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderParserV4", () => {
   describe("single chunk", () => {
     it("decodes one packet with no payload", () => {
-      const result = decodeSingleChunk([
+      const packets = decodeSingleChunk([
         // PINGREQ
         0b1100_0000, 0x00,
       ]);
 
-      expect(result.packets).toStrictEqual([
+      expect(packets).toStrictEqual([
         {
           typeId: PacketType.PINGREQ,
         },
       ] as AnyPacketV4[]);
-
-      expect(result.packetTypes).toStrictEqual([PacketType.PINGREQ]);
     });
 
     it("decodes one packet with payload", () => {
-      const result = decodeSingleChunk([
+      const packets = decodeSingleChunk([
         // SUBACK
         0b1001_0000,
         // Remaining Length = 3
@@ -36,19 +34,17 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         0x00,
       ]);
 
-      expect(result.packets).toStrictEqual([
+      expect(packets).toStrictEqual([
         {
           typeId: PacketType.SUBACK,
           identifier: 10,
           returnCodeList: [0x00],
         },
       ] as AnyPacketV4[]);
-
-      expect(result.packetTypes).toStrictEqual([PacketType.SUBACK]);
     });
 
     it("decodes PUBLISH packet with QoS 0", () => {
-      const result = decodeSingleChunk([
+      const packets = decodeSingleChunk([
         // PUBLISH dup=false, qos=0, retain=true
         0b0011_0001,
         // Remaining Length = 9
@@ -61,7 +57,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         0x6d, 0x73, 0x67,
       ]);
 
-      expect(result.packets).toStrictEqual([
+      expect(packets).toStrictEqual([
         {
           typeId: PacketType.PUBLISH,
           flags: {
@@ -77,7 +73,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
     });
 
     it("decodes two packets from one chunk", () => {
-      const result = decodeSingleChunk([
+      const packets = decodeSingleChunk([
         // DISCONNECT
         0b1110_0000, 0x00,
 
@@ -85,7 +81,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         0b1101_0000, 0x00,
       ]);
 
-      expect(result.packets).toStrictEqual([
+      expect(packets).toStrictEqual([
         {
           typeId: PacketType.DISCONNECT,
         },
@@ -93,15 +89,10 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
           typeId: PacketType.PINGRESP,
         },
       ] as AnyPacketV4[]);
-
-      expect(result.packetTypes).toStrictEqual([
-        PacketType.DISCONNECT,
-        PacketType.PINGRESP,
-      ]);
     });
 
     it("decodes two packets with payload from one chunk", () => {
-      const result = decodeSingleChunk([
+      const packets = decodeSingleChunk([
         // SUBACK
         0b1001_0000,
         // Remaining Length = 3
@@ -125,7 +116,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
         0x6d, 0x73, 0x67,
       ]);
 
-      expect(result.packets).toStrictEqual([
+      expect(packets).toStrictEqual([
         {
           typeId: PacketType.SUBACK,
           identifier: 10,
@@ -279,7 +270,7 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
 
   describe("error handling", () => {
     it("propagates error for malformed Remaining Length encoded in more than 4 bytes", () => {
-      const { decoder, packets, packetTypes } = createDecoderV4();
+      const { decoder, packets } = createDecoderV4();
 
       expect(() =>
         decoder.write(
@@ -293,7 +284,6 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
       ).toThrow();
 
       expect(packets).toStrictEqual([]);
-      expect(packetTypes).toStrictEqual([]);
     });
   });
 });
@@ -301,7 +291,6 @@ describe("MqttPacketDecoder integration with MqttPacketFramer and FixedHeaderPar
 function createDecoderV4(): {
   decoder: MqttPacketDecoder;
   packets: AnyPacketV4[];
-  packetTypes: PacketType[];
 } {
   const decoder = new MqttPacketDecoder(
     new MqttPacketFramer(new FixedHeaderParserV4()),
@@ -313,33 +302,23 @@ function createDecoderV4(): {
   );
 
   const packets: AnyPacketV4[] = [];
-  const packetTypes: PacketType[] = [];
 
-  // decoding is lazy
-  decoder.onPacketReady = (packetType, decodePacket) => {
-    packetTypes.push(packetType);
-    packets.push(decodePacket() as AnyPacketV4);
+  decoder.onPacketReady = (packet) => {
+    packets.push(packet);
   };
 
   return {
     decoder,
     packets,
-    packetTypes,
   };
 }
 
-function decodeSingleChunk(data: number[]): {
-  packets: AnyPacketV4[];
-  packetTypes: PacketType[];
-} {
-  const { decoder, packets, packetTypes } = createDecoderV4();
+function decodeSingleChunk(data: number[]): AnyPacketV4[] {
+  const { decoder, packets } = createDecoderV4();
 
   decoder.write(new Uint8Array(data));
 
-  return {
-    packets,
-    packetTypes,
-  };
+  return packets;
 }
 
 function decodeChunks(chunks: number[][]): AnyPacketV4[][] {

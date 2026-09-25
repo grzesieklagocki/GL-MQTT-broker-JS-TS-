@@ -1,4 +1,4 @@
-import { AnyPacket, PacketType } from "@mqtt/protocol/shared/types";
+import { AnyPacket } from "@mqtt/protocol/shared/types";
 
 /**
  * Interface for a transport adapter that handles MQTT packets of a specific type.
@@ -22,14 +22,10 @@ export interface IMqttTransportAdapter<TPacket extends AnyPacket> {
   disconnect(error?: Error): void;
 
   /**
-   * Callback function to be invoked when a packet is framed and ready to be decoded.
-   * @param packetType - The type of the MQTT packet that was framed.
-   * @param decodePacket - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
+   * Callback function to be invoked when an MQTT packet is received from the transport layer.
+   * @param packet - The MQTT packet that was received from the transport layer.
    */
-  packetReadyHandler: (
-    packetType: PacketType,
-    decodePacket: () => TPacket
-  ) => void;
+  packetReceivedHandler: (packet: TPacket) => void;
 
   /**
    * Callback function to be invoked when the transport layer is disconnected.
@@ -68,9 +64,8 @@ export interface IMqttPacketCodec<TPacket extends AnyPacket> {
   feed(bytes: Uint8Array): void;
 
   /**
-   * Callback function to be invoked when a packet is framed and ready to be decoded.
-   * @param packetType - The type of the MQTT packet that was framed.
-   * @param decode - A function that, when called, will decode the framed packet into an MQTT packet of type TPacket.
+   * Called when a packet is decoded and ready to be processed.
+   * @param packet - The type of the MQTT packet that is ready to be processed.
    */
-  packetReadyHandler: (packetType: PacketType, decode: () => TPacket) => void;
+  packetDecodedHandler: (packet: TPacket) => void;
 }
