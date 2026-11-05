@@ -1,12 +1,39 @@
 import { AppError } from "@src/AppError";
-import { parseFixedHeaderFlags } from "@src/mqtt/protocol/shared/FixedHeaderFlagsParser";
+import { parseFixedHeaderFlags } from "@mqtt/protocol/shared/FixedHeaderFlagsParser";
 import {
   IFixedHeaderValidator,
   PacketType,
   QoS,
-} from "@src/mqtt/protocol/shared/types";
+} from "@mqtt/protocol/shared/types";
 
 export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
+  private readonly disallowedPacketTypes: PacketType[];
+
+  /**
+   * Creates an instance of FixedHeaderValidatorV4.
+   * @param flow flow direction for the validator ("both", "clientToBroker", or "brokerToClient")
+   */
+  public constructor(
+    flow: "both" | "clientToBroker" | "brokerToClient" = "both"
+  ) {
+    if (flow === "clientToBroker")
+      this.disallowedPacketTypes = [
+        PacketType.CONNACK,
+        PacketType.SUBACK,
+        PacketType.UNSUBACK,
+        PacketType.PINGRESP,
+      ];
+    else if (flow === "brokerToClient")
+      this.disallowedPacketTypes = [
+        PacketType.CONNECT,
+        PacketType.SUBSCRIBE,
+        PacketType.UNSUBSCRIBE,
+        PacketType.PINGREQ,
+        PacketType.DISCONNECT,
+      ];
+    else this.disallowedPacketTypes = []; // for flow "both" every packet type is allowed
+  }
+
   // Validate Packet Type
   public assertValidPacketType(type: number): void {
     if (!this.hasValidPacketType(type))
@@ -44,6 +71,9 @@ export class FixedHeaderValidatorV4 implements IFixedHeaderValidator {
   }
 
   private hasValidPacketType(packetType: number): boolean {
+    for (const disallowed of this.disallowedPacketTypes)
+      if (packetType === disallowed) return false;
+
     return (
       packetType >= PacketType.CONNECT && packetType <= PacketType.DISCONNECT
     );
