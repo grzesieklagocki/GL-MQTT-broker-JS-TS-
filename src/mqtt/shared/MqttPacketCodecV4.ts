@@ -1,6 +1,9 @@
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
 import { IMqttPacketCodec } from "../client/shared/types";
-import { MqttPacketDecoder } from "@mqtt/protocol/shared/MqttPacketDecoder";
+import {
+  MqttPacketDecoder,
+  MqttPacketParser,
+} from "@mqtt/protocol/shared/MqttPacketDecoder";
 import { MqttPacketFramer } from "@mqtt/protocol/shared/MqttPacketFramer";
 import { FixedHeaderParserV4 } from "@mqtt/protocol/v4/decoding/parsers/FixedHeaderParserV4";
 import { BinaryBuffer } from "@mqtt/protocol/shared/BinaryBuffer";
@@ -46,14 +49,18 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
   };
 
   private createDecoder() {
-    const decoder = new MqttPacketDecoder(
-      new MqttPacketFramer(new FixedHeaderParserV4(), new BinaryBuffer()),
-      (fixedHeader, restOfPacket) =>
-        parseMqttPacketV4(
-          fixedHeader,
-          restOfPacket ? new MQTTReaderV4(restOfPacket) : undefined
-        )
+    const framer = new MqttPacketFramer(
+      new FixedHeaderParserV4(),
+      new BinaryBuffer()
     );
+
+    const parseFunction: MqttPacketParser = (fixedHeader, restOfPacket) =>
+      parseMqttPacketV4(
+        fixedHeader,
+        restOfPacket ? new MQTTReaderV4(restOfPacket) : undefined
+      );
+
+    const decoder = new MqttPacketDecoder(framer, parseFunction);
 
     // Forward packets through a wrapper so the current packetDecodedHandler
     // is always used, even when the handler is reassigned after construction
