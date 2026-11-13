@@ -1,26 +1,18 @@
 import { Socket } from "node:net";
 import { IMqttTransportAdapterV4 } from "./types";
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
-import { IMqttPacketCodec } from "../shared/types";
+import { IMqttPacketCodec } from "@mqtt/shared/types";
+import { MqttSocketTransportAdapter } from "@mqtt/shared/MqttSocketTransportAdapter";
 import { AppError } from "@src/AppError";
 
 /**
  * Implementation of the IMqttTransportAdapterV4 interface that handles MQTT V4 packets.
+ * Extends MqttSocketTransportAdapter to open its own socket connection (via connect() method).
  */
-export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
-  /**
-   * Socket used for communication.
-   * It is undefined when the adapter is not connected.
-   */
-  private socket?: Socket;
-
-  /**
-   * Indicates whether the transport adapter is currently connected.
-   */
-  public get isActive(): boolean {
-    return this.socket !== undefined;
-  }
-
+export class MqttTransportAdapterV4
+  extends MqttSocketTransportAdapter<AnyPacketV4>
+  implements IMqttTransportAdapterV4
+{
   //
   // constructor
   //
@@ -32,16 +24,16 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
    * @param host - The host address to connect to.
    */
   constructor(
-    private readonly codec: IMqttPacketCodec<AnyPacketV4>,
+    codec: IMqttPacketCodec<AnyPacketV4>,
     private readonly createSocket: () => Socket,
     private readonly host: string,
     private readonly port: number
   ) {
-    codec.packetDecodedHandler = this.handlePacket;
+    super(codec);
   }
 
   //
-  // private methods
+  // public methods
   //
 
   /**
@@ -92,106 +84,4 @@ export class MqttTransportAdapterV4 implements IMqttTransportAdapterV4 {
       socket.connect(this.port, this.host);
     });
   }
-
-  /**
-   * Sends a packet to the transport layer.
-   * @param packet - The MQTT packet to be sent.
-   */
-  public async send(packet: AnyPacketV4): Promise<void> {
-    if (!this.isActive)
-      throw new AppError("Transport adapter is not connected.");
-
-    let bytes; // for encoding the packet to bytes
-
-    try {
-      bytes = this.codec.encode(packet);
-    } catch (error) {
-      throw new AppError("Encoding error", error as Error);
-    }
-
-    try {
-      this.socket!.write(bytes); // asserted because isActive check ensure that socket is defined
-    } catch (error) {
-      throw new AppError("Transport error", error as Error);
-    }
-  }
-
-  /**
-   * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
-   * @param error - Optional error that caused the disconnect.
-   */
-  public disconnect = async (error?: Error): Promise<void> => {
-    if (!this.isActive)
-      throw new AppError("Transport adapter is not connected.");
-
-    const socket = this.socket!; // asserted because isActive check ensure that socket is defined
-    this.socket = undefined; // clear the socket reference to indicate that the adapter not active
-
-    this.removeSocketListeners(socket);
-    this.disconnectHandler(error); // invoke callback
-
-    this.codec.resetState();
-
-    return new Promise<void>((resolve) => {
-      if (error) {
-        socket.destroy(error);
-        resolve();
-      } else
-        socket.end(
-          // wait for the socket to close before resolving
-          () => {
-            resolve();
-          }
-        );
-    });
-  };
-
-  //
-  // events
-  //
-
-  /**
-   * Callback function to be invoked when an MQTT packet is received from the transport layer.
-   * @param packet - The MQTT packet that was received from the transport layer.
-   */
-  public packetReceivedHandler: (packet: AnyPacketV4) => void = () => {
-    throw new Error("packetReceivedHandler callback is not set.");
-  };
-
-  /**
-   * Callback function to be invoked when the transport layer is disconnected.
-   * @param error - Optional error that caused the disconnect.
-   */
-  public disconnectHandler: (error?: Error) => void = () => {
-    throw new Error("disconnectHandler callback is not set.");
-  };
-
-  //
-  // helpers
-  //
-
-  private addSocketListeners(socket: Socket) {
-    socket.on("data", this.receiveBytes);
-    socket.on("close", this.disconnect);
-    socket.on("error", this.disconnect);
-  }
-
-  private removeSocketListeners(socket: Socket) {
-    socket.off("data", this.receiveBytes);
-    socket.off("close", this.disconnect);
-    socket.off("error", this.disconnect);
-  }
-
-  private receiveBytes = (bytes: Uint8Array) => {
-    this.codec.feed(bytes);
-  };
-
-  private handlePacket = (packet: AnyPacketV4) => {
-    try {
-      this.packetReceivedHandler(packet);
-    } catch (error) {
-      this.disconnect(error as Error);
-      throw error;
-    }
-  };
 }

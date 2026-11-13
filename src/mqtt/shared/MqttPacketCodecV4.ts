@@ -1,5 +1,5 @@
 import { AnyPacketV4 } from "@mqtt/protocol/v4/types";
-import { IMqttPacketCodec } from "../client/shared/types";
+import { IMqttPacketCodec } from "./types";
 import {
   MqttPacketDecoder,
   MqttPacketParser,
