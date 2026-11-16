@@ -1,9 +1,8 @@
 import { QoS } from "@src/mqtt/protocol/shared/types";
 import { matchTopicFilter } from "./matchTopicFilter";
+import { IRetainedMessagesManager, RetainedMessage } from "./types";
 
-type RetainedMessage = { topic: string; payload: Uint8Array; qos: QoS };
-
-export class RetainedMessagesManager {
+export class RetainedMessagesManager implements IRetainedMessagesManager {
   private messages: Map<string, { payload: Uint8Array; qos: QoS }> = new Map();
 
   /**

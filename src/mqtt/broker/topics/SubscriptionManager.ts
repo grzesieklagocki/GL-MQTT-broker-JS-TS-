@@ -1,8 +1,9 @@
 import { QoS } from "../../protocol/shared/types";
 import { matchTopicFilter } from "./matchTopicFilter";
+import { ISubscriptionManager } from "./types";
 
 // Manages MQTT topic subscriptions for clients, including subscribing, unsubscribing, and finding subscribers for a topic.
-export class SubscriptionManager {
+export class SubscriptionManager implements ISubscriptionManager {
   // map of client IDs to their subscriptions, each subscription is a map of topic filters to its subscription QoS levels
   private readonly subs: Map<string, Map<string, QoS>> = new Map();
 
