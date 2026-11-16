@@ -41,10 +41,11 @@ export interface IMqttSocketTransportAdapter<TPacket extends AnyPacket> {
   send(packet: TPacket): Promise<void>;
 
   /**
-   * Disconnects the transport layer (e.g. TCP) and invokes the disconnect handler.
+   * Closes the transport and resolves after socket cleanup. Repeated calls
+   * wait for the same close operation and do not repeat the disconnect handler.
    * @param error - Optional error that caused the disconnect.
    */
-  disconnect(error?: Error): void;
+  disconnect(error?: Error): Promise<void>;
 
   /**
    * Callback function to be invoked when an MQTT packet is received from the transport layer.

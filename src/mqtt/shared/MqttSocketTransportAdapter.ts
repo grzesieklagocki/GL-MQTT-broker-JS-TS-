@@ -18,6 +18,9 @@ export class MqttSocketTransportAdapter<
    * It is undefined when the adapter has no socket attached.
    */
   protected socket?: Socket;
+  private disconnectPromise?: Promise<void>;
+  private resolveDisconnect?: () => void;
+  private closeError?: Error;
 
   /**
    * Indicates whether the transport adapter currently has a socket attached.
@@ -53,7 +56,7 @@ export class MqttSocketTransportAdapter<
    * @param packet - The MQTT packet to be sent.
    */
   public async send(packet: TPacket): Promise<void> {
-    if (!this.isActive)
+    if (!this.isActive || this.disconnectPromise || this.closeError)
       throw new AppError("Transport adapter is not connected.");
 
     let bytes; // for encoding the packet to bytes
@@ -72,33 +75,24 @@ export class MqttSocketTransportAdapter<
   }
 
   /**
-   * Disconnects the transport layer (e.g. TCP) and will emit the "disconnected" event with provided (optional) error.
+   * Closes the transport and resolves after the socket closes and cleanup completes.
    * @param error - Optional error that caused the disconnect.
    */
-  public disconnect = async (error?: Error): Promise<void> => {
-    if (!this.isActive)
-      throw new AppError("Transport adapter is not connected.");
+  public disconnect = (error?: Error): Promise<void> => {
+    if (this.disconnectPromise) return this.disconnectPromise;
+    if (!this.socket)
+      return Promise.reject(new AppError("Transport adapter is not connected."));
 
-    const socket = this.socket!; // asserted because isActive check ensure that socket is defined
-    this.socket = undefined; // clear the socket reference to indicate that the adapter not active
-
-    this.removeSocketListeners(socket);
-    this.disconnectHandler(error); // invoke callback
-
-    this.codec.resetState();
-
-    return new Promise<void>((resolve) => {
-      if (error) {
-        socket.destroy(error);
-        resolve();
-      } else
-        socket.end(
-          // wait for the socket to close before resolving
-          () => {
-            resolve();
-          }
-        );
+    const socket = this.socket;
+    this.closeError ??= error;
+    this.disconnectPromise = new Promise<void>((resolve) => {
+      this.resolveDisconnect = resolve;
     });
+
+    if (error) socket.destroy(error);
+    else socket.end(() => socket.destroy());
+
+    return this.disconnectPromise;
   };
 
   //
@@ -135,22 +129,50 @@ export class MqttSocketTransportAdapter<
   }
 
   protected addSocketListeners(socket: Socket) {
+    this.disconnectPromise = undefined;
+    this.resolveDisconnect = undefined;
+    this.closeError = undefined;
     socket.on("data", this.receiveBytes);
-    socket.on("close", this.disconnect);
-    socket.on("error", this.disconnect);
+    socket.on("close", this.handleSocketClose);
+    socket.on("error", this.handleSocketError);
   }
 
   protected removeSocketListeners(socket: Socket) {
     socket.off("data", this.receiveBytes);
-    socket.off("close", this.disconnect);
-    socket.off("error", this.disconnect);
+    socket.off("close", this.handleSocketClose);
+    socket.off("error", this.handleSocketError);
   }
 
+  private handleSocketError = (error: Error) => {
+    this.closeError ??= error;
+  };
+
+  private handleSocketClose = (hadError: boolean) => {
+    if (!this.socket) return;
+
+    const error = this.closeError ?? (hadError
+      ? new AppError("Socket closed after a transmission error.")
+      : undefined);
+    const resolveDisconnect = this.resolveDisconnect;
+
+    this.removeSocketListeners(this.socket);
+    this.socket = undefined;
+    this.disconnectPromise ??= Promise.resolve();
+    this.codec.resetState();
+    try {
+      this.disconnectHandler(error);
+    } finally {
+      resolveDisconnect?.();
+    }
+  };
+
   private receiveBytes = (bytes: Uint8Array) => {
+    if (this.disconnectPromise || this.closeError) return;
     this.codec.feed(bytes);
   };
 
   private handlePacket = (packet: TPacket) => {
+    if (this.disconnectPromise || this.closeError) return;
     try {
       this.packetReceivedHandler(packet);
     } catch (error) {

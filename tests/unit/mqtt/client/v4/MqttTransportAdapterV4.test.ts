@@ -85,6 +85,27 @@ describe("MqttTransportAdapterV4", () => {
         await expect(promise).resolves.toBeUndefined();
       });
 
+      it("allows a new disconnect operation after reconnecting", async () => {
+        adapter.disconnectHandler = vi.fn();
+        const connectPromise1 = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise1;
+        const disconnectPromise1 = adapter.disconnect();
+        socketMock.emit("close", false);
+        await disconnectPromise1;
+
+        const connectPromise2 = adapter.connect();
+        socketMock.emit("connect");
+        await connectPromise2;
+        const disconnectPromise2 = adapter.disconnect();
+        expect(disconnectPromise2).not.toBe(disconnectPromise1);
+        socketMock.emit("close", false);
+        await expect(disconnectPromise2).resolves.toBeUndefined();
+
+        expect(socketMock.end).toHaveBeenCalledTimes(2);
+        expect(adapter.disconnectHandler).toHaveBeenCalledTimes(2);
+      });
+
       it("does not resolve before the socket emits connect", async () => {
         const onResolved = vi.fn();
 
@@ -263,7 +284,8 @@ describe("MqttTransportAdapterV4", () => {
 
       it("invokes disconnectHandler() callback when called without an error", async () => {
         const promise = adapter.disconnect();
-        endCallback!(); // simulate socket closing
+        endCallback!();
+        socketMock.emit("close", false);
         await expect(promise).resolves.toBeUndefined();
 
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
@@ -271,6 +293,7 @@ describe("MqttTransportAdapterV4", () => {
 
       it("invokes disconnectHandler() callback when called with an error", async () => {
         const promise = adapter.disconnect(error);
+        socketMock.emit("close", true);
         await expect(promise).resolves.toBeUndefined();
 
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
@@ -278,7 +301,8 @@ describe("MqttTransportAdapterV4", () => {
 
       it("calls codec.resetState() when called without an error", async () => {
         const promise = adapter.disconnect();
-        endCallback!(); // simulate socket closing
+        endCallback!();
+        socketMock.emit("close", false);
         await expect(promise).resolves.toBeUndefined();
 
         expect(codecMock.resetState).toHaveBeenCalledExactlyOnceWith();
@@ -286,6 +310,7 @@ describe("MqttTransportAdapterV4", () => {
 
       it("calls codec.resetState() when called with an error", async () => {
         const promise = adapter.disconnect(error);
+        socketMock.emit("close", true);
         await expect(promise).resolves.toBeUndefined();
 
         expect(codecMock.resetState).toHaveBeenCalledExactlyOnceWith();
@@ -297,7 +322,9 @@ describe("MqttTransportAdapterV4", () => {
         expect(socketMock.end).toHaveBeenCalledExactlyOnceWith(endCallback);
         expect(endCallback).toBeTypeOf("function");
 
-        endCallback!(); // simulate socket closing
+        endCallback!();
+        expect(socketMock.destroy).toHaveBeenCalledExactlyOnceWith();
+        socketMock.emit("close", false);
         await expect(promise).resolves.toBeUndefined();
       });
 
@@ -306,6 +333,7 @@ describe("MqttTransportAdapterV4", () => {
 
         expect(socketMock.destroy).toHaveBeenCalledExactlyOnceWith(error);
 
+        socketMock.emit("close", true);
         await expect(promise).resolves.toBeUndefined();
       });
 
@@ -315,7 +343,8 @@ describe("MqttTransportAdapterV4", () => {
         expect(socketMock.listenerCount("error")).toBe(1);
 
         const promise = adapter.disconnect();
-        endCallback!(); // simulate socket closing
+        endCallback!();
+        socketMock.emit("close", false);
         await expect(promise).resolves.toBeUndefined();
 
         expect(socketMock.listenerCount("data")).toBe(0);
@@ -329,6 +358,7 @@ describe("MqttTransportAdapterV4", () => {
         expect(socketMock.listenerCount("error")).toBe(1);
 
         const promise = adapter.disconnect(error);
+        socketMock.emit("close", true);
         await expect(promise).resolves.toBeUndefined();
 
         expect(socketMock.listenerCount("data")).toBe(0);
@@ -379,12 +409,12 @@ describe("MqttTransportAdapterV4", () => {
     });
 
     describe("close", () => {
-      it("throws an error if disconnectHandler callback is not set when socket emits close", async () => {
+      it("throws an error if disconnectHandler callback is not set when socket emits close", () => {
         const closeListener = socketMock.listeners(
           "close"
-        )[0] as () => Promise<void>;
+        )[0] as (hadError: boolean) => void;
 
-        await expect(closeListener()).rejects.toThrow(
+        expect(() => closeListener(false)).toThrow(
           /disconnectHandler callback is not set/
         );
       });
@@ -394,7 +424,7 @@ describe("MqttTransportAdapterV4", () => {
 
         adapter.disconnectHandler = disconnectListener;
 
-        socketMock.emit("close");
+        socketMock.emit("close", false);
 
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(undefined);
       });
@@ -406,7 +436,8 @@ describe("MqttTransportAdapterV4", () => {
 
         const error = new Error("ERR");
 
-        socketMock.emit("close", error);
+        socketMock.emit("error", error);
+        socketMock.emit("close", true);
 
         expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
       });
