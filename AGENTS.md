@@ -51,7 +51,10 @@ The primary goal is to deliver a working, tested MVP and finish the thesis. This
 
 ## MQTT specification — mandatory source of truth
 
-The official MQTT specification is stored locally in `docs/html/` (relative to the repository root).
+The official MQTT 3.1.1 specification with errata is stored locally in `docs/mqtt/` (relative to the repository root):
+
+- HTML: `docs/mqtt/mqtt-v3.1.1-plus-errata01.html` (primary source for reading and searching).
+- PDF: `docs/mqtt/mqtt-v3.1.1-plus-errata01.pdf`.
 
 **This documentation is the authoritative source for all MQTT protocol behavior. Do not rely on model memory or general MQTT knowledge when answering protocol-related questions.**
 
@@ -59,7 +62,7 @@ The official MQTT specification is stored locally in `docs/html/` (relative to t
 
 For every task involving MQTT protocol semantics, implementation, validation, or tests:
 
-1. **Read the relevant documentation from `docs/html/` before answering or modifying code.** Do this even if the behavior seems obvious or familiar.
+1. **Read the relevant sections of `docs/mqtt/mqtt-v3.1.1-plus-errata01.html` before answering or modifying code.** Do this even if the behavior seems obvious or familiar.
 2. Locate the exact sections defining the behavior, including applicable exceptions and edge cases.
 3. Base all protocol-related conclusions, implementation decisions, and test expectations on those sections.
 4. Reference the relevant section numbers and normative requirement identifiers (e.g. `[MQTT-4.7.1-1]`) when available.
