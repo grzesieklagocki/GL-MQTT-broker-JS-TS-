@@ -14,6 +14,13 @@ The primary goal is to deliver a working, tested MVP and finish the thesis. This
 - Do not assume that planned features are already implemented.
 - Check the code before making claims about implementation status.
 
+## Shared project context
+
+- If `docs/project-context.md` exists, read it before planning or implementing project tasks. It is a local, untracked file with project status, the current next step, decisions, and handoff notes.
+- Follow the current user request. The context and backlog do not authorize starting additional work or creating commits.
+- Distinguish user-reported results, locally verified behavior, and planned features. Helper classes and unit tests do not prove broker integration.
+- If the local context file exists and an authorized task changes project status, update it with evidence and an incremented revision. Do not claim another agent or an external dashboard has received an update without confirmation.
+
 ## Development principles
 
 - Prefer the simplest correct solution.
