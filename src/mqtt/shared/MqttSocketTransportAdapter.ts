@@ -13,14 +13,15 @@ import { AppError } from "@src/AppError";
 export class MqttSocketTransportAdapter<
   TPacket extends AnyPacket,
 > implements IMqttSocketTransportAdapter<TPacket> {
+  private disconnectPromise?: Promise<void>; // Promise that resolves when the transport is fully disconnected and cleaned up.
+  private resolveDisconnect?: () => void; // Function to resolve the disconnectPromise when cleanup is complete.
+  private closeError?: Error; // Error that caused the transport to close, if any.
+
   /**
    * Socket used for communication.
    * It is undefined when the adapter has no socket attached.
    */
   protected socket?: Socket;
-  private disconnectPromise?: Promise<void>;
-  private resolveDisconnect?: () => void;
-  private closeError?: Error;
 
   /**
    * Indicates whether the transport adapter currently has a socket attached.
@@ -132,6 +133,7 @@ export class MqttSocketTransportAdapter<
     this.disconnectPromise = undefined;
     this.resolveDisconnect = undefined;
     this.closeError = undefined;
+
     socket.on("data", this.receiveBytes);
     socket.on("close", this.handleSocketClose);
     socket.on("error", this.handleSocketError);
@@ -159,6 +161,7 @@ export class MqttSocketTransportAdapter<
     this.socket = undefined;
     this.disconnectPromise ??= Promise.resolve();
     this.codec.resetState();
+
     try {
       this.disconnectHandler(error);
     } finally {
@@ -168,11 +171,19 @@ export class MqttSocketTransportAdapter<
 
   private receiveBytes = (bytes: Uint8Array) => {
     if (this.disconnectPromise || this.closeError) return;
-    this.codec.feed(bytes);
+
+    try {
+      this.codec.feed(bytes);
+    } catch (error) {
+      void this.disconnect(
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
   };
 
   private handlePacket = (packet: TPacket) => {
     if (this.disconnectPromise || this.closeError) return;
+
     try {
       this.packetReceivedHandler(packet);
     } catch (error) {

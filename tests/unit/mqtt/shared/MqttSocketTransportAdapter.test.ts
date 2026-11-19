@@ -324,6 +324,29 @@ describe("MqttSocketTransportAdapter", () => {
         expect(codecMock.feed).toHaveBeenCalledExactlyOnceWith(data);
       });
 
+      it("closes the socket when codec.feed() throws", () => {
+        const error = new Error("Decoding failed");
+        const packetListener = vi.fn();
+        const disconnectListener = vi.fn();
+
+        adapter.packetReceivedHandler = packetListener;
+        adapter.disconnectHandler = disconnectListener;
+        vi.mocked(codecMock.feed).mockImplementationOnce(() => {
+          throw error;
+        });
+
+        expect(() => socketMock.emit("data", data)).not.toThrow();
+        expect(socketMock.destroy).toHaveBeenCalledExactlyOnceWith(error);
+        expect(packetListener).not.toHaveBeenCalled();
+        expect(disconnectListener).not.toHaveBeenCalled();
+
+        socketMock.emit("error", error);
+        socketMock.emit("close", true);
+
+        expect(disconnectListener).toHaveBeenCalledExactlyOnceWith(error);
+        expect(codecMock.resetState).toHaveBeenCalledTimes(1);
+      });
+
       it("invokes packetReceivedHandler() callback when codec emits a packet", () => {
         adapter.packetReceivedHandler = vi.fn();
 
