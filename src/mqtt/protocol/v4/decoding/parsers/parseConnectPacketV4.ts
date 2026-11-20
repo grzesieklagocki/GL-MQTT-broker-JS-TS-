@@ -9,7 +9,6 @@ import {
 import { AppError } from "@src/AppError";
 import {
   _assertValidConnectPacketV4,
-  _assertValidConnectPayloadV4,
   _assertValidConnectProtocolV4,
   _assertValidConnectFlags,
 } from "../../validation/connect";
@@ -45,7 +44,7 @@ export function parseConnectPacketV4(
   const keepAlive = reader.readTwoByteInteger();
 
   const payload = parsePayload(reader, connectFlags);
-  _assertValidConnectPayloadV4(payload.clientIdentifier);
+  // not validating the client identifier here; leave it to the broker to handle.
   _assertValidConnectPacketV4(connectFlags, payload);
 
   _assertAllBytesRead(reader);

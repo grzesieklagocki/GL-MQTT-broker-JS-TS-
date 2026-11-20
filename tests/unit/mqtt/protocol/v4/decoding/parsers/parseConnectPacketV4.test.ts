@@ -485,38 +485,38 @@ describe("parseConnectPacketV4", () => {
   // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length,
   // and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
   // [MQTT-3.1.3-5]
-  // A Server MAY allow a Client to supply a ClientId that has a length of zero bytes.
-  // However if it does so the Server MUST treat this as a special case and assign a unique ClientId to that Client.
-  // It MUST then process the CONNECT packet as if the Client had provided that unique ClientId.
-  // [MQTT-3.1.3-6]
-  it(`throw an Error for invalid ClientId`, () => {
-    ["a".repeat(24), "invalid!", "with space"].forEach((invalidId) => {
+  // The Server MAY also allow longer ClientIds or characters outside that set.
+  // The decoder passes these identifiers to the broker without deciding whether to accept them.
+  it.each(["a".repeat(24), "sensor-1", "with space"])(
+    "parses ClientId %j without applying broker restrictions",
+    (clientId) => {
       const readerMock = createConnectReaderMock(
-        [], // remaining values not needed
+        [0], // no unread bytes after parsing
         "MQTT", // protocol name
         4, // protocol level
         0b00000000, // Clean Session flag not set
         0x00, // keep alive
-        invalidId // client id
+        clientId
       );
 
-      expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-        /Client Id/
-      );
+      const packet = parseMqttPacketV4(fixedHeader, readerMock) as ConnectPacketV4;
+      expect(packet.payload.clientIdentifier).toBe(clientId);
 
       expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
       expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags
       expect(readerMock.readTwoByteInteger).toHaveBeenCalledOnce(); // keep alive
       expect(readerMock.readBinaryData).not.toHaveBeenCalled();
       expect(readerMock.readBytes).not.toHaveBeenCalled(); // not used
-    });
-  });
+    }
+  );
 
-  // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
-  // [MQTT-3.1.3-7]
-  it(`throw an Error for zero length ClientId when Clean Session flag is not set`, () => {
+  // If the Server accepts a zero-byte ClientId, it MUST assign a unique ClientId
+  // and process CONNECT as if the client had supplied it [MQTT-3.1.3-6].
+  // The client MUST set CleanSession to 1 for a zero-byte ClientId [MQTT-3.1.3-7].
+  // With CleanSession = 0, the broker MUST send CONNACK 0x02 and close the connection [MQTT-3.1.3-8].
+  it("parses an empty ClientId with CleanSession disabled", () => {
     const readerMock = createConnectReaderMock(
-      [], // remaining values not needed
+      [0], // no unread bytes after parsing
       "MQTT", // protocol name
       4, // protocol level
       0b00000000, // Clean Session flag not set
@@ -524,9 +524,9 @@ describe("parseConnectPacketV4", () => {
       "" // client id
     );
 
-    expect(() => parseMqttPacketV4(fixedHeader, readerMock)).toThrow(
-      /ClientId/
-    );
+    const packet = parseMqttPacketV4(fixedHeader, readerMock) as ConnectPacketV4;
+    expect(packet.payload.clientIdentifier).toBe("");
+    expect(packet.flags.cleanSession).toBe(false);
 
     expect(readerMock.readString).toHaveBeenCalledTimes(2); // protocol name, client id
     expect(readerMock.readOneByteInteger).toHaveBeenCalledTimes(2); // protocol level, flags

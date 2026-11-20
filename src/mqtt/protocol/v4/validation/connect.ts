@@ -19,7 +19,7 @@ export function _assertValidConnectVariableHeaderV4(
 }
 
 /**
- * Asserts that the given CONNECT packet is valid according to MQTT v4 specs.
+ * Checks the outgoing ClientId against the client's supported identifier policy.
  * @param clientIdentifier - The client identifier to validate.
  * @throws AppError if the packet is invalid.
  */
@@ -32,7 +32,7 @@ export function _assertValidConnectPayloadV4(clientIdentifier: string) {
     );
 
   // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
-  // [MQTT-3.1.3-5]
+  // [MQTT-3.1.3-5].
   //
   // allow zero-byte ClientId [MQTT-3.1.3-6]
   if (clientIdentifier.length > 0) {
@@ -112,13 +112,6 @@ export function _assertValidConnectPacketV4(
   if (flags.password && payload.password === undefined)
     throw new AppError(
       "If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21]"
-    );
-
-  // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
-  // [MQTT-3.1.3-7]
-  if (payload.clientIdentifier.length === 0 && !flags.cleanSession)
-    throw new AppError(
-      `If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].`
     );
 }
 

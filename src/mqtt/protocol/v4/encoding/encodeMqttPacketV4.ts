@@ -1,3 +1,4 @@
+import { AppError } from "@src/AppError";
 import { PacketType } from "../../shared/types";
 import { AnyPacketV4, PublishFlagsV4 } from "../types";
 import { _assertValidConnectPacketV4 } from "../validation/connect";
@@ -11,8 +12,15 @@ import { encodeVariableHeaderV4 } from "./encodeVariableHeaderV4";
  * @returns A Uint8Array representing the encoded MQTT packet.
  */
 export function encodeMqttPacketV4(packet: AnyPacketV4): Uint8Array {
-  if (packet.typeId === PacketType.CONNECT)
+  if (packet.typeId === PacketType.CONNECT) {
     _assertValidConnectPacketV4(packet.flags, packet.payload);
+
+    // Incoming CONNECT packets with this combination need CONNACK 0x02 instead.
+    if (packet.payload.clientIdentifier.length === 0 && !packet.flags.cleanSession)
+      throw new AppError(
+        "If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7]."
+      );
+  }
 
   const variableHeader = encodeVariableHeaderV4(packet);
   const payload = encodePayloadV4(packet);

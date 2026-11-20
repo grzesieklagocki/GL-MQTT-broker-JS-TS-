@@ -714,53 +714,48 @@ describe("parseConnectPacketV4", () => {
   // The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length,
   // and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
   // [MQTT-3.1.3-5]
-  // A Server MAY allow a Client to supply a ClientId that has a length of zero bytes.
-  // However if it does so the Server MUST treat this as a special case and assign a unique ClientId to that Client.
-  // It MUST then process the CONNECT packet as if the Client had provided that unique ClientId.
-  // [MQTT-3.1.3-6]
-  it(`throw an Error for invalid ClientId`, () => {
-    ["a".repeat(24), "invalid!", "with space", "含有非ASCII字符"].forEach(
-      (invalidId) => {
-        const encoder = new TextEncoder();
-        const invalidIdArray = encoder.encode(invalidId);
+  // The Server MAY also allow longer ClientIds or characters outside that set.
+  // The decoder passes these identifiers to the broker without deciding whether to accept them.
+  it.each(["a".repeat(24), "sensor-1", "with space", "sensor\u00e9"])(
+    "decodes ClientId %j without applying broker restrictions",
+    (clientId) => {
+      const clientIdBytes = new TextEncoder().encode(clientId);
 
-        const fixedHeader = createConnectFixedHeader(
-          12 + invalidIdArray.length
-        );
-        const array = new Uint8Array([
-          // protocol name length: 4
-          0x00,
-          0x04,
-          // protocol name: "MQTT"
-          0x4d,
-          0x51,
-          0x54,
-          0x54,
-          // protocol level: 4
-          0x04,
-          // flags: 0b00000000
-          0b00000010, // Clean Session flag set
-          // keep alive: 0xabdc
-          0xab,
-          0xdc,
-          // client identifier length
-          0x00,
-          invalidId.length,
-          // client identifier
-          ...invalidIdArray,
-        ]);
-        const reader = new MQTTReaderV4(array);
+      const fixedHeader = createConnectFixedHeader(12 + clientIdBytes.length);
+      const array = new Uint8Array([
+        // protocol name length: 4
+        0x00,
+        0x04,
+        // protocol name: "MQTT"
+        0x4d,
+        0x51,
+        0x54,
+        0x54,
+        // protocol level: 4
+        0x04,
+        0b00000010, // Clean Session flag set
+        // keep alive: 0xabdc
+        0xab,
+        0xdc,
+        // client identifier length in bytes
+        0x00,
+        clientIdBytes.length,
+        // client identifier
+        ...clientIdBytes,
+      ]);
+      const reader = new MQTTReaderV4(array);
 
-        expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
-          /Client Id/
-        );
-      }
-    );
-  });
+      expect(parseMqttPacketV4(fixedHeader, reader)).toMatchObject({
+        payload: { clientIdentifier: clientId },
+      });
+    }
+  );
 
-  // If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1.
-  // [MQTT-3.1.3-7]
-  it(`throw an Error for zero length ClientId when Clean Session flag is not set`, () => {
+  // If the Server accepts a zero-byte ClientId, it MUST assign a unique ClientId
+  // and process CONNECT as if the client had supplied it [MQTT-3.1.3-6].
+  // The client MUST set CleanSession to 1 for a zero-byte ClientId [MQTT-3.1.3-7].
+  // With CleanSession = 0, the broker MUST send CONNACK 0x02 and close the connection [MQTT-3.1.3-8].
+  it("decodes an empty ClientId with CleanSession disabled", () => {
     const array = new Uint8Array([
       // protocol name length: 4
       0x00,
@@ -784,9 +779,10 @@ describe("parseConnectPacketV4", () => {
     ]);
     const reader = new MQTTReaderV4(array);
 
-    expect(() => parseMqttPacketV4(fixedHeader, reader)).toThrow(
-      /MQTT-3.1.3-7/
-    );
+    expect(parseMqttPacketV4(fixedHeader, reader)).toMatchObject({
+      flags: { cleanSession: false },
+      payload: { clientIdentifier: "" },
+    });
   });
 
   // The Will Topic MUST be a UTF-8 encoded string as defined in Section 1.5.3.
