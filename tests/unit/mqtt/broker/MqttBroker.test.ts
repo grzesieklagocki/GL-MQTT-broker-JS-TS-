@@ -13,7 +13,7 @@ describe("MqttBroker", () => {
 
   const createListenerMock = (): IConnectionListener => ({
     listen: vi.fn(),
-    stop: vi.fn(),
+    stop: vi.fn(async () => {}),
     connectionHandler: vi.fn(),
     closeHandler: vi.fn(),
   });
@@ -136,6 +136,126 @@ describe("MqttBroker", () => {
         expect(listenerMock.stop).not.toHaveBeenCalled();
       });
     });
+
+    describe("stop()", () => {
+      it("stops all listeners and closes their connections without waiting for listeners first", async () => {
+        const secondConnection = createConnectionMock("second connection");
+        const closeListener = vi.fn();
+        broker.on("connectionClosed", closeListener);
+        broker.addConnectionListener(listenerMock);
+        broker.addConnectionListener(secondListenerMock);
+        listenerMock.connectionHandler(connectionMock);
+        secondListenerMock.connectionHandler(secondConnection);
+
+        let finishListenerStop!: () => void;
+        vi.mocked(listenerMock.stop).mockImplementation(
+          () => new Promise<void>((resolve) => {
+            finishListenerStop = resolve;
+          })
+        );
+        vi.mocked(connectionMock.transport.disconnect).mockImplementation(async () => {
+          connectionMock.transport.disconnectHandler();
+          finishListenerStop();
+        });
+        vi.mocked(secondConnection.transport.disconnect).mockImplementation(async () => {
+          secondConnection.transport.disconnectHandler();
+        });
+
+        const stopped = broker.stop();
+        expect(broker.stop()).toBe(stopped);
+        await stopped;
+
+        expect(broker.stop()).toBe(stopped);
+        expect(listenerMock.stop).toHaveBeenCalledTimes(1);
+        expect(secondListenerMock.stop).toHaveBeenCalledTimes(1);
+        expect(connectionMock.transport.disconnect).toHaveBeenCalledTimes(1);
+        expect(secondConnection.transport.disconnect).toHaveBeenCalledTimes(1);
+        expect(closeListener).toHaveBeenCalledTimes(2);
+        expect(closeListener).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ reason: "broker-stop" })
+        );
+        expect(closeListener).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ reason: "broker-stop" })
+        );
+      });
+
+      it("rejects new listeners and waits for the listener to close", async () => {
+        broker.addConnectionListener(listenerMock);
+        let finishListenerStop!: () => void;
+        vi.mocked(listenerMock.stop).mockImplementation(
+          () => new Promise<void>((resolve) => {
+            finishListenerStop = resolve;
+          })
+        );
+
+        const onStopped = vi.fn();
+        const stopped = broker.stop().then(onStopped);
+        expect(() => broker.addConnectionListener(secondListenerMock)).toThrow();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(listenerMock.stop).toHaveBeenCalledTimes(1);
+        expect(onStopped).not.toHaveBeenCalled();
+        finishListenerStop();
+        await stopped;
+
+        expect(onStopped).toHaveBeenCalledTimes(1);
+        expect(() => broker.addConnectionListener(secondListenerMock)).toThrow();
+        expect(secondListenerMock.listen).not.toHaveBeenCalled();
+      });
+
+      it("reports a stop failure only after the other resources finish", async () => {
+        const error = new Error("Listener stop failed");
+        broker.addConnectionListener(listenerMock);
+        broker.addConnectionListener(secondListenerMock);
+        secondListenerMock.connectionHandler(connectionMock);
+        vi.mocked(listenerMock.stop).mockImplementation(() => {
+          throw error;
+        });
+        let finishDisconnect!: () => void;
+        vi.mocked(connectionMock.transport.disconnect).mockImplementation(
+          () => new Promise<void>((resolve) => {
+            finishDisconnect = resolve;
+          })
+        );
+
+        const onRejected = vi.fn();
+        const stopped = broker.stop().catch(onRejected);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(secondListenerMock.stop).toHaveBeenCalledTimes(1);
+        expect(onRejected).not.toHaveBeenCalled();
+        finishDisconnect();
+        await stopped;
+
+        expect(onRejected).toHaveBeenCalledExactlyOnceWith(error);
+      });
+
+      it("reports a transport failure after the listener finishes stopping", async () => {
+        const error = new Error("Disconnect failed");
+        broker.addConnectionListener(listenerMock);
+        listenerMock.connectionHandler(connectionMock);
+        let finishListenerStop!: () => void;
+        vi.mocked(listenerMock.stop).mockImplementation(
+          () => new Promise<void>((resolve) => {
+            finishListenerStop = resolve;
+          })
+        );
+        vi.mocked(connectionMock.transport.disconnect).mockRejectedValue(error);
+
+        const onRejected = vi.fn();
+        const stopped = broker.stop().catch(onRejected);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(connectionMock.transport.disconnect).toHaveBeenCalledTimes(1);
+        expect(onRejected).not.toHaveBeenCalled();
+        finishListenerStop();
+        await stopped;
+
+        expect(onRejected).toHaveBeenCalledExactlyOnceWith(error);
+      });
+    });
   });
 
   describe("on listener event", () => {
@@ -210,6 +330,7 @@ describe("MqttBroker", () => {
       });
     });
   });
+
   describe("on transport disconnect", () => {
     it.each([undefined, new Error("Transport failed")])(
       "reports connection closure once (error: %s)",

@@ -8,7 +8,7 @@ export type MqttBrokerEvents = {
   connectionClosed: [
     event: ConnectionEvent &
       (
-        | { reason: "transport-closed" }
+        | { reason: "transport-closed" | "broker-stop" }
         | { reason: "transport-error"; error: Error }
       ),
   ];
@@ -31,9 +31,11 @@ export interface IConnectionListener {
   listen(): void;
 
   /**
-   * Stops listening for incoming connections.
+   * Stops reporting new connections immediately and resolves once closed.
+   * The listener closes any connections it has not passed to the broker.
+   * The returned promise may also wait for broker-owned transports to close.
    */
-  stop(): void;
+  stop(): Promise<void>;
 
   /**
    * Handler for new connections. This function is called when a new connection is established.
