@@ -582,6 +582,43 @@ describe("MqttBroker", () => {
       );
       expect(transport.disconnect).toHaveBeenCalledTimes(1);
     });
+
+    it("closes the transport with the original error when sending CONNACK fails", async () => {
+      const error = new Error("Could not send CONNACK");
+      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, "client");
+      const { transport } = connectionMock;
+      vi.mocked(transport.send).mockRejectedValueOnce(error);
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+    });
+
+    it("reports a failed disconnect without reporting the connection as closed", async () => {
+      const error = new Error("Could not disconnect");
+      const errorListener = vi.fn();
+      const closeListener = vi.fn();
+      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, "client");
+      const { transport } = connectionMock;
+      broker.on("brokerError", errorListener);
+      broker.on("connectionClosed", closeListener);
+      vi.mocked(authManagerMock.canLogin).mockReturnValue(false);
+      vi.mocked(transport.disconnect).mockRejectedValueOnce(error);
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith();
+      expect(errorListener).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          source: "connection-transport",
+          connectionId: expect.any(Number),
+          error,
+        })
+      );
+      expect(closeListener).not.toHaveBeenCalled();
+    });
   });
 
   describe("on transport disconnect", () => {

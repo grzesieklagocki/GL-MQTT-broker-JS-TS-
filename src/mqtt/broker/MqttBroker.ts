@@ -10,6 +10,7 @@ import {
   AnyPacketV4,
   ConnackPacketV4,
   ConnackReturnCodeV4,
+  ConnectPacketV4,
 } from "../protocol/v4/types";
 import { PacketType } from "../protocol/shared/types";
 import { MqttAuth } from "../shared/types";
@@ -84,6 +85,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     // Stop all active connections and collect their stop promises.
     for (const connection of this.connections.values()) {
       connection.stopping = true;
+      connection.phase = "closing";
 
       try {
         const task = connection.transport.disconnect();
@@ -111,6 +113,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     this.connectionListeners.delete(listener);
   }
 
+  //
+  // CONNECTION HANDLING
+  //
+
   /**
    * Handles a new incoming connection and sets up its state and event handlers.
    * @param connection The new incoming connection to handle.
@@ -124,11 +130,37 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       phase: "beforeConnect",
     };
 
+    // store the connection state in the connections map
     this.connections.set(connectionId, state);
 
-    // TODO: handle incoming packets from the transport
-    transport.packetReceivedHandler = (packet) =>
-      this.handlePacket(packet, connectionId);
+    // attach event handlers to the transport of the connection
+    this.attachTransportHandlers(connectionId, connectionInfo, state);
+
+    // emit the connection event to notify listeners of the new connection
+    this.emit("connection", { connectionId, connectionInfo });
+  };
+
+  /**
+   * Attaches event handlers to the transport of a connection.
+   * @param connectionId The ID of the connection.
+   * @param connectionInfo The information about the connection.
+   * @param state The state of the connection.
+   */
+  private attachTransportHandlers(
+    connectionId: number,
+    connectionInfo: string,
+    state: ConnectionState
+  ): void {
+    const { transport } = state;
+
+    transport.packetReceivedHandler = (packet) => {
+      void this.handlePacket(packet, connectionId).catch((error: unknown) => {
+        // catch error during packet handling and disconnect the connection
+        const cause = error instanceof Error ? error : new Error(String(error));
+
+        return this.disconnectConnection(connectionId, state, cause);
+      });
+    };
 
     transport.disconnectHandler = (error) => {
       // ignore repeated disconnects
@@ -146,12 +178,16 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
             } // without error
       );
     };
+  }
 
-    // emit the connection event to notify listeners of the new connection
-    this.emit("connection", { connectionId, connectionInfo });
-  };
+  //
+  // PACKET HANDLING
+  //
 
-  private handlePacket(packet: AnyPacketV4, connectionId: number) {
+  private async handlePacket(
+    packet: AnyPacketV4,
+    connectionId: number
+  ): Promise<void> {
     const connection = this.connections.get(connectionId);
 
     if (!connection) return; // ignore packets for unknown connections
@@ -168,52 +204,86 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         packet.typeId === PacketType.CONNECT)
     ) {
       // close the connection without sending a response due to protocol violation
-      connection.phase = "closing";
-      connection.transport.disconnect();
-
+      await this.disconnectConnection(connectionId, connection);
       return;
     }
 
     if (packet.typeId === PacketType.CONNECT) {
-      const hasCredentials = packet.flags.userName; // if the username flag is set, the client has provided credentials
-      const auth: MqttAuth | undefined = hasCredentials
-        ? {
-            user: packet.payload.userName!, // if username flag is set, user must be present
-            password: packet.payload.password,
-          }
-        : undefined; // when no credentials provided
-
-      // check if the client id is valid
-      const hasValidClientId = isBasicClientId(packet.payload.clientIdentifier);
-
-      const canLogin =
-        hasValidClientId &&
-        // ask the authentication service if the client can login
-        this.auth.canLogin(auth);
-
-      const sessionPresent = false; // TODO: determine if a session is already present for this client
-      const returnCode = canLogin
-        ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
-        : hasValidClientId
-          ? ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
-          : ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED;
-
-      const isConnectionAccepted =
-        returnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED;
-
-      connection.phase = isConnectionAccepted ? "connected" : "closing";
-
-      // create the CONNACK response packet and send it to the client
-      const response: ConnackPacketV4 =
-        MqttPacketV4Factory.createConnackPacketV4(sessionPresent, returnCode);
-      connection.transport.send(response);
-
-      // if connection is not accepted, disconnect the transport
-      if (!isConnectionAccepted) {
-        connection.transport.disconnect();
-      }
+      await this.handleConnectPacket(packet, connectionId, connection);
     }
     // TODO: other packet types handling1
     else throw Error("Unhandled packet type");
+  }
+
+  /**
+   * Handles an incoming CONNECT packet from a client.
+   * @param packet The CONNECT packet received from the client.
+   * @param connection The state of the connection from which the packet was received.
+   */
+  private async handleConnectPacket(
+    packet: ConnectPacketV4,
+    connectionId: number,
+    connection: ConnectionState
+  ): Promise<void> {
+    const hasCredentials = packet.flags.userName; // if the username flag is set, the client has provided credentials
+    const auth: MqttAuth | undefined = hasCredentials
+      ? {
+          user: packet.payload.userName!, // if username flag is set, user must be present
+          password: packet.payload.password,
+        }
+      : undefined; // when no credentials provided
+
+    // check if the client id is valid
+    const hasValidClientId = isBasicClientId(packet.payload.clientIdentifier);
+
+    const canLogin =
+      hasValidClientId &&
+      // ask the authentication service if the client can login
+      this.auth.canLogin(auth);
+
+    const sessionPresent = false; // TODO: determine if a session is already present for this client
+    const returnCode = canLogin
+      ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
+      : hasValidClientId
+        ? ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+        : ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED;
+
+    const isConnectionAccepted =
+      returnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED;
+
+    connection.phase = isConnectionAccepted ? "connected" : "closing";
+
+    // create the CONNACK response packet and send it to the client
+    const response: ConnackPacketV4 = MqttPacketV4Factory.createConnackPacketV4(
+      sessionPresent,
+      returnCode
+    );
+
+    await connection.transport.send(response);
+
+    // if connection is not accepted, disconnect the transport
+    if (!isConnectionAccepted) {
+      await this.disconnectConnection(connectionId, connection);
+    }
+  }
+
+  private async disconnectConnection(
+    connectionId: number,
+    connection: ConnectionState,
+    error?: Error
+  ): Promise<void> {
+    if (!this.connections.has(connectionId)) return;
+
+    connection.phase = "closing";
+    try {
+      if (error) await connection.transport.disconnect(error);
+      else await connection.transport.disconnect();
+    } catch (error) {
+      this.emit("brokerError", {
+        source: "connection-transport",
+        connectionId,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
   }
 }

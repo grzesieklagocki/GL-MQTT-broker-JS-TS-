@@ -12,7 +12,11 @@ export type MqttBrokerEvents = {
         | { reason: "transport-error"; error: Error }
       ),
   ];
-  brokerError: [event: { source: "network-listener"; error: Error }];
+  brokerError: [
+    event:
+      | { source: "network-listener"; error: Error }
+      | { source: "connection-transport"; connectionId: number; error: Error },
+  ];
 };
 
 /** A transport accepted by a listener, with its diagnostic description. */
