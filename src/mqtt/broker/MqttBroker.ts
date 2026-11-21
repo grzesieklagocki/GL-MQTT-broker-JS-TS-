@@ -264,6 +264,12 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     // if connection is not accepted, disconnect the transport
     if (!isConnectionAccepted) {
       await this.disconnectConnection(connectionId, connection);
+    } else {
+      // if the connection is accepted, emit the clientConnected event
+      this.emit("clientConnected", {
+        clientId: packet.payload.clientIdentifier,
+        connectionId: connectionId,
+      });
     }
   }
 

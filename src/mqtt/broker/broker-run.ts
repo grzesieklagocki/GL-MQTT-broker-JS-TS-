@@ -39,5 +39,17 @@ broker.on("connection", (event) => {
   );
 });
 
+broker.on("connectionClosed", (event) => {
+  console.log(
+    `Connection closed (id:${event.connectionId}) from ${event.connectionInfo} due to: ${event.reason}${event.reason === "transport-error" ? `: ${event.error}` : ""}`
+  );
+});
+
+broker.on("clientConnected", (event) => {
+  console.log(
+    `Client connected (id:${event.connectionId}) with clientId: ${event.clientId}`
+  );
+});
+
 process.once("SIGINT", stopBroker); // stop the broker on Ctrl+C signal
 broker.addConnectionListener(listener);

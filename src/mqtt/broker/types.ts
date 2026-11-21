@@ -12,6 +12,7 @@ export type MqttBrokerEvents = {
         | { reason: "transport-error"; error: Error }
       ),
   ];
+  clientConnected: [event: { connectionId: number; clientId: string }];
   brokerError: [
     event:
       | { source: "network-listener"; error: Error }

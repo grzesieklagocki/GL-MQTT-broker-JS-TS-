@@ -355,10 +355,44 @@ describe("MqttBroker", () => {
 
   describe("on transport packet", () => {
     const password = new Uint8Array([0, 255]);
+    let connectionId: number;
 
     beforeEach(() => {
       broker.addConnectionListener(listenerMock);
+      broker.once("connection", (event) => {
+        connectionId = event.connectionId;
+      });
       listenerMock.connectionHandler(connectionMock);
+    });
+
+    it("emits clientConnected only after sending a successful CONNACK", async () => {
+      const clientId = "client";
+      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, clientId);
+      const { transport } = connectionMock;
+      const clientConnectedListener = vi.fn();
+      broker.on("clientConnected", clientConnectedListener);
+      let finishSend!: () => void;
+      vi.mocked(transport.send).mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishSend = resolve;
+        })
+      );
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      expect(clientConnectedListener).not.toHaveBeenCalled();
+
+      finishSend();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(clientConnectedListener).toHaveBeenCalledExactlyOnceWith({
+        connectionId,
+        clientId,
+      });
     });
 
     it.each([
@@ -438,6 +472,8 @@ describe("MqttBroker", () => {
 
     it("sends a refusal before closing the transport when login is denied", async () => {
       vi.mocked(authManagerMock.canLogin).mockReturnValue(false);
+      const clientConnectedListener = vi.fn();
+      broker.on("clientConnected", clientConnectedListener);
       const packet = MqttPacketV4Factory.createConnectPacketV4(
         true,
         0,
@@ -463,6 +499,7 @@ describe("MqttBroker", () => {
       ).toBeLessThan(
         vi.mocked(transport.disconnect).mock.invocationCallOrder[0]
       ); // check that send was called before disconnect
+      expect(clientConnectedListener).not.toHaveBeenCalled();
     });
 
     // If the broker rejects a ClientId, it must send 0x02 and close [MQTT-3.1.3-9].
@@ -490,6 +527,8 @@ describe("MqttBroker", () => {
     ])(
       "sends a refusal before closing the transport for $name",
       async ({ clientId, cleanSession }) => {
+        const clientConnectedListener = vi.fn();
+        broker.on("clientConnected", clientConnectedListener);
         const packet = MqttPacketV4Factory.createConnectPacketV4(
           cleanSession,
           0,
@@ -513,6 +552,7 @@ describe("MqttBroker", () => {
         ).toBeLessThan(
           vi.mocked(transport.disconnect).mock.invocationCallOrder[0]
         );
+        expect(clientConnectedListener).not.toHaveBeenCalled();
       }
     );
 
@@ -585,6 +625,8 @@ describe("MqttBroker", () => {
 
     it("closes the transport with the original error when sending CONNACK fails", async () => {
       const error = new Error("Could not send CONNACK");
+      const clientConnectedListener = vi.fn();
+      broker.on("clientConnected", clientConnectedListener);
       const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, "client");
       const { transport } = connectionMock;
       vi.mocked(transport.send).mockRejectedValueOnce(error);
@@ -593,6 +635,7 @@ describe("MqttBroker", () => {
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+      expect(clientConnectedListener).not.toHaveBeenCalled();
     });
 
     it("reports a failed disconnect without reporting the connection as closed", async () => {
