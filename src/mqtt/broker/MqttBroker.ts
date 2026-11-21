@@ -3,6 +3,7 @@ import {
   AcceptedConnection,
   ConnectionState,
   IAuthManager,
+  ClientSession,
   IConnectionListener,
   MqttBrokerEvents,
 } from "./types";
@@ -22,6 +23,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
   private readonly connectionListeners = new Set<IConnectionListener>();
   private readonly connections = new Map<number, ConnectionState>();
+
+  private readonly sessions = new Map<string, ClientSession>();
 
   private stopPromise?: Promise<void>;
 
@@ -144,27 +147,43 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    * Attaches event handlers to the transport of a connection.
    * @param connectionId The ID of the connection.
    * @param connectionInfo The information about the connection.
-   * @param state The state of the connection.
+   * @param connection The state of the connection.
    */
   private attachTransportHandlers(
     connectionId: number,
     connectionInfo: string,
-    state: ConnectionState
+    connection: ConnectionState
   ): void {
-    const { transport } = state;
+    const { transport } = connection;
 
     transport.packetReceivedHandler = (packet) => {
       void this.handlePacket(packet, connectionId).catch((error: unknown) => {
         // catch error during packet handling and disconnect the connection
         const cause = error instanceof Error ? error : new Error(String(error));
 
-        return this.disconnectConnection(connectionId, state, cause);
+        return this.disconnectConnection(connectionId, connection, cause);
       });
     };
 
     transport.disconnectHandler = (error) => {
       // ignore repeated disconnects
       if (!this.connections.delete(connectionId)) return;
+
+      // skip if there is no active session for this client
+      if (connection.clientId) {
+        const session = this.sessions.get(connection.clientId);
+
+        // ensure it is actual session
+        if (session?.activeConnection === connection) {
+          // if session is permanent, clear the active connection
+          if (session.isPermanent) {
+            session.activeConnection = undefined;
+          } else {
+            // if session is not permanent, delete entire session
+            this.sessions.delete(connection.clientId);
+          }
+        }
+      }
 
       // emit the connectionClosed event with the reason and optional error
       this.emit(
@@ -174,7 +193,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
           : {
               connectionId,
               connectionInfo,
-              reason: state.stopping ? "broker-stop" : "transport-closed",
+              reason: connection.stopping ? "broker-stop" : "transport-closed",
             } // without error
       );
     };
@@ -241,7 +260,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // ask the authentication service if the client can login
       this.auth.canLogin(auth);
 
-    const sessionPresent = false; // TODO: determine if a session is already present for this client
     const returnCode = canLogin
       ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
       : hasValidClientId
@@ -253,25 +271,60 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
     connection.phase = isConnectionAccepted ? "connected" : "closing";
 
+    const clientId = packet.payload.clientIdentifier;
+    const sessionPresent =
+      !packet.flags.cleanSession &&
+      isConnectionAccepted &&
+      this.sessions.has(clientId);
+
     // create the CONNACK response packet and send it to the client
     const response: ConnackPacketV4 = MqttPacketV4Factory.createConnackPacketV4(
       sessionPresent,
       returnCode
     );
 
+    // send the CONNACK response to the client
     await connection.transport.send(response);
 
     // if connection is not accepted, disconnect the transport
     if (!isConnectionAccepted) {
       await this.disconnectConnection(connectionId, connection);
     } else {
-      // if the connection is accepted, emit the clientConnected event
+      // create or update session for the client
+      this.updateSession(clientId, connection, packet.flags.cleanSession);
+
+      // store client id in the connection state
+      connection.clientId = clientId;
+
+      //  emit the clientConnected event
       this.emit("clientConnected", {
-        clientId: packet.payload.clientIdentifier,
+        clientId: clientId,
         connectionId: connectionId,
       });
     }
   }
+
+  private updateSession = (
+    clientId: string,
+    connection: ConnectionState,
+    cleanSession: boolean
+  ) => {
+    if (this.sessions.has(clientId)) {
+      // if session already exists, update its fields
+      const session = this.sessions.get(clientId);
+
+      session!.activeConnection = connection; // is guaranteed to exist since we checked with has()
+      session!.isPermanent = !cleanSession;
+    } else {
+      // if session does not exist, create a new one
+      const session = {
+        activeConnection: connection,
+        isPermanent: !cleanSession,
+      };
+
+      this.sessions.set(clientId, session);
+    }
+  };
 
   private async disconnectConnection(
     connectionId: number,
@@ -281,6 +334,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     if (!this.connections.has(connectionId)) return;
 
     connection.phase = "closing";
+
     try {
       if (error) await connection.transport.disconnect(error);
       else await connection.transport.disconnect();

@@ -470,6 +470,87 @@ describe("MqttBroker", () => {
       );
     });
 
+    describe("session lifecycle", () => {
+      const clientId = "client";
+
+      function reconnect(cleanSession: boolean, id = clientId) {
+        const connection = createConnectionMock("new connection");
+        listenerMock.connectionHandler(connection);
+        connection.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(cleanSession, 0, id)
+        );
+        return connection.transport;
+      }
+
+      async function connectAndClose(cleanSession: boolean): Promise<void> {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(cleanSession, 0, clientId)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        transport.disconnectHandler();
+      }
+
+      // Even an empty session must be kept after disconnect [MQTT-3.1.2-4].
+      it("reports an existing empty session when the same client reconnects", async () => {
+        await connectAndClose(false);
+
+        const transport = reconnect(false);
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+      });
+
+      it("does not report a stored session for a different ClientId", async () => {
+        await connectAndClose(false);
+
+        const transport = reconnect(false, "other");
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+      });
+
+      // A clean session lasts only as long as its connection [MQTT-3.1.2-6].
+      it("does not keep a clean session after the connection closes", async () => {
+        await connectAndClose(true);
+
+        const transport = reconnect(false);
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+      });
+
+      it("discards a stored session when the client reconnects with CleanSession enabled", async () => {
+        await connectAndClose(false);
+
+        const resumedTransport = reconnect(false);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(resumedTransport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+        resumedTransport.disconnectHandler();
+
+        const cleanTransport = reconnect(true);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(cleanTransport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        cleanTransport.disconnectHandler();
+
+        const transport = reconnect(false);
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+      });
+    });
+
     it("sends a refusal before closing the transport when login is denied", async () => {
       vi.mocked(authManagerMock.canLogin).mockReturnValue(false);
       const clientConnectedListener = vi.fn();

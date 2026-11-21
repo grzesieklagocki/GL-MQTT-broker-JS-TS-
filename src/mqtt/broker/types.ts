@@ -78,7 +78,13 @@ export type ConnectionPhase = "beforeConnect" | "connected" | "closing";
  * Represents the state of a connection, including its transport, stopping status, and phase.
  */
 export type ConnectionState = {
-  transport: AcceptedConnection["transport"];
-  stopping: boolean;
-  phase: ConnectionPhase;
+  transport: AcceptedConnection["transport"]; // transport adapter for the connection
+  stopping: boolean; // indicates if the connection is in the process of stopping
+  phase: ConnectionPhase; // current phase of the connection (beforeConnect, connected, or closing)
+  clientId?: string; // the client identifier associated with the connection (optional, set after CONNECT)
+};
+
+export type ClientSession = {
+  isPermanent: boolean;
+  activeConnection?: ConnectionState;
 };
