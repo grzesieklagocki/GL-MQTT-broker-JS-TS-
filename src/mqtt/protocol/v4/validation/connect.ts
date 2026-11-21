@@ -18,6 +18,17 @@ export function _assertValidConnectVariableHeaderV4(
   _assertValidConnectFlags(flags);
 }
 
+const maxBasicClientIdLength = 23;
+
+/**
+ * Checks the non-empty ClientId range every MQTT 3.1.1 broker must support.
+ * @param clientId - The client identifier to check.
+ * @returns True if the clientId is valid according to the basic client ID rules, false otherwise.
+ */
+export const isBasicClientId = (clientId: string): boolean =>
+  // [MQTT-3.1.3-5]: ASCII alphanumeric characters each occupy one UTF-8 byte.
+  clientId.length <= maxBasicClientIdLength && /^[0-9a-zA-Z]+$/.test(clientId);
+
 /**
  * Checks the outgoing ClientId against the client's supported identifier policy.
  * @param clientIdentifier - The client identifier to validate.
@@ -35,20 +46,16 @@ export function _assertValidConnectPayloadV4(clientIdentifier: string) {
   // [MQTT-3.1.3-5].
   //
   // allow zero-byte ClientId [MQTT-3.1.3-6]
-  if (clientIdentifier.length > 0) {
-    if (clientIdentifier.length > 23)
+  if (clientIdentifier !== "" && !isBasicClientId(clientIdentifier)) {
+    if (clientIdentifier.length > maxBasicClientIdLength)
       throw new AppError(
         `The Client Identifier has invalid length: ${clientIdentifier.length}. It must be between 1 and 23 UTF-8 encoded bytes in length [MQTT-3.1.3-5]`
       );
 
-    const allowedCharsRegex = /^[0-9a-zA-Z]+$/;
-    const hasDisallowedChars = !allowedCharsRegex.test(clientIdentifier);
-
-    if (hasDisallowedChars)
-      throw new AppError(
-        `The Client Identifier contains invalid characters: "${clientIdentifier}". ` +
-          `Only "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" are allowed. [MQTT-3.1.3-5]`
-      );
+    throw new AppError(
+      `The Client Identifier contains invalid characters: "${clientIdentifier}". ` +
+        `Only "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" are allowed. [MQTT-3.1.3-5]`
+    );
   }
 }
 

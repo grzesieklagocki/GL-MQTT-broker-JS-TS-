@@ -2,14 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttBroker } from "@mqtt/broker/MqttBroker";
 import {
   AcceptedConnection,
+  IAuthManager,
   IConnectionListener,
 } from "@mqtt/broker/types";
+import { PacketType } from "@mqtt/protocol/shared/types";
+import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
+import { ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
 
 describe("MqttBroker", () => {
   let broker: MqttBroker;
   let listenerMock: IConnectionListener;
   let secondListenerMock: IConnectionListener;
   let connectionMock: AcceptedConnection;
+  let authManagerMock: IAuthManager;
 
   const createListenerMock = (): IConnectionListener => ({
     listen: vi.fn(),
@@ -28,8 +33,13 @@ describe("MqttBroker", () => {
     },
   });
 
+  const createAuthManagerMock = (): IAuthManager => ({
+    canLogin: vi.fn(() => true),
+  });
+
   beforeEach(() => {
-    broker = new MqttBroker();
+    authManagerMock = createAuthManagerMock();
+    broker = new MqttBroker(authManagerMock);
     listenerMock = createListenerMock();
     secondListenerMock = createListenerMock();
     connectionMock = createConnectionMock("test connection");
@@ -115,10 +125,10 @@ describe("MqttBroker", () => {
       it("keeps the first listener accepting connections when the second listener fails to start", () => {
         const error = new Error("Listen failed");
         const connectionListener = vi.fn();
-        
+
         broker.on("connection", connectionListener);
         broker.addConnectionListener(listenerMock);
-        
+
         vi.mocked(secondListenerMock.listen).mockImplementationOnce(() => {
           throw error;
         });
@@ -126,7 +136,7 @@ describe("MqttBroker", () => {
         expect(() => broker.addConnectionListener(secondListenerMock)).toThrow(
           error
         );
-        
+
         listenerMock.connectionHandler(connectionMock);
 
         expect(connectionListener).toHaveBeenCalledExactlyOnceWith({
@@ -149,17 +159,22 @@ describe("MqttBroker", () => {
 
         let finishListenerStop!: () => void;
         vi.mocked(listenerMock.stop).mockImplementation(
-          () => new Promise<void>((resolve) => {
-            finishListenerStop = resolve;
-          })
+          () =>
+            new Promise<void>((resolve) => {
+              finishListenerStop = resolve;
+            })
         );
-        vi.mocked(connectionMock.transport.disconnect).mockImplementation(async () => {
-          connectionMock.transport.disconnectHandler();
-          finishListenerStop();
-        });
-        vi.mocked(secondConnection.transport.disconnect).mockImplementation(async () => {
-          secondConnection.transport.disconnectHandler();
-        });
+        vi.mocked(connectionMock.transport.disconnect).mockImplementation(
+          async () => {
+            connectionMock.transport.disconnectHandler();
+            finishListenerStop();
+          }
+        );
+        vi.mocked(secondConnection.transport.disconnect).mockImplementation(
+          async () => {
+            secondConnection.transport.disconnectHandler();
+          }
+        );
 
         const stopped = broker.stop();
         expect(broker.stop()).toBe(stopped);
@@ -185,14 +200,17 @@ describe("MqttBroker", () => {
         broker.addConnectionListener(listenerMock);
         let finishListenerStop!: () => void;
         vi.mocked(listenerMock.stop).mockImplementation(
-          () => new Promise<void>((resolve) => {
-            finishListenerStop = resolve;
-          })
+          () =>
+            new Promise<void>((resolve) => {
+              finishListenerStop = resolve;
+            })
         );
 
         const onStopped = vi.fn();
         const stopped = broker.stop().then(onStopped);
-        expect(() => broker.addConnectionListener(secondListenerMock)).toThrow();
+        expect(() =>
+          broker.addConnectionListener(secondListenerMock)
+        ).toThrow();
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         expect(listenerMock.stop).toHaveBeenCalledTimes(1);
@@ -201,7 +219,9 @@ describe("MqttBroker", () => {
         await stopped;
 
         expect(onStopped).toHaveBeenCalledTimes(1);
-        expect(() => broker.addConnectionListener(secondListenerMock)).toThrow();
+        expect(() =>
+          broker.addConnectionListener(secondListenerMock)
+        ).toThrow();
         expect(secondListenerMock.listen).not.toHaveBeenCalled();
       });
 
@@ -215,9 +235,10 @@ describe("MqttBroker", () => {
         });
         let finishDisconnect!: () => void;
         vi.mocked(connectionMock.transport.disconnect).mockImplementation(
-          () => new Promise<void>((resolve) => {
-            finishDisconnect = resolve;
-          })
+          () =>
+            new Promise<void>((resolve) => {
+              finishDisconnect = resolve;
+            })
         );
 
         const onRejected = vi.fn();
@@ -238,9 +259,10 @@ describe("MqttBroker", () => {
         listenerMock.connectionHandler(connectionMock);
         let finishListenerStop!: () => void;
         vi.mocked(listenerMock.stop).mockImplementation(
-          () => new Promise<void>((resolve) => {
-            finishListenerStop = resolve;
-          })
+          () =>
+            new Promise<void>((resolve) => {
+              finishListenerStop = resolve;
+            })
         );
         vi.mocked(connectionMock.transport.disconnect).mockRejectedValue(error);
 
@@ -263,7 +285,7 @@ describe("MqttBroker", () => {
       it("accepts connections from both listeners", () => {
         const connectionListener = vi.fn();
         const secondConnection = createConnectionMock("second connection");
-        
+
         broker.on("connection", connectionListener);
         broker.addConnectionListener(listenerMock);
         broker.addConnectionListener(secondListenerMock);
@@ -298,7 +320,7 @@ describe("MqttBroker", () => {
 
       it("does not stop another listener or close accepted connections", () => {
         const connectionListener = vi.fn();
-        
+
         broker.on("connection", connectionListener);
         broker.addConnectionListener(listenerMock);
         broker.addConnectionListener(secondListenerMock);
@@ -317,7 +339,7 @@ describe("MqttBroker", () => {
       it("reports a listener error through brokerError", () => {
         const error = new Error("Listener failed");
         const errorListener = vi.fn();
-        
+
         broker.on("brokerError", errorListener);
         broker.addConnectionListener(listenerMock);
 
@@ -331,18 +353,249 @@ describe("MqttBroker", () => {
     });
   });
 
+  describe("on transport packet", () => {
+    const password = new Uint8Array([0, 255]);
+
+    beforeEach(() => {
+      broker.addConnectionListener(listenerMock);
+      listenerMock.connectionHandler(connectionMock);
+    });
+
+    it.each([
+      {
+        name: "anonymous client",
+        userName: undefined,
+        password: undefined,
+        auth: undefined,
+      },
+      {
+        name: "username only",
+        userName: "user",
+        password: undefined,
+        auth: { user: "user" },
+      },
+      {
+        name: "username and password",
+        userName: "user",
+        password,
+        auth: { user: "user", password },
+      },
+      {
+        name: "empty username",
+        userName: "",
+        password,
+        auth: { user: "", password },
+      },
+    ])("accepts CONNECT with $name", ({ userName, password, auth }) => {
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client",
+        userName,
+        password
+      );
+      const { transport } = connectionMock;
+
+      transport.packetReceivedHandler(packet);
+
+      expect(authManagerMock.canLogin).toHaveBeenCalledExactlyOnceWith(auth);
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      expect(transport.disconnect).not.toHaveBeenCalled();
+    });
+
+    it.each(["A", "a".repeat(23)])(
+      "accepts ClientId %j at the length boundary",
+      (clientId) => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          true,
+          0,
+          clientId
+        );
+
+        connectionMock.transport.packetReceivedHandler(packet);
+
+        expect(connectionMock.transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+      }
+    );
+
+    it("reports no existing session on the first CONNECT with CleanSession disabled", () => {
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        false,
+        0,
+        "client"
+      );
+
+      connectionMock.transport.packetReceivedHandler(packet);
+
+      expect(connectionMock.transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+    });
+
+    it("sends a refusal before closing the transport when login is denied", async () => {
+      vi.mocked(authManagerMock.canLogin).mockReturnValue(false);
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client"
+      );
+      const { transport } = connectionMock;
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(authManagerMock.canLogin).toHaveBeenCalledExactlyOnceWith(
+        undefined
+      );
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(
+          false,
+          ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+        )
+      );
+      expect(transport.disconnect).toHaveBeenCalledTimes(1);
+      expect(
+        vi.mocked(transport.send).mock.invocationCallOrder[0]
+      ).toBeLessThan(
+        vi.mocked(transport.disconnect).mock.invocationCallOrder[0]
+      ); // check that send was called before disconnect
+    });
+
+    // If the broker rejects a ClientId, it must send 0x02 and close [MQTT-3.1.3-9].
+    it.each([
+      {
+        name: "a 24-byte ClientId",
+        clientId: "a".repeat(24),
+        cleanSession: true,
+      },
+      {
+        name: "a ClientId with a hyphen",
+        clientId: "sensor-1",
+        cleanSession: true,
+      },
+      {
+        name: "an empty ClientId with CleanSession enabled",
+        clientId: "",
+        cleanSession: true,
+      },
+      {
+        name: "an empty ClientId with CleanSession disabled",
+        clientId: "",
+        cleanSession: false,
+      },
+    ])(
+      "sends a refusal before closing the transport for $name",
+      async ({ clientId, cleanSession }) => {
+        const packet = MqttPacketV4Factory.createConnectPacketV4(
+          cleanSession,
+          0,
+          clientId
+        );
+        const { transport } = connectionMock;
+
+        transport.packetReceivedHandler(packet);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(authManagerMock.canLogin).not.toHaveBeenCalled();
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(
+            false,
+            ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED
+          )
+        );
+        expect(transport.disconnect).toHaveBeenCalledTimes(1);
+        expect(
+          vi.mocked(transport.send).mock.invocationCallOrder[0]
+        ).toBeLessThan(
+          vi.mocked(transport.disconnect).mock.invocationCallOrder[0]
+        );
+      }
+    );
+
+    it("closes the transport without CONNACK if the first packet is not CONNECT", async () => {
+      const packet = MqttPacketV4Factory.createSimplePacketV4(
+        PacketType.PINGREQ
+      );
+      const { transport } = connectionMock;
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(authManagerMock.canLogin).not.toHaveBeenCalled();
+      expect(transport.send).not.toHaveBeenCalled();
+      expect(transport.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    // A second CONNECT on the same transport violates [MQTT-3.1.0-2].
+    it("closes the transport on a second CONNECT without authenticating again", async () => {
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client"
+      );
+      const secondPacket = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "other"
+      );
+      const { transport } = connectionMock;
+
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      expect(transport.disconnect).not.toHaveBeenCalled();
+
+      transport.packetReceivedHandler(secondPacket);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(authManagerMock.canLogin).toHaveBeenCalledTimes(1);
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      expect(transport.disconnect).toHaveBeenCalledTimes(1);
+    });
+
+    // After refusal the broker must not process further data [MQTT-3.1.4-5].
+    it("ignores the next packet after a refused CONNECT even before transport closure", async () => {
+      vi.mocked(authManagerMock.canLogin).mockReturnValueOnce(false);
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client"
+      );
+      const { transport } = connectionMock;
+
+      transport.packetReceivedHandler(packet);
+      transport.packetReceivedHandler(packet);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(authManagerMock.canLogin).toHaveBeenCalledTimes(1);
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(
+          false,
+          ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+        )
+      );
+      expect(transport.disconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("on transport disconnect", () => {
     it.each([undefined, new Error("Transport failed")])(
       "reports connection closure once (error: %s)",
       (error) => {
         const connectionListener = vi.fn();
         const closeListener = vi.fn();
-        
+
         broker.on("connection", connectionListener);
         broker.on("connectionClosed", closeListener);
         broker.addConnectionListener(listenerMock);
         listenerMock.connectionHandler(connectionMock);
-        
+
         const { connectionId } = connectionListener.mock.calls[0][0];
 
         connectionMock.transport.disconnectHandler(error);

@@ -1,5 +1,5 @@
 import { AnyPacketV4 } from "../protocol/v4/types";
-import { IMqttSocketTransportAdapter } from "../shared/types";
+import { IMqttSocketTransportAdapter, MqttAuth } from "../shared/types";
 
 type ConnectionEvent = { connectionId: number; connectionInfo: string };
 
@@ -49,3 +49,31 @@ export interface IConnectionListener {
    */
   closeHandler: (error?: Error) => void;
 }
+
+/**
+ * Manages authentication for MQTT clients.
+ */
+export interface IAuthManager {
+  /**
+   * Determines if the provided authentication credentials are valid for login.
+   * @param auth The authentication credentials to check.
+   * @returns `true` if the credentials are valid, `false` otherwise.
+   */
+  canLogin(auth?: MqttAuth): boolean;
+
+  //TODO: canSubscribe, canPublish
+}
+
+/**
+ * Represents the phase of a connection
+ */
+export type ConnectionPhase = "beforeConnect" | "connected" | "closing";
+
+/**
+ * Represents the state of a connection, including its transport, stopping status, and phase.
+ */
+export type ConnectionState = {
+  transport: AcceptedConnection["transport"];
+  stopping: boolean;
+  phase: ConnectionPhase;
+};
