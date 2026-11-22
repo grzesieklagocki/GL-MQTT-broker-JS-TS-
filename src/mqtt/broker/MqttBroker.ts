@@ -308,7 +308,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         const pingresp = MqttPacketV4Factory.createSimplePacketV4(
           PacketType.PINGRESP
         );
-        await connection.transport.send(pingresp);
+        await this.trySend(connection, pingresp);
         break;
 
       case PacketType.DISCONNECT:
@@ -375,7 +375,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     );
 
     // send the CONNACK response to the client
-    await connection.transport.send(response);
+    if (!(await this.trySend(connection, response))) return;
 
     // if connection is not accepted, disconnect the transport
     if (!isConnectionAccepted) {
@@ -416,11 +416,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // skip if the client connection is not active or not in the connected phase
       if (!clientConnection || clientConnection.phase !== "connected") continue;
 
-      try {
-        await clientConnection.transport.send(publishPacket);
-      } catch (error) {
-        this.disconnectConnection(clientConnection, error as Error);
-      }
+      await this.trySend(clientConnection, publishPacket);
     }
   }
 
@@ -460,14 +456,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     );
 
     // send the SUBACK packet to the client
-    try {
-      await connection.transport.send(suback);
-    } catch (error) {
-      this.disconnectConnection(
-        connection,
-        error instanceof Error ? error : new Error(String(error))
-      );
-    }
+    await this.trySend(connection, suback);
   }
 
   private async handleUnsubscribePacket(
@@ -488,13 +477,24 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }
 
     // send the UNSUBACK packet to the client
+    await this.trySend(connection, unsuback);
+  }
+
+  private async trySend(
+    connection: ConnectionState,
+    packet: AnyPacketV4
+  ): Promise<boolean> {
     try {
-      await connection.transport.send(unsuback);
+      await connection.transport.send(packet);
+
+      return true;
     } catch (error) {
-      this.disconnectConnection(
+      void this.disconnectConnection(
         connection,
         error instanceof Error ? error : new Error(String(error))
       );
+
+      return false;
     }
   }
 
