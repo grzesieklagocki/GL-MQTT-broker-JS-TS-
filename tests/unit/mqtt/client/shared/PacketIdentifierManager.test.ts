@@ -1,4 +1,4 @@
-import { PacketIdentifierManager } from "@src/mqtt/client/shared/PacketIdentifierManager";
+import { PacketIdentifierManager } from "@src/mqtt/shared/PacketIdentifierManager";
 import { describe, expect, it } from "vitest";
 
 describe("PacketIdentifierManager", () => {

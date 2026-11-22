@@ -28,7 +28,7 @@ import {
 } from "./topics/types";
 import { SubscriptionManager } from "./topics/SubscriptionManager";
 import { RetainedMessagesManager } from "./topics/RetainedMessagesManager";
-import { PacketIdentifierManager } from "../client/shared/PacketIdentifierManager";
+import { PacketIdentifierManager } from "../shared/PacketIdentifierManager";
 
 export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   private nextConnectionId = 1; // for generating unique connection IDs

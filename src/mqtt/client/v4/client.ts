@@ -30,7 +30,7 @@ import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
 import { performActionWithTimeout } from "@mqtt/shared/performActionWithTimeout";
 import { RequestManager } from "@mqtt/shared/RequestManager";
-import { PacketIdentifierManager } from "../shared/PacketIdentifierManager";
+import { PacketIdentifierManager } from "@mqtt/shared/PacketIdentifierManager";
 
 /**
  * Represents an MQTT client that implements the MQTT 3.1.1 (protocol version 4).
