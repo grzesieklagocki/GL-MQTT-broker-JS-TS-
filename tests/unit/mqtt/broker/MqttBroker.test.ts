@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttBroker } from "@mqtt/broker/MqttBroker";
+import { SubscriptionManager } from "@mqtt/broker/topics/SubscriptionManager";
 import {
   AcceptedConnection,
   IAuthManager,
   IConnectionListener,
 } from "@mqtt/broker/types";
-import { PacketType } from "@mqtt/protocol/shared/types";
+import { PacketType, QoS } from "@mqtt/protocol/shared/types";
 import { MqttPacketV4Factory } from "@mqtt/protocol/v4/MqttPacketV4Factory";
-import { ConnackReturnCodeV4 } from "@mqtt/protocol/v4/types";
+import {
+  ConnackReturnCodeV4,
+  SubackReturnCodeV4,
+  SubscriptionV4,
+} from "@mqtt/protocol/v4/types";
 
 describe("MqttBroker", () => {
   let broker: MqttBroker;
@@ -15,6 +20,7 @@ describe("MqttBroker", () => {
   let secondListenerMock: IConnectionListener;
   let connectionMock: AcceptedConnection;
   let authManagerMock: IAuthManager;
+  let subscriptionManager: SubscriptionManager;
 
   const createListenerMock = (): IConnectionListener => ({
     listen: vi.fn(),
@@ -35,11 +41,13 @@ describe("MqttBroker", () => {
 
   const createAuthManagerMock = (): IAuthManager => ({
     canLogin: vi.fn(() => true),
+    canSubscribe: vi.fn(() => 2 as QoS),
   });
 
   beforeEach(() => {
     authManagerMock = createAuthManagerMock();
-    broker = new MqttBroker(authManagerMock);
+    subscriptionManager = new SubscriptionManager();
+    broker = new MqttBroker(authManagerMock, subscriptionManager);
     listenerMock = createListenerMock();
     secondListenerMock = createListenerMock();
     connectionMock = createConnectionMock("test connection");
@@ -367,7 +375,11 @@ describe("MqttBroker", () => {
 
     it("emits clientConnected only after sending a successful CONNACK", async () => {
       const clientId = "client";
-      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, clientId);
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        clientId
+      );
       const { transport } = connectionMock;
       const clientConnectedListener = vi.fn();
       broker.on("clientConnected", clientConnectedListener);
@@ -798,6 +810,205 @@ describe("MqttBroker", () => {
       });
     });
 
+    describe("SUBSCRIBE", () => {
+      async function connectSubscriber(cleanSession = false) {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(cleanSession, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        vi.mocked(transport.send).mockClear();
+        return transport;
+      }
+
+      it.each<{
+        name: string;
+        subscriptions: SubscriptionV4[];
+        returnCodes: SubackReturnCodeV4[];
+      }>([
+        {
+          name: "one topic filter",
+          subscriptions: [["home/temperature", 0]],
+          returnCodes: [SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0],
+        },
+        {
+          name: "multiple topic filters in request order",
+          subscriptions: [
+            ["home/+/temperature", 1],
+            ["home/light", 0],
+          ],
+          returnCodes: [
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+          ],
+        },
+      ])(
+        "sends one SUBACK for $name",
+        async ({ subscriptions, returnCodes }) => {
+          const transport = await connectSubscriber();
+
+          const identifier = 42;
+          transport.packetReceivedHandler(
+            MqttPacketV4Factory.createSubscribePacketV4(
+              identifier,
+              subscriptions
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createSubackPacketV4(identifier, returnCodes)
+          );
+          expect(transport.disconnect).not.toHaveBeenCalled();
+        }
+      );
+
+      it("stores only allowed filters with the granted QoS under the ClientId", async () => {
+        const transport = await connectSubscriber();
+        vi.mocked(authManagerMock.canSubscribe)
+          .mockReturnValueOnce(1)
+          .mockReturnValueOnce(false);
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [
+            ["home/+/temperature", 2],
+            ["home/secret", 1],
+          ])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSubackPacketV4(42, [
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+            SubackReturnCodeV4.FAILURE,
+          ])
+        );
+        expect(
+          subscriptionManager.getSubscribers("home/kitchen/temperature")
+        ).toEqual([{ clientId: "client", qos: 1 }]);
+        expect(subscriptionManager.getSubscribers("home/secret")).toEqual([]);
+      });
+
+      it("accepts QoS 0 as an authorization limit rather than a denial", async () => {
+        const transport = await connectSubscriber();
+        vi.mocked(authManagerMock.canSubscribe).mockReturnValueOnce(0);
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSubackPacketV4(42, [
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+          ])
+        );
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([
+          { clientId: "client", qos: 0 },
+        ]);
+      });
+
+      async function subscribeToLight(transport: AcceptedConnection["transport"]) {
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 0]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+
+      it("removes subscriptions when a clean session closes", async () => {
+        const transport = await connectSubscriber(true);
+        await subscribeToLight(transport);
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([
+          { clientId: "client", qos: 0 },
+        ]);
+
+        transport.disconnectHandler();
+
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([]);
+      });
+
+      it("keeps subscriptions offline until a clean reconnect discards them", async () => {
+        const transport = await connectSubscriber();
+        await subscribeToLight(transport);
+        transport.disconnectHandler();
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([
+          { clientId: "client", qos: 0 },
+        ]);
+
+        const replacement = createConnectionMock("clean reconnect");
+        listenerMock.connectionHandler(replacement);
+        replacement.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(replacement.transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([]);
+      });
+
+      it("handles SUBSCRIBE received during takeover after sending CONNACK", async () => {
+        const first = await connectSubscriber();
+        let finishDisconnect!: () => void;
+        vi.mocked(first.disconnect).mockReturnValueOnce(
+          new Promise<void>((resolve) => {
+            finishDisconnect = resolve;
+          })
+        );
+        const replacement = createConnectionMock("replacement connection");
+        listenerMock.connectionHandler(replacement);
+        const second = replacement.transport;
+        second.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
+        );
+        await subscribeToLight(second);
+
+        first.disconnectHandler();
+        finishDisconnect();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(second.send).toHaveBeenCalledTimes(2);
+        expect(second.send).toHaveBeenNthCalledWith(
+          1,
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+        expect(second.send).toHaveBeenNthCalledWith(
+          2,
+          MqttPacketV4Factory.createSubackPacketV4(42, [
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+          ])
+        );
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual([
+          { clientId: "client", qos: 0 },
+        ]);
+      });
+
+      it("closes the transport with the original error if sending SUBACK fails", async () => {
+        const transport = await connectSubscriber();
+        const error = new Error("SUBACK send failed");
+        const failedSend = Promise.reject(error);
+        // Prevent an unhandled rejection from masking the assertion on disconnect.
+        void failedSend.catch(() => {});
+        vi.mocked(transport.send).mockReturnValueOnce(failedSend);
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 0]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSubackPacketV4(42, [
+            SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+          ])
+        );
+        expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+      });
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());
@@ -830,6 +1041,20 @@ describe("MqttBroker", () => {
         await vi.advanceTimersByTimeAsync(9_000);
         transport.packetReceivedHandler(
           MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ)
+        );
+
+        await vi.advanceTimersByTimeAsync(14_999);
+        expect(transport.disconnect).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(transport.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it("restarts the inactivity period when receiving SUBSCRIBE", async () => {
+        const transport = await connect(10);
+        await vi.advanceTimersByTimeAsync(9_000);
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 0]])
         );
 
         await vi.advanceTimersByTimeAsync(14_999);
@@ -942,7 +1167,11 @@ describe("MqttBroker", () => {
       const error = new Error("Could not send CONNACK");
       const clientConnectedListener = vi.fn();
       broker.on("clientConnected", clientConnectedListener);
-      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, "client");
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client"
+      );
       const { transport } = connectionMock;
       vi.mocked(transport.send).mockRejectedValueOnce(error);
 
@@ -957,7 +1186,11 @@ describe("MqttBroker", () => {
       const error = new Error("Could not disconnect");
       const errorListener = vi.fn();
       const closeListener = vi.fn();
-      const packet = MqttPacketV4Factory.createConnectPacketV4(true, 0, "client");
+      const packet = MqttPacketV4Factory.createConnectPacketV4(
+        true,
+        0,
+        "client"
+      );
       const { transport } = connectionMock;
       broker.on("brokerError", errorListener);
       broker.on("connectionClosed", closeListener);

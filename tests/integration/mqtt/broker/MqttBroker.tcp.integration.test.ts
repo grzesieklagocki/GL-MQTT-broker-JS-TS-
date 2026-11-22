@@ -16,7 +16,7 @@ describe("MqttBroker over TCP", () => {
 
   beforeEach(async () => {
     canLogin = vi.fn(() => true);
-    broker = new MqttBroker({ canLogin });
+    broker = new MqttBroker({ canLogin, canSubscribe: () => 2 });
 
     listener = new MqttTcpListener(host, 0);
     await new Promise<void>((resolve, reject) => {

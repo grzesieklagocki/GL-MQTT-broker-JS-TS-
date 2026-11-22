@@ -1,3 +1,4 @@
+import { QoS } from "../protocol/shared/types";
 import { AnyPacketV4 } from "../protocol/v4/types";
 import { IMqttSocketTransportAdapter, MqttAuth } from "../shared/types";
 
@@ -66,7 +67,9 @@ export interface IAuthManager {
    */
   canLogin(auth?: MqttAuth): boolean;
 
-  //TODO: canSubscribe, canPublish
+  canSubscribe(topicFilter: string): QoS | false;
+
+  //TODO: canPublish
 }
 
 /**

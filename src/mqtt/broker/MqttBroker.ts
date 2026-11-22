@@ -12,11 +12,15 @@ import {
   ConnackPacketV4,
   ConnackReturnCodeV4,
   ConnectPacketV4,
+  SubackReturnCodeV4,
+  SubscribePacketV4,
 } from "../protocol/v4/types";
-import { PacketType } from "../protocol/shared/types";
+import { PacketType, QoS } from "../protocol/shared/types";
 import { MqttAuth } from "../shared/types";
 import { MqttPacketV4Factory } from "../protocol/v4/MqttPacketV4Factory";
 import { isBasicClientId } from "../protocol/v4/validation/connect";
+import { ISubscriptionManager } from "./topics/types";
+import { SubscriptionManager } from "./topics/SubscriptionManager";
 
 export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   private nextConnectionId = 1; // for generating unique connection IDs
@@ -32,7 +36,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    * Creates a new instance of the MQTT broker with the specified authentication manager.
    * @param auth The authentication manager to use for the broker.
    */
-  constructor(private readonly auth: IAuthManager) {
+  constructor(
+    private readonly auth: IAuthManager,
+    private readonly subscriptions: ISubscriptionManager = new SubscriptionManager()
+  ) {
     super();
   }
 
@@ -155,9 +162,44 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     connection: ConnectionState
   ): void {
     const { transport } = connection;
+    // no queue until CONNECT handling starts
+    let pendingPackets: AnyPacketV4[] | undefined;
+
+    const handleIncomingPacket = async (packet: AnyPacketV4): Promise<void> => {
+      if (
+        connection.phase !== "beforeConnect" ||
+        packet.typeId !== PacketType.CONNECT
+      ) {
+        return this.handlePacket(packet, connectionId);
+      }
+
+      // start buffering before waiting for CONNECT to finish
+      const queue: AnyPacketV4[] = [];
+
+      pendingPackets = queue;
+
+      try {
+        await this.handlePacket(packet, connectionId);
+        // handle queued packets in order after CONNACK
+        for (const pendingPacket of queue) {
+          await this.handlePacket(pendingPacket, connectionId);
+        }
+      } finally {
+        // stop buffering even if packet handling fails
+        pendingPackets = undefined;
+      }
+    };
 
     transport.packetReceivedHandler = (packet) => {
-      void this.handlePacket(packet, connectionId).catch((error: unknown) => {
+      if (connection.phase === "closing") return;
+
+      // add new packets to the end while the queue is active
+      if (pendingPackets) {
+        pendingPackets.push(packet);
+        return;
+      }
+
+      void handleIncomingPacket(packet).catch((error: unknown) => {
         // catch error during packet handling and disconnect the connection
         const cause = error instanceof Error ? error : new Error(String(error));
 
@@ -169,12 +211,17 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // ignore repeated disconnects
       if (!this.connections.delete(connectionId)) return;
 
+      // drop any packets still waiting when the transport closes
+      if (pendingPackets) pendingPackets.length = 0;
+
       // stop the Keep Alive timeout for the connection
       clearTimeout(connection.keepAliveTimeout);
 
+      const clientId = connection.clientId;
+
       // skip if there is no active session for this client
-      if (connection.clientId) {
-        const session = this.sessions.get(connection.clientId);
+      if (clientId) {
+        const session = this.sessions.get(clientId);
 
         // ensure it is actual session
         if (session?.activeConnection === connection) {
@@ -183,7 +230,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
             session.activeConnection = undefined;
           } else {
             // if session is not permanent, delete entire session
-            this.sessions.delete(connection.clientId);
+            this.subscriptions.unsubscribe(clientId);
+            this.sessions.delete(clientId);
           }
         }
       }
@@ -230,15 +278,22 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       return;
     }
 
+    // reset the keep-alive timeout for connected clients
+    if (connection.phase === "connected") {
+      this.resetKeepAliveTimeout(connectionId, connection);
+    }
+
     switch (packet.typeId) {
       case PacketType.CONNECT:
         await this.handleConnectPacket(packet, connectionId, connection);
+        break;
+      case PacketType.SUBSCRIBE:
+        await this.handleSubscribePacket(packet, connectionId, connection);
         break;
       case PacketType.PINGREQ:
         const pingresp = MqttPacketV4Factory.createSimplePacketV4(
           PacketType.PINGRESP
         );
-        this.resetKeepAliveTimeout(connectionId, connection);
         await connection.transport.send(pingresp);
         break;
       case PacketType.DISCONNECT:
@@ -290,7 +345,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       sessionPresent = this.updateSession(
         clientId,
-        connectionId,
         connection,
         packet.flags.cleanSession,
         packet.keepAlive
@@ -321,6 +375,48 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         clientId,
         connectionId,
       });
+    }
+  }
+
+  private async handleSubscribePacket(
+    packet: SubscribePacketV4,
+    connectionId: number,
+    connection: ConnectionState
+  ) {
+    const returnCodeList: SubackReturnCodeV4[] = packet.subscriptionList.map(
+      (subscription) => {
+        const topicFilter = subscription[0];
+        const requestedQos = subscription[1];
+
+        const maxAllowedQos = this.auth.canSubscribe(topicFilter);
+
+        if (maxAllowedQos !== false) {
+          const grantedQos = Math.min(requestedQos, maxAllowedQos);
+
+          this.subscriptions.subscribe(
+            connection.clientId!,
+            topicFilter,
+            grantedQos as QoS
+          );
+
+          return grantedQos;
+        } else return SubackReturnCodeV4.FAILURE;
+      }
+    );
+
+    const suback = MqttPacketV4Factory.createSubackPacketV4(
+      packet.identifier,
+      returnCodeList
+    );
+
+    try {
+      await connection.transport.send(suback);
+    } catch (error) {
+      this.disconnectConnection(
+        connectionId,
+        connection,
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 
@@ -355,7 +451,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    */
   private updateSession(
     clientId: string,
-    connectionId: number,
     connection: ConnectionState,
     cleanSession: boolean,
     keepAliveSeconds: number
@@ -371,7 +466,9 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         isPermanent: !cleanSession,
       };
 
+      // set the new session for the client ID and unsubscribe from all previous subscriptions
       this.sessions.set(clientId, session);
+      this.subscriptions.unsubscribe(clientId);
     }
     connection.clientId = clientId;
     connection.keepAliveSeconds = keepAliveSeconds;

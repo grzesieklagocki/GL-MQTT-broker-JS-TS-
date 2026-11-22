@@ -4,7 +4,10 @@ import { MqttTcpListener } from "./MqttTcpListener";
 const host = "127.0.0.1";
 const port = 1883;
 // Development only: accept connections without checking credentials.
-const broker = new MqttBroker({ canLogin: () => true });
+const broker = new MqttBroker({
+  canLogin: () => true,
+  canSubscribe: () => 2,
+});
 const listener = new MqttTcpListener(host, port);
 
 function stopBroker(): void {
