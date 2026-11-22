@@ -12,6 +12,7 @@ import {
   ConnackPacketV4,
   ConnackReturnCodeV4,
   ConnectPacketV4,
+  PublishPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
 } from "../protocol/v4/types";
@@ -135,6 +136,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     const { transport, info: connectionInfo } = connection;
     const connectionId = this.nextConnectionId++;
     const state: ConnectionState = {
+      connectionId,
       transport,
       stopping: false,
       phase: "beforeConnect",
@@ -203,7 +205,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         // catch error during packet handling and disconnect the connection
         const cause = error instanceof Error ? error : new Error(String(error));
 
-        return this.disconnectConnection(connectionId, connection, cause);
+        return this.disconnectConnection(connection, cause);
       });
     };
 
@@ -274,32 +276,42 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         packet.typeId === PacketType.CONNECT)
     ) {
       // close the connection without sending a response due to protocol violation
-      await this.disconnectConnection(connectionId, connection);
+      await this.disconnectConnection(connection);
       return;
     }
 
     // reset the keep-alive timeout for connected clients
     if (connection.phase === "connected") {
-      this.resetKeepAliveTimeout(connectionId, connection);
+      this.resetKeepAliveTimeout(connection);
     }
 
     switch (packet.typeId) {
       case PacketType.CONNECT:
         await this.handleConnectPacket(packet, connectionId, connection);
         break;
+
+      case PacketType.PUBLISH:
+        this.handlePublishPacket(packet);
+        break;
+
       case PacketType.SUBSCRIBE:
         await this.handleSubscribePacket(packet, connectionId, connection);
         break;
+
       case PacketType.PINGREQ:
+        // send back a PINGRESP packet to the client
         const pingresp = MqttPacketV4Factory.createSimplePacketV4(
           PacketType.PINGRESP
         );
         await connection.transport.send(pingresp);
         break;
+
       case PacketType.DISCONNECT:
-        this.disconnectConnection(connectionId, connection);
+        this.disconnectConnection(connection);
         break;
+
       // TODO: other packet types handling1
+
       default:
         throw Error("Unhandled packet type");
     }
@@ -362,19 +374,44 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
     // if connection is not accepted, disconnect the transport
     if (!isConnectionAccepted) {
-      await this.disconnectConnection(connectionId, connection);
+      await this.disconnectConnection(connection);
     } else if (
       this.connections.has(connectionId) &&
       connection.phase === "connected"
     ) {
       // initialize the Keep Alive timeout for the connection
-      this.resetKeepAliveTimeout(connectionId, connection);
+      this.resetKeepAliveTimeout(connection);
 
       // emit the clientConnected event
       this.emit("clientConnected", {
         clientId,
         connectionId,
       });
+    }
+  }
+
+  private async handlePublishPacket(packet: PublishPacketV4) {
+    const topic = packet.topicName;
+    const message = packet.applicationMessage;
+    const subscribers = this.subscriptions.getSubscribers(topic);
+
+    for (const subscriber of subscribers) {
+      const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
+        topic,
+        message
+      );
+
+      const clientSession = this.sessions.get(subscriber.clientId);
+      const clientConnection = clientSession?.activeConnection;
+
+      // skip if the client connection is not active or not in the connected phase
+      if (!clientConnection || clientConnection.phase !== "connected") continue;
+
+      try {
+        await clientConnection.transport.send(publishPacket);
+      } catch (error) {
+        this.disconnectConnection(clientConnection, error as Error);
+      }
     }
   }
 
@@ -413,7 +450,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       await connection.transport.send(suback);
     } catch (error) {
       this.disconnectConnection(
-        connectionId,
         connection,
         error instanceof Error ? error : new Error(String(error))
       );
@@ -483,10 +519,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    * @param connectionId The ID of the connection for which the keep-alive timeout is being reset.
    * @param connection The connection object whose keep-alive timeout is being reset.
    */
-  private resetKeepAliveTimeout(
-    connectionId: number,
-    connection: ConnectionState
-  ): void {
+  private resetKeepAliveTimeout(connection: ConnectionState): void {
     // clear existing keep-alive timeout if any
     clearTimeout(connection.keepAliveTimeout);
 
@@ -496,7 +529,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     connection.keepAliveTimeout = setTimeout(() => {
       // when the keep-alive timeout expires, disconnect the connection due to inactivity
       void this.disconnectConnection(
-        connectionId,
         connection,
         new Error("Keep Alive timeout")
       );
@@ -504,11 +536,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   }
 
   private async disconnectConnection(
-    connectionId: number,
     connection: ConnectionState,
     error?: Error
   ): Promise<void> {
-    if (!this.connections.has(connectionId)) return;
+    if (!this.connections.has(connection.connectionId)) return;
 
     connection.phase = "closing";
 
@@ -518,7 +549,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     } catch (error) {
       this.emit("brokerError", {
         source: "connection-transport",
-        connectionId,
+        connectionId: connection.connectionId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }

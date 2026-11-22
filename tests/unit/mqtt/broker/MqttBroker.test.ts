@@ -1009,6 +1009,124 @@ describe("MqttBroker", () => {
       });
     });
 
+    it("forwards a QoS 0 publication to a matching subscriber", async () => {
+      const subscriber = connectionMock.transport;
+      const publisherConnection = createConnectionMock("publisher connection");
+      listenerMock.connectionHandler(publisherConnection);
+      const publisher = publisherConnection.transport;
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const connack = MqttPacketV4Factory.createConnackPacketV4(false);
+      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(connack);
+      expect(publisher.send).toHaveBeenCalledExactlyOnceWith(connack);
+      vi.mocked(subscriber.send).mockClear();
+      vi.mocked(publisher.send).mockClear();
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [
+          ["home/+/temperature", 0],
+        ])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        ])
+      );
+      vi.mocked(subscriber.send).mockClear();
+
+      const publication = MqttPacketV4Factory.createPublishPacketV4(
+        "home/kitchen/temperature",
+        new Uint8Array([0, 22, 255])
+      );
+      publisher.packetReceivedHandler(publication);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(publication);
+      expect(publisher.send).not.toHaveBeenCalled();
+      expect(publisher.disconnect).not.toHaveBeenCalled();
+    });
+
+    it("closes only the subscriber transport when forwarding PUBLISH fails", async () => {
+      const subscriber = connectionMock.transport;
+      const publisherConnection = createConnectionMock("publisher connection");
+      listenerMock.connectionHandler(publisherConnection);
+      const publisher = publisherConnection.transport;
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      subscriptionManager.subscribe("subscriber", "home/light", 0);
+      vi.mocked(subscriber.send).mockClear();
+
+      const error = new Error("PUBLISH send failed");
+      const failedSend = Promise.reject(error);
+      // Keep an ignored rejection from masking the disconnect assertion.
+      void failedSend.catch(() => {});
+      vi.mocked(subscriber.send).mockReturnValueOnce(failedSend);
+
+      const publication = MqttPacketV4Factory.createPublishPacketV4(
+        "home/light",
+        new Uint8Array([1])
+      );
+      publisher.packetReceivedHandler(publication);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(publication);
+      expect(subscriber.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+      expect(publisher.disconnect).not.toHaveBeenCalled();
+    });
+
+    it("does not forward PUBLISH to a subscriber whose transport is closing", async () => {
+      const subscriber = connectionMock.transport;
+      const publisherConnection = createConnectionMock("publisher connection");
+      listenerMock.connectionHandler(publisherConnection);
+      const publisher = publisherConnection.transport;
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 0]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(subscriber.send).toHaveBeenNthCalledWith(
+        2,
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        ])
+      );
+      vi.mocked(subscriber.send).mockClear();
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+      );
+      expect(subscriber.disconnect).toHaveBeenCalledExactlyOnceWith();
+      // The transport has not reported closure yet.
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4("home/light", new Uint8Array([1]))
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(subscriber.send).not.toHaveBeenCalled();
+      expect(publisher.disconnect).not.toHaveBeenCalled();
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

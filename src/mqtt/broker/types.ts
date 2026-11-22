@@ -81,6 +81,8 @@ export type ConnectionPhase = "beforeConnect" | "connected" | "closing";
  * Represents the state of a connection, including its transport, stopping status, and phase.
  */
 export type ConnectionState = {
+  readonly connectionId: number; // the unique identifier for the connection (read-only)
+
   transport: AcceptedConnection["transport"]; // transport adapter for the connection
   stopping: boolean; // indicates if the connection is in the process of stopping
   phase: ConnectionPhase; // current phase of the connection (beforeConnect, connected, or closing)
