@@ -169,6 +169,9 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // ignore repeated disconnects
       if (!this.connections.delete(connectionId)) return;
 
+      // stop the Keep Alive timeout for the connection
+      clearTimeout(connection.keepAliveTimeout);
+
       // skip if there is no active session for this client
       if (connection.clientId) {
         const session = this.sessions.get(connection.clientId);
@@ -235,6 +238,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         const pingresp = MqttPacketV4Factory.createSimplePacketV4(
           PacketType.PINGRESP
         );
+        this.resetKeepAliveTimeout(connectionId, connection);
         await connection.transport.send(pingresp);
         break;
       case PacketType.DISCONNECT:
@@ -244,10 +248,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       default:
         throw Error("Unhandled packet type");
     }
-    //   if (packet.typeId === PacketType.CONNECT) {
-    //     await this.handleConnectPacket(packet, connectionId, connection);
-    //   }
-    //   else throw Error("Unhandled packet type");
   }
 
   /**
@@ -290,8 +290,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       sessionPresent = this.updateSession(
         clientId,
+        connectionId,
         connection,
-        packet.flags.cleanSession
+        packet.flags.cleanSession,
+        packet.keepAlive
       );
     }
 
@@ -311,6 +313,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       this.connections.has(connectionId) &&
       connection.phase === "connected"
     ) {
+      // initialize the Keep Alive timeout for the connection
+      this.resetKeepAliveTimeout(connectionId, connection);
+
+      // emit the clientConnected event
       this.emit("clientConnected", {
         clientId,
         connectionId,
@@ -349,8 +355,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    */
   private updateSession(
     clientId: string,
+    connectionId: number,
     connection: ConnectionState,
-    cleanSession: boolean
+    cleanSession: boolean,
+    keepAliveSeconds: number
   ): boolean {
     const session = this.sessions.get(clientId);
 
@@ -366,10 +374,36 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       this.sessions.set(clientId, session);
     }
     connection.clientId = clientId;
+    connection.keepAliveSeconds = keepAliveSeconds;
 
     const sessionPresent = !cleanSession && session !== undefined;
 
     return sessionPresent;
+  }
+
+  /**
+   * Resets the keep-alive timeout for the given connection.
+   * @param connectionId The ID of the connection for which the keep-alive timeout is being reset.
+   * @param connection The connection object whose keep-alive timeout is being reset.
+   */
+  private resetKeepAliveTimeout(
+    connectionId: number,
+    connection: ConnectionState
+  ): void {
+    // clear existing keep-alive timeout if any
+    clearTimeout(connection.keepAliveTimeout);
+
+    const keepAlive = connection.keepAliveSeconds;
+    if (!keepAlive) return;
+
+    connection.keepAliveTimeout = setTimeout(() => {
+      // when the keep-alive timeout expires, disconnect the connection due to inactivity
+      void this.disconnectConnection(
+        connectionId,
+        connection,
+        new Error("Keep Alive timeout")
+      );
+    }, keepAlive * 1_500); // from the MQTT 3.1.1 specification
   }
 
   private async disconnectConnection(

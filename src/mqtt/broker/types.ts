@@ -81,10 +81,13 @@ export type ConnectionState = {
   transport: AcceptedConnection["transport"]; // transport adapter for the connection
   stopping: boolean; // indicates if the connection is in the process of stopping
   phase: ConnectionPhase; // current phase of the connection (beforeConnect, connected, or closing)
+
   clientId?: string; // the client identifier associated with the connection (optional, set after CONNECT)
+  keepAliveSeconds?: number; // the keep-alive interval for the client session (optional)
+  keepAliveTimeout?: NodeJS.Timeout; // the timeout for the keep-alive mechanism (optional)
 };
 
 export type ClientSession = {
-  isPermanent: boolean;
-  activeConnection?: ConnectionState;
+  isPermanent: boolean; // indicates if the client session has to be stored after disconnection (true) or can be discarded (false)
+  activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
 };

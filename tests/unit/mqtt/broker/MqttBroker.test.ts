@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttBroker } from "@mqtt/broker/MqttBroker";
 import {
   AcceptedConnection,
@@ -795,6 +795,93 @@ describe("MqttBroker", () => {
 
         expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith();
         expect(transport.send).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("Keep Alive", () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      async function connect(keepAlive: number) {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, keepAlive, "client")
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        return transport;
+      }
+
+      // MQTT 3.1.1 section 3.1.2.10 [MQTT-3.1.2-24].
+      it("disconnects an idle client after one and a half Keep Alive periods", async () => {
+        const transport = await connect(10);
+
+        await vi.advanceTimersByTimeAsync(14_999);
+        expect(transport.disconnect).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(transport.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it("restarts the inactivity period when receiving PINGREQ", async () => {
+        const transport = await connect(10);
+        await vi.advanceTimersByTimeAsync(9_000);
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ)
+        );
+
+        await vi.advanceTimersByTimeAsync(14_999);
+        expect(transport.disconnect).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(transport.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not apply a Keep Alive timeout when the value is zero", async () => {
+        const transport = await connect(0);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        expect(transport.disconnect).not.toHaveBeenCalled();
+      });
+
+      it("starts the Keep Alive timeout only after sending CONNACK", async () => {
+        const { transport } = connectionMock;
+        let finishSend!: () => void;
+        vi.mocked(transport.send).mockReturnValueOnce(
+          new Promise<void>((resolve) => {
+            finishSend = resolve;
+          })
+        );
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 10, "client")
+        );
+        await vi.advanceTimersByTimeAsync(15_000);
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        expect(transport.disconnect).not.toHaveBeenCalled();
+
+        finishSend();
+        await vi.advanceTimersByTimeAsync(14_999);
+        expect(transport.disconnect).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(transport.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it("clears the Keep Alive timer when the transport reports closure", async () => {
+        const initialTimerCount = vi.getTimerCount();
+        const transport = await connect(10);
+        expect(vi.getTimerCount()).toBeGreaterThan(initialTimerCount);
+
+        transport.disconnectHandler();
+
+        expect(vi.getTimerCount()).toBe(initialTimerCount);
       });
     });
 
