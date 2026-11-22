@@ -1127,6 +1127,92 @@ describe("MqttBroker", () => {
       expect(publisher.disconnect).not.toHaveBeenCalled();
     });
 
+    describe("UNSUBSCRIBE", () => {
+      it.each([
+        {
+          name: "removes only the requested filters",
+          filters: ["home/+", "garden/light"],
+          remainingHomeSubscribers: [],
+          remainingGardenSubscribers: [],
+        },
+        {
+          name: "keeps subscriptions when no filter matches exactly",
+          filters: ["home/light", "unknown"],
+          remainingHomeSubscribers: [{ clientId: "client", qos: 0 }],
+          remainingGardenSubscribers: [{ clientId: "client", qos: 0 }],
+        },
+      ])("$name and sends one UNSUBACK", async ({
+        filters,
+        remainingHomeSubscribers,
+        remainingGardenSubscribers,
+      }) => {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        vi.mocked(transport.send).mockClear();
+        subscriptionManager.subscribe("client", "home/+", 0);
+        subscriptionManager.subscribe("client", "garden/light", 0);
+        subscriptionManager.subscribe("client", "office/light", 0);
+
+        const identifier = 43;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createUnsubscribePacketV4(identifier, filters)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.UNSUBACK,
+            identifier
+          )
+        );
+        expect(subscriptionManager.getSubscribers("home/light")).toEqual(
+          remainingHomeSubscribers
+        );
+        expect(subscriptionManager.getSubscribers("garden/light")).toEqual(
+          remainingGardenSubscribers
+        );
+        expect(subscriptionManager.getSubscribers("office/light")).toEqual([
+          { clientId: "client", qos: 0 },
+        ]);
+        expect(transport.disconnect).not.toHaveBeenCalled();
+      });
+    });
+
+    it("closes the transport with the original error if sending UNSUBACK fails", async () => {
+      const { transport } = connectionMock;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+
+      const error = new Error("UNSUBACK send failed");
+      const failedSend = Promise.reject(error);
+      // Keep an ignored rejection from masking the disconnect assertion.
+      void failedSend.catch(() => {});
+      vi.mocked(transport.send).mockReturnValueOnce(failedSend);
+
+      const identifier = 43;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createUnsubscribePacketV4(identifier, ["home/light"])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.UNSUBACK,
+          identifier
+        )
+      );
+      expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

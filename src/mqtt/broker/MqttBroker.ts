@@ -15,6 +15,7 @@ import {
   PublishPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
+  UnsubscribePacketV4,
 } from "../protocol/v4/types";
 import { PacketType, QoS } from "../protocol/shared/types";
 import { MqttAuth } from "../shared/types";
@@ -291,11 +292,15 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         break;
 
       case PacketType.PUBLISH:
-        this.handlePublishPacket(packet);
+        await this.handlePublishPacket(packet);
         break;
 
       case PacketType.SUBSCRIBE:
         await this.handleSubscribePacket(packet, connection);
+        break;
+
+      case PacketType.UNSUBSCRIBE:
+        await this.handleUnsubscribePacket(packet, connection);
         break;
 
       case PacketType.PINGREQ:
@@ -454,8 +459,37 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       returnCodeList
     );
 
+    // send the SUBACK packet to the client
     try {
       await connection.transport.send(suback);
+    } catch (error) {
+      this.disconnectConnection(
+        connection,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  private async handleUnsubscribePacket(
+    packet: UnsubscribePacketV4,
+    connection: ConnectionState
+  ) {
+    // skip if connection or clientId is not set
+    if (!connection || !connection.clientId) return;
+
+    const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
+      PacketType.UNSUBACK,
+      packet.identifier
+    );
+
+    // unsubscribe from all topic filters in the UNSUBSCRIBE packet
+    for (const topicFilter of packet.topicFilterList) {
+      this.subscriptions.unsubscribe(connection.clientId, topicFilter);
+    }
+
+    // send the UNSUBACK packet to the client
+    try {
+      await connection.transport.send(unsuback);
     } catch (error) {
       this.disconnectConnection(
         connection,
