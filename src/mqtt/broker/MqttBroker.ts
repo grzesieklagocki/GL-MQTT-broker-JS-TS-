@@ -244,38 +244,40 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     connectionId: number,
     connection: ConnectionState
   ): Promise<void> {
-    const hasCredentials = packet.flags.userName; // if the username flag is set, the client has provided credentials
-    const auth: MqttAuth | undefined = hasCredentials
-      ? {
-          user: packet.payload.userName!, // if username flag is set, user must be present
-          password: packet.payload.password,
-        }
-      : undefined; // when no credentials provided
-
-    // check if the client id is valid
-    const hasValidClientId = isBasicClientId(packet.payload.clientIdentifier);
-
-    const canLogin =
-      hasValidClientId &&
-      // ask the authentication service if the client can login
-      this.auth.canLogin(auth);
-
-    const returnCode = canLogin
-      ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
-      : hasValidClientId
-        ? ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
-        : ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED;
-
+    const returnCode = this.getConnectReturnCode(packet);
     const isConnectionAccepted =
       returnCode === ConnackReturnCodeV4.CONNECTION_ACCEPTED;
 
     connection.phase = isConnectionAccepted ? "connected" : "closing";
 
     const clientId = packet.payload.clientIdentifier;
-    const sessionPresent =
-      !packet.flags.cleanSession &&
-      isConnectionAccepted &&
-      this.sessions.has(clientId);
+    let sessionPresent = false;
+
+    if (isConnectionAccepted) {
+      let session = this.sessions.get(clientId);
+
+      // close any existing active connection for this session
+      while (session?.activeConnection) {
+        const previousConnection = session.activeConnection;
+        previousConnection.phase = "closing";
+        await previousConnection.transport.disconnect();
+
+        if (
+          !this.connections.has(connectionId) ||
+          connection.phase !== "connected"
+        )
+          return;
+
+        // closing the old transport can remove its clean session
+        session = this.sessions.get(clientId);
+      }
+
+      sessionPresent = this.updateSession(
+        clientId,
+        connection,
+        packet.flags.cleanSession
+      );
+    }
 
     // create the CONNACK response packet and send it to the client
     const response: ConnackPacketV4 = MqttPacketV4Factory.createConnackPacketV4(
@@ -289,32 +291,55 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     // if connection is not accepted, disconnect the transport
     if (!isConnectionAccepted) {
       await this.disconnectConnection(connectionId, connection);
-    } else {
-      // create or update session for the client
-      this.updateSession(clientId, connection, packet.flags.cleanSession);
-
-      // store client id in the connection state
-      connection.clientId = clientId;
-
-      //  emit the clientConnected event
+    } else if (
+      this.connections.has(connectionId) &&
+      connection.phase === "connected"
+    ) {
       this.emit("clientConnected", {
-        clientId: clientId,
-        connectionId: connectionId,
+        clientId,
+        connectionId,
       });
     }
   }
 
-  private updateSession = (
+  /**
+   * Determines the CONNACK return code for the given CONNECT packet.
+   * @param packet The CONNECT packet received from the client.
+   * @returns The appropriate CONNACK return code based on the CONNECT packet.
+   */
+  private getConnectReturnCode(packet: ConnectPacketV4): ConnackReturnCodeV4 {
+    if (!isBasicClientId(packet.payload.clientIdentifier)) {
+      return ConnackReturnCodeV4.CONNECTION_REFUSED_IDENTIFIER_REJECTED;
+    }
+
+    const auth: MqttAuth | undefined = packet.flags.userName
+      ? {
+          user: packet.payload.userName!, // Required when the User Name flag is set.
+          password: packet.payload.password,
+        }
+      : undefined;
+
+    return this.auth.canLogin(auth)
+      ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
+      : ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED;
+  }
+
+  /**
+   * Updates the session for the given client ID and connection.
+   * @param clientId The client ID for which the session is being updated.
+   * @param connection The connection associated with the session.
+   * @param cleanSession Indicates whether the session should be cleaned.
+   * @returns A boolean indicating whether the session was present before the update.
+   */
+  private updateSession(
     clientId: string,
     connection: ConnectionState,
     cleanSession: boolean
-  ) => {
-    if (this.sessions.has(clientId)) {
-      // if session already exists, update its fields
-      const session = this.sessions.get(clientId);
+  ): boolean {
+    const session = this.sessions.get(clientId);
 
-      session!.activeConnection = connection; // is guaranteed to exist since we checked with has()
-      session!.isPermanent = !cleanSession;
+    if (!cleanSession && session) {
+      session.activeConnection = connection;
     } else {
       // if session does not exist, create a new one
       const session = {
@@ -324,7 +349,12 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       this.sessions.set(clientId, session);
     }
-  };
+    connection.clientId = clientId;
+
+    const sessionPresent = !cleanSession && session !== undefined;
+
+    return sessionPresent;
+  }
 
   private async disconnectConnection(
     connectionId: number,

@@ -551,6 +551,81 @@ describe("MqttBroker", () => {
       });
     });
 
+    describe("active client replacement", () => {
+      const clientId = "client";
+
+      async function connectFirstClient(cleanSession: boolean) {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(cleanSession, 0, clientId)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        return transport;
+      }
+
+      function connectSecondClient() {
+        const connection = createConnectionMock("replacement connection");
+        listenerMock.connectionHandler(connection);
+        connection.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, clientId)
+        );
+        return connection.transport;
+      }
+
+      // Disconnect the existing client before applying CleanSession and sending CONNACK.
+      // See [MQTT-3.1.4-2] through [MQTT-3.1.4-4].
+      it.each([
+        { session: "stored", cleanSession: false, sessionPresent: true },
+        { session: "clean", cleanSession: true, sessionPresent: false },
+      ])(
+        "closes the active connection with a $session session before acknowledging its replacement",
+        async ({ cleanSession, sessionPresent }) => {
+          const first = await connectFirstClient(cleanSession);
+          let finishDisconnect!: () => void;
+          vi.mocked(first.disconnect).mockReturnValueOnce(
+            new Promise<void>((resolve) => {
+              finishDisconnect = resolve;
+            })
+          );
+
+          const second = connectSecondClient();
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(first.disconnect).toHaveBeenCalledTimes(1);
+          expect(second.send).not.toHaveBeenCalled();
+
+          first.disconnectHandler();
+          finishDisconnect();
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(second.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createConnackPacketV4(sessionPresent)
+          );
+          expect(second.disconnect).not.toHaveBeenCalled();
+        }
+      );
+
+      it("does not disconnect the active client if the replacement is not authorized", async () => {
+        const first = await connectFirstClient(false);
+        vi.mocked(authManagerMock.canLogin).mockReturnValueOnce(false);
+
+        const second = connectSecondClient();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(second.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(
+            false,
+            ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+          )
+        );
+        expect(second.disconnect).toHaveBeenCalledTimes(1);
+        expect(first.disconnect).not.toHaveBeenCalled();
+      });
+    });
+
     it("sends a refusal before closing the transport when login is denied", async () => {
       vi.mocked(authManagerMock.canLogin).mockReturnValue(false);
       const clientConnectedListener = vi.fn();
