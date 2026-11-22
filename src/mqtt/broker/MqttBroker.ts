@@ -146,7 +146,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     this.connections.set(connectionId, state);
 
     // attach event handlers to the transport of the connection
-    this.attachTransportHandlers(connectionId, connectionInfo, state);
+    this.attachTransportHandlers(connectionInfo, state);
 
     // emit the connection event to notify listeners of the new connection
     this.emit("connection", { connectionId, connectionInfo });
@@ -154,16 +154,16 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
   /**
    * Attaches event handlers to the transport of a connection.
-   * @param connectionId The ID of the connection.
    * @param connectionInfo The information about the connection.
    * @param connection The state of the connection.
    */
   private attachTransportHandlers(
-    connectionId: number,
     connectionInfo: string,
     connection: ConnectionState
   ): void {
     const { transport } = connection;
+    const connectionId = connection.connectionId;
+
     // no queue until CONNECT handling starts
     let pendingPackets: AnyPacketV4[] | undefined;
 
@@ -287,7 +287,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
     switch (packet.typeId) {
       case PacketType.CONNECT:
-        await this.handleConnectPacket(packet, connectionId, connection);
+        await this.handleConnectPacket(packet, connection);
         break;
 
       case PacketType.PUBLISH:
@@ -295,7 +295,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         break;
 
       case PacketType.SUBSCRIBE:
-        await this.handleSubscribePacket(packet, connectionId, connection);
+        await this.handleSubscribePacket(packet, connection);
         break;
 
       case PacketType.PINGREQ:
@@ -324,7 +324,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    */
   private async handleConnectPacket(
     packet: ConnectPacketV4,
-    connectionId: number,
     connection: ConnectionState
   ): Promise<void> {
     const returnCode = this.getConnectReturnCode(packet);
@@ -334,6 +333,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     connection.phase = isConnectionAccepted ? "connected" : "closing";
 
     const clientId = packet.payload.clientIdentifier;
+    const connectionId = connection.connectionId;
     let sessionPresent = false;
 
     if (isConnectionAccepted) {
@@ -390,6 +390,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }
   }
 
+  /**
+   * Handles an incoming PUBLISH packet from a client and forwards it to the appropriate subscribers.
+   * @param packet The PUBLISH packet received from the client.
+   */
   private async handlePublishPacket(packet: PublishPacketV4) {
     const topic = packet.topicName;
     const message = packet.applicationMessage;
@@ -415,9 +419,13 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }
   }
 
+  /**
+   * Handles an incoming SUBSCRIBE packet from a client and sends the appropriate SUBACK response.
+   * @param packet The SUBSCRIBE packet received from the client.
+   * @param connection The connection state of the client that sent the SUBSCRIBE packet.
+   */
   private async handleSubscribePacket(
     packet: SubscribePacketV4,
-    connectionId: number,
     connection: ConnectionState
   ) {
     const returnCodeList: SubackReturnCodeV4[] = packet.subscriptionList.map(
@@ -516,7 +524,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
   /**
    * Resets the keep-alive timeout for the given connection.
-   * @param connectionId The ID of the connection for which the keep-alive timeout is being reset.
    * @param connection The connection object whose keep-alive timeout is being reset.
    */
   private resetKeepAliveTimeout(connection: ConnectionState): void {
