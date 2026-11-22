@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttBroker } from "@mqtt/broker/MqttBroker";
+import { RetainedMessagesManager } from "@mqtt/broker/topics/RetainedMessagesManager";
 import { SubscriptionManager } from "@mqtt/broker/topics/SubscriptionManager";
 import {
   AcceptedConnection,
@@ -21,6 +22,7 @@ describe("MqttBroker", () => {
   let connectionMock: AcceptedConnection;
   let authManagerMock: IAuthManager;
   let subscriptionManager: SubscriptionManager;
+  let retainedMessages: RetainedMessagesManager;
 
   const createListenerMock = (): IConnectionListener => ({
     listen: vi.fn(),
@@ -47,7 +49,8 @@ describe("MqttBroker", () => {
   beforeEach(() => {
     authManagerMock = createAuthManagerMock();
     subscriptionManager = new SubscriptionManager();
-    broker = new MqttBroker(authManagerMock, subscriptionManager);
+    retainedMessages = new RetainedMessagesManager();
+    broker = new MqttBroker(authManagerMock, subscriptionManager, retainedMessages);
     listenerMock = createListenerMock();
     secondListenerMock = createListenerMock();
     connectionMock = createConnectionMock("test connection");
@@ -1211,6 +1214,186 @@ describe("MqttBroker", () => {
         )
       );
       expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+    });
+
+    it("delivers a retained QoS 0 publication to a new matching subscriber", async () => {
+      const publisher = connectionMock.transport;
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(publisher.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      vi.mocked(publisher.send).mockClear();
+
+      const publication = MqttPacketV4Factory.createPublishPacketV4(
+        "home/kitchen/temperature",
+        new Uint8Array([22]),
+        MqttPacketV4Factory.createPublishFlagsV4(0, true)
+      );
+      publisher.packetReceivedHandler(publication);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(publisher.send).not.toHaveBeenCalled();
+      expect(publisher.disconnect).not.toHaveBeenCalled();
+
+      const subscriberConnection = createConnectionMock("subscriber connection");
+      listenerMock.connectionHandler(subscriberConnection);
+      const subscriber = subscriberConnection.transport;
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      vi.mocked(subscriber.send).mockClear();
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [
+          ["home/+/temperature", 0],
+        ])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      // MQTT permits PUBLISH before SUBACK for a new subscription.
+      expect(subscriber.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        ])
+      );
+      expect(subscriber.send).toHaveBeenCalledWith(publication);
+      expect(subscriber.send).toHaveBeenCalledTimes(2);
+    });
+
+    it("clears a retained message on an empty retained PUBLISH", async () => {
+      const { transport } = connectionMock;
+      const topic = "home/light";
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+      retainedMessages.set(topic, new Uint8Array([1]), 0);
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          new Uint8Array(),
+          MqttPacketV4Factory.createPublishFlagsV4(0, true)
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 0]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        ])
+      );
+    });
+
+    it("limits retained delivery to the granted subscription QoS", async () => {
+      const { transport } = connectionMock;
+      const topic = "home/light";
+      const payload = new Uint8Array([1]);
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+      // Seed the store without relying on incoming QoS 1 handling.
+      retainedMessages.set(topic, payload, 1);
+      vi.mocked(authManagerMock.canSubscribe).mockReturnValueOnce(0);
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_0,
+        ])
+      );
+      expect(transport.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          payload,
+          MqttPacketV4Factory.createPublishFlagsV4(0, true)
+        )
+      );
+    });
+
+    it("does not raise retained QoS to the granted subscription QoS", async () => {
+      const { transport } = connectionMock;
+      const topic = "home/light";
+      const payload = new Uint8Array([1]);
+      retainedMessages.set(topic, payload, 0);
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+        ])
+      );
+      expect(transport.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          payload,
+          MqttPacketV4Factory.createPublishFlagsV4(0, true)
+        )
+      );
+    });
+
+    it("assigns a non-zero packet identifier to a retained QoS 1 PUBLISH", async () => {
+      const { transport } = connectionMock;
+      const topic = "home/light";
+      const payload = new Uint8Array([1]);
+      retainedMessages.set(topic, payload, 1);
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledWith(
+        MqttPacketV4Factory.createSubackPacketV4(42, [
+          SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
+        ])
+      );
+      const publication = vi.mocked(transport.send).mock.calls
+        .map(([packet]) => packet)
+        .find((packet) => packet.typeId === PacketType.PUBLISH);
+      expect(publication).toMatchObject({
+        topicName: topic,
+        applicationMessage: payload,
+        flags: { qosLevel: 1, retain: true },
+      });
+      const identifier = publication?.identifier;
+      expect(identifier).toBeTypeOf("number");
+      expect(Number.isInteger(identifier)).toBe(true);
+      expect(identifier).toBeGreaterThan(0);
+      expect(identifier).toBeLessThanOrEqual(0xffff);
     });
 
     describe("Keep Alive", () => {

@@ -1,6 +1,10 @@
 import { QoS } from "../protocol/shared/types";
 import { AnyPacketV4 } from "../protocol/v4/types";
-import { IMqttSocketTransportAdapter, MqttAuth } from "../shared/types";
+import {
+  IMqttSocketTransportAdapter,
+  IPacketIdentifierManager,
+  MqttAuth,
+} from "../shared/types";
 
 type ConnectionEvent = { connectionId: number; connectionInfo: string };
 
@@ -95,4 +99,6 @@ export type ConnectionState = {
 export type ClientSession = {
   isPermanent: boolean; // indicates if the client session has to be stored after disconnection (true) or can be discarded (false)
   activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
+
+  packetIdManager: IPacketIdentifierManager; // manages packet identifiers for the connection
 };

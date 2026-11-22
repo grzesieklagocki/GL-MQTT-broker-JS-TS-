@@ -21,8 +21,14 @@ import { PacketType, QoS } from "../protocol/shared/types";
 import { MqttAuth } from "../shared/types";
 import { MqttPacketV4Factory } from "../protocol/v4/MqttPacketV4Factory";
 import { isBasicClientId } from "../protocol/v4/validation/connect";
-import { ISubscriptionManager } from "./topics/types";
+import {
+  IRetainedMessagesManager,
+  ISubscriptionManager,
+  RetainedMessage,
+} from "./topics/types";
 import { SubscriptionManager } from "./topics/SubscriptionManager";
+import { RetainedMessagesManager } from "./topics/RetainedMessagesManager";
+import { PacketIdentifierManager } from "../client/shared/PacketIdentifierManager";
 
 export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   private nextConnectionId = 1; // for generating unique connection IDs
@@ -40,7 +46,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    */
   constructor(
     private readonly auth: IAuthManager,
-    private readonly subscriptions: ISubscriptionManager = new SubscriptionManager()
+    private readonly subscriptions: ISubscriptionManager = new SubscriptionManager(),
+    private readonly retainedMessages: IRetainedMessagesManager = new RetainedMessagesManager()
   ) {
     super();
   }
@@ -402,21 +409,28 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   private async handlePublishPacket(packet: PublishPacketV4) {
     const topic = packet.topicName;
     const message = packet.applicationMessage;
+    const qos = packet.flags.qosLevel;
+
     const subscribers = this.subscriptions.getSubscribers(topic);
 
     for (const subscriber of subscribers) {
-      const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
-        topic,
-        message
-      );
-
       const clientSession = this.sessions.get(subscriber.clientId);
       const clientConnection = clientSession?.activeConnection;
 
       // skip if the client connection is not active or not in the connected phase
       if (!clientConnection || clientConnection.phase !== "connected") continue;
 
+      const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
+        topic,
+        message
+      );
+
       await this.trySend(clientConnection, publishPacket);
+    }
+
+    // if the retain flag is set, store the message as a retained message
+    if (packet.flags.retain) {
+      this.retainedMessages.set(topic, message ?? new Uint8Array(), qos);
     }
   }
 
@@ -437,13 +451,22 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         const maxAllowedQos = this.auth.canSubscribe(topicFilter);
 
         if (maxAllowedQos !== false) {
-          const grantedQos = Math.min(requestedQos, maxAllowedQos);
+          const grantedQos = Math.min(requestedQos, maxAllowedQos) as QoS;
 
           this.subscriptions.subscribe(
             connection.clientId!,
             topicFilter,
-            grantedQos as QoS
+            grantedQos
           );
+
+          // send retained messages for the topic filter to the subscribing client
+          const retainedMessages = this.retainedMessages.get(topicFilter);
+
+          retainedMessages.forEach(
+            (m) => (m.qos = Math.min(m.qos, grantedQos) as QoS)
+          ); // limit retained message QoS
+
+          this.publishRetainedMessages(retainedMessages, connection);
 
           return grantedQos;
         } else return SubackReturnCodeV4.FAILURE;
@@ -498,6 +521,33 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }
   }
 
+  private publishRetainedMessages(
+    messages: RetainedMessage[],
+    connection: ConnectionState
+  ) {
+    if (!connection || !connection.clientId) return;
+
+    for (const message of messages) {
+      const flags = MqttPacketV4Factory.createPublishFlagsV4(
+        message.qos,
+        true // retain flag set
+      );
+
+      const publish = MqttPacketV4Factory.createPublishPacketV4(
+        message.topic,
+        message.payload,
+        flags,
+        message.qos > 0
+          ? this.sessions
+              .get(connection.clientId)
+              ?.packetIdManager.allocateIdentifier()
+          : undefined
+      );
+
+      this.trySend(connection, publish);
+    }
+  }
+
   /**
    * Determines the CONNACK return code for the given CONNECT packet.
    * @param packet The CONNECT packet received from the client.
@@ -542,6 +592,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       const session = {
         activeConnection: connection,
         isPermanent: !cleanSession,
+        packetIdManager: new PacketIdentifierManager(), // initialize a new packet identifier manager for the session
       };
 
       // set the new session for the client ID and unsubscribe from all previous subscriptions
