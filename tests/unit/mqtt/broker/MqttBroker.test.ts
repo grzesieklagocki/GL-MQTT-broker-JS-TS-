@@ -726,6 +726,78 @@ describe("MqttBroker", () => {
       expect(transport.disconnect).toHaveBeenCalledTimes(1);
     });
 
+    describe("after an accepted CONNECT", () => {
+      beforeEach(async () => {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        vi.mocked(transport.send).mockClear();
+      });
+
+      it("answers PINGREQ with PINGRESP without closing the transport", async () => {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGRESP)
+        );
+        expect(transport.disconnect).not.toHaveBeenCalled();
+      });
+
+      it("closes the transport without a response or error on DISCONNECT", async () => {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith();
+        expect(transport.send).not.toHaveBeenCalled();
+      });
+
+      it("closes the transport with the original error if sending PINGRESP fails", async () => {
+        const { transport } = connectionMock;
+        const error = new Error("PINGRESP send failed");
+        const failedSend = Promise.reject(error);
+        // Keep the rejection observed by Vitest even when the broker ignores it.
+        void failedSend.catch(() => {});
+        vi.mocked(transport.send).mockReturnValueOnce(failedSend);
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGRESP)
+        );
+        expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith(error);
+      });
+
+      it("ignores packets delivered while a DISCONNECT is closing the transport", async () => {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+        );
+        // The mock has not reported transport closure yet.
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(transport.disconnect).toHaveBeenCalledExactlyOnceWith();
+        expect(transport.send).not.toHaveBeenCalled();
+      });
+    });
+
     // A second CONNECT on the same transport violates [MQTT-3.1.0-2].
     it("closes the transport on a second CONNECT without authenticating again", async () => {
       const packet = MqttPacketV4Factory.createConnectPacketV4(

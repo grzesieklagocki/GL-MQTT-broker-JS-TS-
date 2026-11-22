@@ -227,11 +227,27 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       return;
     }
 
-    if (packet.typeId === PacketType.CONNECT) {
-      await this.handleConnectPacket(packet, connectionId, connection);
+    switch (packet.typeId) {
+      case PacketType.CONNECT:
+        await this.handleConnectPacket(packet, connectionId, connection);
+        break;
+      case PacketType.PINGREQ:
+        const pingresp = MqttPacketV4Factory.createSimplePacketV4(
+          PacketType.PINGRESP
+        );
+        await connection.transport.send(pingresp);
+        break;
+      case PacketType.DISCONNECT:
+        this.disconnectConnection(connectionId, connection);
+        break;
+      // TODO: other packet types handling1
+      default:
+        throw Error("Unhandled packet type");
     }
-    // TODO: other packet types handling1
-    else throw Error("Unhandled packet type");
+    //   if (packet.typeId === PacketType.CONNECT) {
+    //     await this.handleConnectPacket(packet, connectionId, connection);
+    //   }
+    //   else throw Error("Unhandled packet type");
   }
 
   /**
