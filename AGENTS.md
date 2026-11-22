@@ -52,6 +52,7 @@ The primary goal is to deliver a working, tested MVP and finish the thesis. This
 - Before making substantial changes, briefly explain the intended approach.
 - Modify only files relevant to the requested task.
 - Do not perform unrelated cleanup.
+- Before running `git add`, format only the files you intend to stage with Prettier (`prettier --write <files>`), preserving CRLF. Review the resulting diff before staging.
 - Never create Git commits, push, or rewrite history without explicit permission.
 - If a task requires a design decision beyond the requested scope, ask before proceeding.
 - Keep responses concise and avoid unnecessary explanations.
