@@ -478,14 +478,18 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       if (canSend) await this.trySend(clientConnection, publishPacket);
     }
 
-    // send PUBACK to the publisher if the QoS level is 1
-    if (qos === 1 && packet.identifier !== undefined) {
-      const puback = MqttPacketV4Factory.createPacketWithIdentifierV4(
-        PacketType.PUBACK,
+    if (qos > 0) {
+      if (packet.identifier === undefined)
+        throw Error("Packet identifier is required for QoS > 0");
+
+      // send PUBACK to the publisher if the QoS level is 1
+      // or PUBREC if the QoS level is 2
+      const response = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        qos === 1 ? PacketType.PUBACK : PacketType.PUBREC,
         packet.identifier
       );
 
-      this.trySend(connection, puback);
+      this.trySend(connection, response);
     }
 
     // if the retain flag is set, store the message as a retained message
