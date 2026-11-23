@@ -1866,6 +1866,50 @@ describe("MqttBroker", () => {
       expect(transport.disconnect).not.toHaveBeenCalled();
     });
 
+    it("sends PUBCOMP with the same identifier after PUBREL", async () => {
+      const { transport } = connectionMock;
+      const identifier = 42;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          "home/light",
+          new Uint8Array([1]),
+          MqttPacketV4Factory.createPublishFlagsV4(2),
+          identifier
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREC,
+          identifier
+        )
+      );
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREL,
+          identifier
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledTimes(2);
+      expect(transport.send).toHaveBeenNthCalledWith(
+        2,
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBCOMP,
+          identifier
+        )
+      );
+      expect(transport.disconnect).not.toHaveBeenCalled();
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

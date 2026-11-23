@@ -305,7 +305,14 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       case PacketType.PUBACK:
         await this.handlePubackPacket(packet, connection);
+        break;
 
+      case PacketType.PUBREL:
+        const pubcomp = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBCOMP,
+          packet.identifier
+        );
+        await this.trySend(connection, pubcomp);
         break;
 
       case PacketType.SUBSCRIBE:
