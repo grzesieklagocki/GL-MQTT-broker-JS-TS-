@@ -1541,6 +1541,147 @@ describe("MqttBroker", () => {
       expect(transport.disconnect).not.toHaveBeenCalled();
     });
 
+    it.each([0, 1] as const)(
+      "forwards a live QoS 1 PUBLISH at granted QoS %i",
+      async (grantedQos) => {
+        const publisher = connectionMock.transport;
+        const subscriberConnection = createConnectionMock(
+          "subscriber connection"
+        );
+        listenerMock.connectionHandler(subscriberConnection);
+        const subscriber = subscriberConnection.transport;
+        const topic = "home/light";
+        const payload = new Uint8Array([1]);
+
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+        );
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        vi.mocked(authManagerMock.canSubscribe).mockReturnValueOnce(grantedQos);
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        vi.mocked(subscriber.send).mockClear();
+
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(1, false),
+            43
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: payload,
+            flags: expect.objectContaining({ qosLevel: grantedQos }),
+          })
+        );
+        const publication = vi
+          .mocked(subscriber.send)
+          .mock.calls.map(([packet]) => packet)
+          .find((packet) => packet.typeId === PacketType.PUBLISH);
+        const identifier = publication?.identifier;
+        if (grantedQos === 1) {
+          expect(Number.isInteger(identifier)).toBe(true);
+          expect(identifier).toBeGreaterThan(0);
+          expect(identifier).toBeLessThanOrEqual(0xffff);
+
+          const releaseIdentifier = vi.spyOn(
+            PacketIdentifierManager.prototype,
+            "releaseIdentifier"
+          );
+          try {
+            subscriber.packetReceivedHandler(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBACK,
+                identifier!
+              )
+            );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+
+            expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(
+              identifier
+            );
+            expect(subscriber.disconnect).not.toHaveBeenCalled();
+          } finally {
+            releaseIdentifier.mockRestore();
+          }
+        } else {
+          expect(identifier).toBeUndefined();
+        }
+      }
+    );
+
+    it("routes to a later QoS 1 subscriber without sending malformed QoS 2 packets", async () => {
+      const { transport } = connectionMock;
+      const topic = "home/light";
+      const payload = new Uint8Array([1]);
+      const subscriberConnection = createConnectionMock("QoS 1 subscriber");
+      listenerMock.connectionHandler(subscriberConnection);
+      const subscriber = subscriberConnection.transport;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 2]])
+      );
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+      vi.mocked(subscriber.send).mockClear();
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          payload,
+          MqttPacketV4Factory.createPublishFlagsV4(2, false),
+          43
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      const outgoingQos2 = vi
+        .mocked(transport.send)
+        .mock.calls.map(([packet]) => packet)
+        .filter(
+          (packet) =>
+            packet.typeId === PacketType.PUBLISH && packet.flags.qosLevel === 2
+        );
+      for (const packet of outgoingQos2) {
+        const identifier =
+          "identifier" in packet ? packet.identifier : undefined;
+        expect(Number.isInteger(identifier)).toBe(true);
+        expect(identifier).toBeGreaterThan(0);
+        expect(identifier).toBeLessThanOrEqual(0xffff);
+      }
+
+      expect(subscriber.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          typeId: PacketType.PUBLISH,
+          topicName: topic,
+          applicationMessage: payload,
+          flags: expect.objectContaining({ qosLevel: 1 }),
+        })
+      );
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

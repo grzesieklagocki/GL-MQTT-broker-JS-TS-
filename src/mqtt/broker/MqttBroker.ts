@@ -427,8 +427,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     const message = packet.applicationMessage;
     const qos = packet.flags.qosLevel;
 
+    // get the list of subscribers for the topic
     const subscribers = this.subscriptions.getSubscribers(topic);
 
+    // send the PUBLISH packet to all active subscribers of the topic
     for (const subscriber of subscribers) {
       const clientSession = this.sessions.get(subscriber.clientId);
       const clientConnection = clientSession?.activeConnection;
@@ -436,9 +438,25 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // skip if the client connection is not active or not in the connected phase
       if (!clientConnection || clientConnection.phase !== "connected") continue;
 
+      const grantedQos = Math.min(qos, subscriber.qos) as QoS; // calculate the granted QoS for this subscriber (according to MQTT specification)
+      let packetId: number | undefined;
+
+      // if the granted QoS for this subscriber is 1
+      // allocate a packet identifier and track it for PUBACK
+      if (grantedQos === 1) {
+        packetId = clientSession.packetIdManager.allocateIdentifier();
+        clientSession.expectedPubackIds.add(packetId);
+      } else if (grantedQos === 2) {
+        // TODO: Implement handling for QoS 2 PUBLISH packets (PUBREC/PUBREL/PUBCOMP flow)
+        continue;
+      }
+
+      // create the PUBLISH packet for this subscriber
       const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
         topic,
-        message
+        message,
+        MqttPacketV4Factory.createPublishFlagsV4(grantedQos), // flags
+        packetId
       );
 
       await this.trySend(clientConnection, publishPacket);
