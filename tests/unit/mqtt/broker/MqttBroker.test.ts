@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttBroker } from "@mqtt/broker/MqttBroker";
 import { RetainedMessagesManager } from "@mqtt/broker/topics/RetainedMessagesManager";
 import { SubscriptionManager } from "@mqtt/broker/topics/SubscriptionManager";
+import { PacketIdentifierManager } from "@mqtt/shared/PacketIdentifierManager";
 import {
   AcceptedConnection,
   IAuthManager,
@@ -1395,6 +1396,122 @@ describe("MqttBroker", () => {
       expect(identifier).toBeGreaterThan(0);
       expect(identifier).toBeLessThanOrEqual(0xffff);
     });
+
+    it("releases only the acknowledged QoS 1 packet identifier on PUBACK", async () => {
+      const { transport } = connectionMock;
+      const payload = new Uint8Array([1]);
+      retainedMessages.set("home/light", payload, 1);
+      retainedMessages.set("home/temperature", payload, 1);
+
+      const releaseIdentifier = vi.spyOn(
+        PacketIdentifierManager.prototype,
+        "releaseIdentifier"
+      );
+      try {
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        vi.mocked(transport.send).mockClear();
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [["home/+", 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const publications = vi
+          .mocked(transport.send)
+          .mock.calls.map(([packet]) => packet)
+          .filter((packet) => packet.typeId === PacketType.PUBLISH);
+        expect(publications).toHaveLength(2);
+        const [acknowledged, pending] = publications;
+        expect(acknowledged.identifier).toBeTypeOf("number");
+        expect(pending.identifier).toBeTypeOf("number");
+        expect(acknowledged.identifier).not.toBe(pending.identifier);
+        expect(releaseIdentifier).not.toHaveBeenCalled();
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.PUBACK,
+            acknowledged.identifier!
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(
+          acknowledged.identifier
+        );
+        expect(transport.disconnect).not.toHaveBeenCalled();
+      } finally {
+        releaseIdentifier.mockRestore();
+      }
+    });
+
+    it.each([
+      { scenario: "without an incoming PUBLISH", sendPublish: false },
+      {
+        scenario: "after an incoming PUBLISH with the same ID",
+        sendPublish: true,
+      },
+    ])(
+      "does not release an outgoing QoS 2 packet identifier on PUBACK $scenario",
+      async ({ sendPublish }) => {
+        const { transport } = connectionMock;
+        const topic = "home/light";
+        retainedMessages.set(topic, new Uint8Array([1]), 2);
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 2]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const publication = vi
+          .mocked(transport.send)
+          .mock.calls.map(([packet]) => packet)
+          .find((packet) => packet.typeId === PacketType.PUBLISH);
+        expect(publication).toMatchObject({
+          topicName: topic,
+          flags: { qosLevel: 2 },
+          identifier: expect.any(Number),
+        });
+        const identifier = publication!.identifier!;
+
+        if (sendPublish) {
+          transport.packetReceivedHandler(
+            MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              new Uint8Array([2]),
+              MqttPacketV4Factory.createPublishFlagsV4(1, false),
+              identifier
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        const releaseIdentifier = vi.spyOn(
+          PacketIdentifierManager.prototype,
+          "releaseIdentifier"
+        );
+        try {
+          transport.packetReceivedHandler(
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              PacketType.PUBACK,
+              identifier
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(releaseIdentifier).not.toHaveBeenCalled();
+        } finally {
+          releaseIdentifier.mockRestore();
+        }
+      }
+    );
 
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());

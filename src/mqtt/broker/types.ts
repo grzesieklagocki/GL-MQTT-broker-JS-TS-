@@ -101,4 +101,5 @@ export type ClientSession = {
   activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
 
   packetIdManager: IPacketIdentifierManager; // manages packet identifiers for the connection
+  readonly expectedPubackIds: Set<number>; // list of expected PUBACK packet identifiers
 };

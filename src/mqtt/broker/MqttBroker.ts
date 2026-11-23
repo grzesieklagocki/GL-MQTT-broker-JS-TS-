@@ -302,6 +302,19 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         await this.handlePublishPacket(packet);
         break;
 
+      case PacketType.PUBACK:
+        if (!connection.clientId) break;
+
+        const session = this.sessions.get(connection.clientId);
+
+        // ignore PUBACK packets that are not expected
+        if (!session?.expectedPubackIds.has(packet.identifier)) break;
+
+        session.packetIdManager.releaseIdentifier(packet.identifier);
+        session.expectedPubackIds.delete(packet.identifier);
+
+        break;
+
       case PacketType.SUBSCRIBE:
         await this.handleSubscribePacket(packet, connection);
         break;
@@ -544,6 +557,12 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
           : undefined
       );
 
+      // register the expected PUBACK ID for the session
+      if (message.qos === 1) {
+        const session = this.sessions.get(connection.clientId!);
+        session!.expectedPubackIds.add(publish.identifier!);
+      }
+
       this.trySend(connection, publish);
     }
   }
@@ -589,10 +608,11 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       session.activeConnection = connection;
     } else {
       // if session does not exist, create a new one
-      const session = {
+      const session: ClientSession = {
         activeConnection: connection,
         isPermanent: !cleanSession,
         packetIdManager: new PacketIdentifierManager(), // initialize a new packet identifier manager for the session
+        expectedPubackIds: new Set(),
       };
 
       // set the new session for the client ID and unsubscribe from all previous subscriptions
