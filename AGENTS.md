@@ -41,6 +41,7 @@ The primary goal is to deliver a working, tested MVP and finish the thesis. This
 
 - Use the existing Vitest conventions.
 - Prefer focused tests covering observable behavior and edge cases.
+- After committing a verified GREEN increment, immediately explain the next focused increment, add its basic tests, and verify the expected RED result. Leave those tests out of the completed commit and leave production implementation to the user unless explicitly requested.
 - Do not change tests merely to make failing code pass.
 - Run relevant tests and type checking after changes when possible.
 - Report what was actually executed and what was not verified.
