@@ -96,10 +96,18 @@ export type ConnectionState = {
   keepAliveTimeout?: NodeJS.Timeout; // the timeout for the keep-alive mechanism (optional)
 };
 
+/**
+ * Represents the delivery status of a PUBLISH packet.
+ */
+export type DeliveryStatus = "notSent" | "awaitingPuback";
+
 export type ClientSession = {
   isPermanent: boolean; // indicates if the client session has to be stored after disconnection (true) or can be discarded (false)
   activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
 
   packetIdManager: IPacketIdentifierManager; // manages packet identifiers for the connection
-  readonly pendingPublishPackets: Map<number, PublishPacketV4>; // map of packet identifiers to pending PUBLISH packets awaiting PUBACK
+  readonly pendingPublishPackets: Map<
+    number,
+    { packet: PublishPacketV4; status: DeliveryStatus }
+  >; // map of packet identifiers to pending PUBLISH packets
 };

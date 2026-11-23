@@ -599,6 +599,94 @@ describe("MqttBroker", () => {
         );
       });
 
+      it.each([
+        { name: "retransmits the delivery without PUBACK", acknowledge: false },
+        { name: "does not retransmit after PUBACK", acknowledge: true },
+      ])("delivers offline QoS 1 and $name", async ({ acknowledge }) => {
+        const { transport } = connectionMock;
+        const topic = "home/light";
+        const payload = new Uint8Array([1]);
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, clientId)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        transport.disconnectHandler();
+
+        const publisher = reconnect(true, "publisher");
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(1),
+            43
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const resumedTransport = reconnect(false);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(resumedTransport.send).toHaveBeenNthCalledWith(
+          1,
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+        expect(resumedTransport.send).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: payload,
+            flags: { qosLevel: 1, retain: false, dup: false },
+            identifier: expect.any(Number),
+          })
+        );
+
+        const firstDelivery = vi.mocked(resumedTransport.send).mock
+          .calls[1]?.[0];
+        if (
+          firstDelivery?.typeId !== PacketType.PUBLISH ||
+          firstDelivery.identifier === undefined
+        ) {
+          throw new Error("Expected a PUBLISH with a packet identifier");
+        }
+        const identifier = firstDelivery.identifier;
+
+        if (acknowledge) {
+          resumedTransport.packetReceivedHandler(
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              PacketType.PUBACK,
+              identifier
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        resumedTransport.disconnectHandler();
+        const nextTransport = reconnect(false);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const connack = MqttPacketV4Factory.createConnackPacketV4(true);
+        if (acknowledge) {
+          expect(nextTransport.send).toHaveBeenCalledExactlyOnceWith(connack);
+        } else {
+          expect(nextTransport.send).toHaveBeenNthCalledWith(1, connack);
+          expect(nextTransport.send).toHaveBeenNthCalledWith(
+            2,
+            MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              payload,
+              MqttPacketV4Factory.createPublishFlagsV4(1, false, true),
+              identifier
+            )
+          );
+        }
+      });
+
       // A clean session lasts only as long as its connection [MQTT-3.1.2-6].
       it("does not keep a clean session after the connection closes", async () => {
         await connectAndClose(true);

@@ -12,6 +12,7 @@ import {
   ConnackPacketV4,
   ConnackReturnCodeV4,
   ConnectPacketV4,
+  PubackPacketV4,
   PublishPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
@@ -303,15 +304,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         break;
 
       case PacketType.PUBACK:
-        if (!connection.clientId) break;
-
-        const session = this.sessions.get(connection.clientId);
-
-        // ignore PUBACK packets that are not expected
-        if (!session?.pendingPublishPackets.has(packet.identifier)) break;
-
-        session.packetIdManager.releaseIdentifier(packet.identifier);
-        session.pendingPublishPackets.delete(packet.identifier);
+        await this.handlePubackPacket(packet, connection);
 
         break;
 
@@ -406,9 +399,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // initialize the Keep Alive timeout for the connection
       this.resetKeepAliveTimeout(connection);
 
-      // resend pending PUBLISH packets for which PUBACK has not been received (from previous session)
+      // resend pending PUBLISH packets (from previous sessions or not yet confirmed)
       if (sessionPresent && session?.pendingPublishPackets) {
-        for (const packet of session.pendingPublishPackets.values()) {
+        for (const pending of session.pendingPublishPackets.values()) {
+          // DUP flag should be set to true for retransmitted PUBLISH packets
           const setDup = (packet: PublishPacketV4) => {
             return {
               ...packet,
@@ -416,7 +410,12 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
             };
           };
 
-          this.trySend(connection, setDup(packet));
+          this.trySend(
+            connection,
+            pending.status === "notSent"
+              ? pending.packet // keep DUP flag (packet has not been sent before)
+              : setDup(pending.packet) // set DUP flag (it is retransmitted)
+          );
         }
       }
 
@@ -443,15 +442,17 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     // get the list of subscribers for the topic
     const subscribers = this.subscriptions.getSubscribers(topic);
 
-    // send the PUBLISH packet to all active subscribers of the topic
+    // for each subscriber, determine if the message can be sent immediately or needs to be queued for later delivery
     for (const subscriber of subscribers) {
       const clientSession = this.sessions.get(subscriber.clientId);
-      const clientConnection = clientSession?.activeConnection;
 
-      // skip if the client connection is not active or not in the connected phase
-      if (!clientConnection || clientConnection.phase !== "connected") continue;
+      if (!clientSession) continue;
 
+      const clientConnection = clientSession.activeConnection;
+      const canSend = clientConnection?.phase === "connected";
       const grantedQos = Math.min(qos, subscriber.qos) as QoS; // calculate the granted QoS for this subscriber (according to MQTT specification)
+      if (!canSend && !(clientSession.isPermanent && grantedQos === 1))
+        continue;
 
       // create the PUBLISH packet for this subscriber
       const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
@@ -465,16 +466,16 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         // allocate a packet identifier and track it for PUBACK
         publishPacket.identifier =
           clientSession.packetIdManager.allocateIdentifier();
-        clientSession.pendingPublishPackets.set(
-          publishPacket.identifier,
-          publishPacket
-        );
+        clientSession.pendingPublishPackets.set(publishPacket.identifier, {
+          packet: publishPacket,
+          status: "notSent",
+        });
       } else if (grantedQos === 2) {
         // TODO: Implement handling for QoS 2 PUBLISH packets (PUBREC/PUBREL/PUBCOMP flow)
         continue;
       }
 
-      await this.trySend(clientConnection, publishPacket);
+      if (canSend) await this.trySend(clientConnection, publishPacket);
     }
 
     // send PUBACK to the publisher if the QoS level is 1
@@ -491,6 +492,25 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     if (packet.flags.retain) {
       this.retainedMessages.set(topic, message ?? new Uint8Array(), qos);
     }
+  }
+
+  private async handlePubackPacket(
+    packet: PubackPacketV4,
+    connection: ConnectionState
+  ) {
+    if (!connection.clientId) return;
+
+    const session = this.sessions.get(connection.clientId);
+
+    // ignore PUBACK packets that are not expected and not in the "awaitingPuback" state
+    if (
+      session?.pendingPublishPackets?.get(packet.identifier)?.status !==
+      "awaitingPuback"
+    )
+      return;
+
+    session.packetIdManager.releaseIdentifier(packet.identifier);
+    session.pendingPublishPackets.delete(packet.identifier);
   }
 
   /**
@@ -569,6 +589,17 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     try {
       await connection.transport.send(packet);
 
+      // update pending publish packet status for QoS 1 PUBLISH packets
+      if (packet.typeId === PacketType.PUBLISH) {
+        if (packet.flags.qosLevel === 1) {
+          const pending = this.sessions
+            .get(connection.clientId!)
+            ?.pendingPublishPackets.get(packet.identifier!);
+
+          if (pending) pending.status = "awaitingPuback";
+        }
+      }
+
       return true;
     } catch (error) {
       void this.disconnectConnection(
@@ -606,10 +637,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // register the expected PUBACK ID for the session if QoS is 1
       if (message.qos === 1) {
         const session = this.sessions.get(connection.clientId!);
-        session!.pendingPublishPackets.set(
-          publishPacket.identifier!,
-          publishPacket
-        );
+        session!.pendingPublishPackets.set(publishPacket.identifier!, {
+          packet: publishPacket,
+          status: "notSent",
+        });
       }
 
       this.trySend(connection, publishPacket);
