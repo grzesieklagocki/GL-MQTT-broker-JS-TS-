@@ -1,5 +1,5 @@
 import { QoS } from "../protocol/shared/types";
-import { AnyPacketV4 } from "../protocol/v4/types";
+import { AnyPacketV4, PublishPacketV4 } from "../protocol/v4/types";
 import {
   IMqttSocketTransportAdapter,
   IPacketIdentifierManager,
@@ -101,5 +101,5 @@ export type ClientSession = {
   activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
 
   packetIdManager: IPacketIdentifierManager; // manages packet identifiers for the connection
-  readonly expectedPubackIds: Set<number>; // list of expected PUBACK packet identifiers
+  readonly pendingPublishPackets: Map<number, PublishPacketV4>; // map of packet identifiers to pending PUBLISH packets awaiting PUBACK
 };

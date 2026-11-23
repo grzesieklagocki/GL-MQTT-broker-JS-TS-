@@ -531,6 +531,74 @@ describe("MqttBroker", () => {
         );
       });
 
+      it.each([
+        {
+          name: "resends an unacknowledged QoS 1 PUBLISH after resuming a session",
+          cleanSession: false,
+        },
+        {
+          name: "does not resend an unacknowledged QoS 1 PUBLISH after a clean reconnect",
+          cleanSession: true,
+        },
+      ])("$name", async ({ cleanSession }) => {
+        const { transport } = connectionMock;
+        const topic = "home/light";
+        const payload = new Uint8Array([1]);
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(false, 0, clientId)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(1),
+            43
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const original = vi
+          .mocked(transport.send)
+          .mock.calls.map(([packet]) => packet)
+          .find((packet) => packet.typeId === PacketType.PUBLISH);
+        expect(original).toMatchObject({
+          topicName: topic,
+          applicationMessage: payload,
+          identifier: expect.any(Number),
+          flags: { qosLevel: 1, dup: false },
+        });
+
+        transport.disconnectHandler();
+        const resumedTransport = reconnect(cleanSession);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        if (cleanSession) {
+          expect(resumedTransport.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createConnackPacketV4(false)
+          );
+          return;
+        }
+
+        expect(resumedTransport.send).toHaveBeenNthCalledWith(
+          1,
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+        expect(resumedTransport.send).toHaveBeenNthCalledWith(
+          2,
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(1, false, true),
+            original!.identifier!
+          )
+        );
+      });
+
       // A clean session lasts only as long as its connection [MQTT-3.1.2-6].
       it("does not keep a clean session after the connection closes", async () => {
         await connectAndClose(true);
