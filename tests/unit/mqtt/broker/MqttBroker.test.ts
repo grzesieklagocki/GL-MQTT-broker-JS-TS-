@@ -1513,6 +1513,34 @@ describe("MqttBroker", () => {
       }
     );
 
+    it("sends PUBACK to the publisher for QoS 1 PUBLISH without subscribers", async () => {
+      const { transport } = connectionMock;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(transport.send).mockClear();
+
+      const identifier = 42;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          "home/light",
+          new Uint8Array([1]),
+          MqttPacketV4Factory.createPublishFlagsV4(1, false),
+          identifier
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBACK,
+          identifier
+        )
+      );
+      expect(transport.disconnect).not.toHaveBeenCalled();
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

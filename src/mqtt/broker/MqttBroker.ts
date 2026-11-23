@@ -299,7 +299,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         break;
 
       case PacketType.PUBLISH:
-        await this.handlePublishPacket(packet);
+        await this.handlePublishPacket(packet, connection);
         break;
 
       case PacketType.PUBACK:
@@ -419,7 +419,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
    * Handles an incoming PUBLISH packet from a client and forwards it to the appropriate subscribers.
    * @param packet The PUBLISH packet received from the client.
    */
-  private async handlePublishPacket(packet: PublishPacketV4) {
+  private async handlePublishPacket(
+    packet: PublishPacketV4,
+    connection: ConnectionState
+  ) {
     const topic = packet.topicName;
     const message = packet.applicationMessage;
     const qos = packet.flags.qosLevel;
@@ -439,6 +442,16 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       );
 
       await this.trySend(clientConnection, publishPacket);
+    }
+
+    // send PUBACK to the publisher if the QoS level is 1
+    if (qos === 1 && packet.identifier !== undefined) {
+      const puback = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        PacketType.PUBACK,
+        packet.identifier
+      );
+
+      this.trySend(connection, puback);
     }
 
     // if the retain flag is set, store the message as a retained message
