@@ -597,18 +597,26 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     packet: AnyPacketV4
   ): Promise<boolean> {
     try {
+      const identifier =
+        packet.typeId === PacketType.PUBLISH && packet.flags.qosLevel === 1
+          ? packet.identifier
+          : undefined;
+      const pending =
+        identifier !== undefined
+          ? this.getSession(connection)?.pendingPublishPackets.get(identifier)
+          : undefined;
+
       await connection.transport.send(packet);
 
-      // update pending publish packet status for QoS 1 PUBLISH packets
+      // new session or delivery can reuse the identifier while send is pending
       if (
-        packet.typeId === PacketType.PUBLISH &&
-        packet.flags.qosLevel === 1 &&
-        packet.identifier !== undefined
+        pending &&
+        identifier !== undefined &&
+        this.getSession(connection)?.pendingPublishPackets.get(identifier) ===
+          pending
       ) {
-        const session = this.getSession(connection);
-        const pending = session?.pendingPublishPackets.get(packet.identifier);
-
-        if (pending) pending.status = "awaitingPuback";
+        // update pending status for QoS 1 PUBLISH packets
+        pending.status = "awaitingPuback";
       }
 
       return true;

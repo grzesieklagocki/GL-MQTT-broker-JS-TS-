@@ -687,6 +687,81 @@ describe("MqttBroker", () => {
         }
       });
 
+      it("does not mark a new session's queued PUBLISH as sent when an old send completes", async () => {
+        const { transport } = connectionMock;
+        const topic = "home/light";
+        const subscribe = MqttPacketV4Factory.createSubscribePacketV4(42, [
+          [topic, 1],
+        ]);
+        const publish = (payload: Uint8Array) =>
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(1),
+            43
+          );
+
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, clientId)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        transport.packetReceivedHandler(subscribe);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        let completeOldSend!: () => void;
+        const oldSend = new Promise<void>((resolve) => {
+          completeOldSend = resolve;
+        });
+        vi.mocked(transport.send).mockReturnValueOnce(oldSend);
+        transport.packetReceivedHandler(publish(new Uint8Array([1])));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const oldPacket = vi.mocked(transport.send).mock.calls[2]?.[0];
+        expect(oldPacket).toMatchObject({
+          typeId: PacketType.PUBLISH,
+          identifier: expect.any(Number),
+        });
+        const oldIdentifier =
+          oldPacket?.typeId === PacketType.PUBLISH
+            ? oldPacket.identifier
+            : undefined;
+        transport.disconnectHandler();
+
+        const replacement = reconnect(false);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(replacement.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        replacement.packetReceivedHandler(subscribe);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        replacement.disconnectHandler();
+
+        const publisher = reconnect(true, "publisher");
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const queuedPayload = new Uint8Array([2]);
+        publisher.packetReceivedHandler(publish(queuedPayload));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        completeOldSend();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const resumed = reconnect(false);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(resumed.send).toHaveBeenNthCalledWith(
+          1,
+          MqttPacketV4Factory.createConnackPacketV4(true)
+        );
+        expect(resumed.send).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: queuedPayload,
+            identifier: oldIdentifier,
+            flags: { qosLevel: 1, retain: false, dup: false },
+          })
+        );
+      });
+
       // A clean session lasts only as long as its connection [MQTT-3.1.2-6].
       it("does not keep a clean session after the connection closes", async () => {
         await connectAndClose(true);
