@@ -232,7 +232,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       // skip if there is no active session for this client
       if (clientId) {
-        const session = this.sessions.get(clientId);
+        const session = this.getSession(connection);
 
         // ensure it is actual session
         if (session?.activeConnection === connection) {
@@ -509,13 +509,12 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     packet: PubackPacketV4,
     connection: ConnectionState
   ) {
-    if (!connection.clientId) return;
-
-    const session = this.sessions.get(connection.clientId);
+    const session = this.getSession(connection);
+    if (!session) return;
 
     // ignore PUBACK packets that are not expected and not in the "awaitingPuback" state
     if (
-      session?.pendingPublishPackets?.get(packet.identifier)?.status !==
+      session.pendingPublishPackets.get(packet.identifier)?.status !==
       "awaitingPuback"
     )
       return;
@@ -601,14 +600,15 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       await connection.transport.send(packet);
 
       // update pending publish packet status for QoS 1 PUBLISH packets
-      if (packet.typeId === PacketType.PUBLISH) {
-        if (packet.flags.qosLevel === 1) {
-          const pending = this.sessions
-            .get(connection.clientId!)
-            ?.pendingPublishPackets.get(packet.identifier!);
+      if (
+        packet.typeId === PacketType.PUBLISH &&
+        packet.flags.qosLevel === 1 &&
+        packet.identifier !== undefined
+      ) {
+        const session = this.getSession(connection);
+        const pending = session?.pendingPublishPackets.get(packet.identifier);
 
-          if (pending) pending.status = "awaitingPuback";
-        }
+        if (pending) pending.status = "awaitingPuback";
       }
 
       return true;
@@ -626,7 +626,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     messages: RetainedMessage[],
     connection: ConnectionState
   ) {
-    if (!connection || !connection.clientId) return;
+    const session = this.getSession(connection);
+    if (!session) return;
 
     for (const message of messages) {
       const flags = MqttPacketV4Factory.createPublishFlagsV4(
@@ -634,21 +635,20 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         true // retain flag set
       );
 
+      const identifier =
+        message.qos > 0
+          ? session.packetIdManager.allocateIdentifier()
+          : undefined;
       const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
         message.topic,
         message.payload,
         flags,
-        message.qos > 0
-          ? this.sessions
-              .get(connection.clientId)
-              ?.packetIdManager.allocateIdentifier()
-          : undefined
+        identifier
       );
 
       // register the expected PUBACK ID for the session if QoS is 1
-      if (message.qos === 1) {
-        const session = this.sessions.get(connection.clientId!);
-        session!.pendingPublishPackets.set(publishPacket.identifier!, {
+      if (message.qos === 1 && identifier !== undefined) {
+        session.pendingPublishPackets.set(identifier, {
           packet: publishPacket,
           status: "notSent",
         });
@@ -679,6 +679,11 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       ? ConnackReturnCodeV4.CONNECTION_ACCEPTED
       : ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED;
   }
+
+  private getSession = (
+    connection: ConnectionState
+  ): ClientSession | undefined =>
+    connection.clientId ? this.sessions.get(connection.clientId) : undefined;
 
   /**
    * Updates the session for the given client ID and connection.
