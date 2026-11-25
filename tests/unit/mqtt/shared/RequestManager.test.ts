@@ -26,6 +26,7 @@ describe("RequestManager", () => {
 
       const promise = requestManager.sendAndWaitForResponse(
         request,
+        PacketType.SUBACK,
         1,
         new Error("timeout")
       );
@@ -60,12 +61,14 @@ describe("RequestManager", () => {
 
       const promise1 = requestManager.sendAndWaitForResponse(
         request1,
+        PacketType.SUBACK,
         1,
         new Error("timeout")
       );
 
       const promise2 = requestManager.sendAndWaitForResponse(
         request2,
+        PacketType.UNSUBACK,
         1,
         new Error("timeout")
       );
@@ -87,34 +90,47 @@ describe("RequestManager", () => {
       } as AnyPacketV4;
 
       await expect(
-        requestManager.sendAndWaitForResponse(request, 1, new Error("timeout"))
+        requestManager.sendAndWaitForResponse(
+          request,
+          PacketType.PINGRESP,
+          1,
+          new Error("timeout")
+        )
       ).rejects.toThrow("Packet identifier is undefined.");
 
       expect(sendActionMock).not.toHaveBeenCalled();
     });
 
-    it("rejects when response packet type does not match expected response type", async () => {
+    it("keeps the request pending when complete receives an unexpected response type", async () => {
       const request = {
         typeId: PacketType.SUBSCRIBE,
         identifier: 10,
       } as AnyPacketV4;
 
-      const response = {
+      const unexpectedResponse = {
         typeId: PacketType.PUBACK,
+        identifier: 10,
+      } as AnyPacketV4;
+
+      const response = {
+        typeId: PacketType.SUBACK,
         identifier: 10,
       } as AnyPacketV4;
 
       const promise = requestManager.sendAndWaitForResponse(
         request,
+        PacketType.SUBACK,
         1,
         new Error("timeout")
       );
 
-      requestManager.complete(response);
-
-      await expect(promise).rejects.toThrow(
+      expect(() => requestManager.complete(unexpectedResponse)).toThrow(
         /not matches expected response for identifier: 10/
       );
+
+      requestManager.complete(response);
+
+      await expect(promise).resolves.toBe(response);
     });
 
     it("rejects when timeout expires before response is completed", async () => {
@@ -129,6 +145,7 @@ describe("RequestManager", () => {
 
       const promise = requestManager.sendAndWaitForResponse(
         request,
+        PacketType.SUBACK,
         1,
         timeoutError
       );
@@ -153,7 +170,12 @@ describe("RequestManager", () => {
       } as AnyPacketV4;
 
       await expect(
-        requestManager.sendAndWaitForResponse(request, 10, new Error("timeout"))
+        requestManager.sendAndWaitForResponse(
+          request,
+          PacketType.SUBACK,
+          10,
+          new Error("timeout")
+        )
       ).rejects.toThrow("Transport error");
     });
   });
@@ -193,6 +215,7 @@ describe("RequestManager", () => {
 
       const promise = requestManager.sendAndWaitForResponse(
         request,
+        PacketType.SUBACK,
         1,
         new Error("timeout")
       );
@@ -221,6 +244,7 @@ describe("RequestManager", () => {
 
       const promise = requestManager.sendAndWaitForResponse(
         request,
+        PacketType.SUBACK,
         1,
         new Error("timeout")
       );

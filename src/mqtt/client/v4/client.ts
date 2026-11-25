@@ -24,7 +24,9 @@ import {
   PublishPacketV4,
   SubackPacketV4,
   SubackReturnCodeV4,
+  SubscribePacketV4,
   SubscriptionV4,
+  UnsubscribePacketV4,
 } from "@mqtt/protocol/v4/types";
 import { EventEmitter } from "node:events";
 import { generateRandomClientId } from "../../shared/generateRandomClientId";
@@ -347,12 +349,30 @@ export class MqttClientV4 {
    * @param packet - The packet to send to the broker.
    * @returns A promise that resolves with the response packet received from the broker or rejects with an error if the timeout is reached.
    */
-  private sendAndWaitForResponse = async (packet: AnyPacketV4) =>
-    await this.requestManager.sendAndWaitForResponse(
+  private sendAndWaitForResponse = async (
+    packet: PublishPacketV4 | SubscribePacketV4 | UnsubscribePacketV4
+  ) => {
+    let expectedResponseType: PacketType;
+
+    switch (packet.typeId) {
+      case PacketType.PUBLISH:
+        expectedResponseType = PacketType.PUBACK;
+        break;
+      case PacketType.SUBSCRIBE:
+        expectedResponseType = PacketType.SUBACK;
+        break;
+      case PacketType.UNSUBSCRIBE:
+        expectedResponseType = PacketType.UNSUBACK;
+        break;
+    }
+
+    return await this.requestManager.sendAndWaitForResponse(
       packet,
+      expectedResponseType,
       10,
       new AppError("timeout")
     );
+  };
 
   /**
    * Waits for a transport operation to complete within a specified timeout period. If the operation does not complete in time, it rejects with an error.

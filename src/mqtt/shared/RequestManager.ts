@@ -10,7 +10,10 @@ export class RequestManager {
   // for storing pending requests
   private readonly pendingRequests = new Map<
     number,
-    PromiseExecutor<RequestResponsePacket>
+    {
+      executor: PromiseExecutor<RequestResponsePacket>;
+      expectedPacketType: PacketType;
+    }
   >();
 
   /**
@@ -32,6 +35,7 @@ export class RequestManager {
    */
   public async sendAndWaitForResponse(
     packet: RequestResponsePacket,
+    expectedResponseType: PacketType,
     timeoutSeconds: number,
     timeoutError: Error
   ): Promise<RequestResponsePacket> {
@@ -43,8 +47,11 @@ export class RequestManager {
       new Promise<RequestResponsePacket>((resolve, reject) => {
         // store the resolve and reject functions in the pendingRequests Map
         this.pendingRequests.set(packet.identifier, {
-          resolve: resolve,
-          reject: reject,
+          executor: {
+            resolve: resolve,
+            reject: reject,
+          },
+          expectedPacketType: expectedResponseType,
         });
 
         try {
@@ -61,11 +68,6 @@ export class RequestManager {
         timeoutSeconds,
         timeoutError
       );
-
-      if (response.typeId !== packet.typeId + 1)
-        throw new Error(
-          `Packet type: ${PacketType[response.typeId]} not matches expected response for identifier: ${packet.identifier}.`
-        );
 
       return response;
     } finally {
@@ -89,7 +91,12 @@ export class RequestManager {
     if (!request)
       throw new Error(`No pending request for identifier: ${identifier}`);
 
-    request.resolve!(response);
+    if (response.typeId !== request.expectedPacketType)
+      throw new Error(
+        `Packet type: ${PacketType[response.typeId]} not matches expected response for identifier: ${identifier}`
+      );
+
+    request.executor.resolve!(response);
 
     // delete from pendingRequests Map
     this.pendingRequests.delete(identifier);

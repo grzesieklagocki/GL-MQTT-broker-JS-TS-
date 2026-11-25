@@ -72,7 +72,7 @@ describe("MqttClientV4", () => {
       expectUnsubscribeSent();
     });
 
-    it("rejects when response has a different packet type than UNSUBACK", async () => {
+    it("ignores a different ACK with the same identifier and rejects after timeout", async () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
@@ -80,7 +80,7 @@ describe("MqttClientV4", () => {
       });
 
       const promise = testContext.client.unsubscribe([]);
-      const assertion = expect(promise).rejects.toThrow(/not matches/);
+      const assertion = expect(promise).rejects.toThrow(/timeout/);
 
       await vi.advanceTimersByTimeAsync(10_000);
 

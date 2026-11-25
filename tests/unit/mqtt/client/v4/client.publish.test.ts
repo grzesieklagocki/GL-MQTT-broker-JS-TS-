@@ -102,7 +102,7 @@ describe("MqttClientV4", () => {
         expectPublishSent(1, 1);
       });
 
-      it("ignores different packet type and rejects after timeout", async () => {
+      it("keeps waiting for PUBACK after receiving a different ACK with the same identifier", async () => {
         testContext.transportMock.send.mockImplementationOnce(() => {
           testContext.sendBack(
             MqttPacketV4Factory.createPacketWithIdentifierV4(
@@ -117,11 +117,9 @@ describe("MqttClientV4", () => {
           message,
           publishFlags(1)
         );
-        const assertion = expect(promise).rejects.toThrow(/not matches/);
+        testContext.sendBack(pubackPacket(1));
 
-        await vi.advanceTimersByTimeAsync(10_000);
-
-        await assertion;
+        await expect(promise).resolves.toBeUndefined();
 
         expectPublishSent(1, 1);
       });
