@@ -1995,6 +1995,124 @@ describe("MqttBroker", () => {
       expect(transport.disconnect).not.toHaveBeenCalled();
     });
 
+    it.each([
+      { scenario: "after PUBREC send completes", delayPubrec: false },
+      { scenario: "while PUBREC send is pending", delayPubrec: true },
+    ])(
+      "deduplicates incoming QoS 2 and accepts the same ID again: PUBREL arrives $scenario",
+      async ({ delayPubrec }) => {
+        const publisher = connectionMock.transport;
+        const subscriberConnection = createConnectionMock("QoS 1 subscriber");
+        listenerMock.connectionHandler(subscriberConnection);
+        const subscriber = subscriberConnection.transport;
+        const topic = "home/light";
+        const payload = new Uint8Array([1]);
+        const identifier = 42;
+
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+        );
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(43, [[topic, 1]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        vi.mocked(publisher.send).mockClear();
+        vi.mocked(subscriber.send).mockClear();
+
+        let finishPubrecSends = () => {};
+        if (delayPubrec) {
+          const pendingSend = new Promise<void>((resolve) => {
+            finishPubrecSends = resolve;
+          });
+          vi.mocked(publisher.send).mockImplementation((packet) =>
+            packet.typeId === PacketType.PUBREC
+              ? pendingSend
+              : Promise.resolve()
+          );
+        }
+
+        for (const dup of [false, true]) {
+          publisher.packetReceivedHandler(
+            MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              payload,
+              MqttPacketV4Factory.createPublishFlagsV4(2, false, dup),
+              identifier
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        const pubrec = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREC,
+          identifier
+        );
+        expect(vi.mocked(publisher.send).mock.calls).toEqual([
+          [pubrec],
+          [pubrec],
+        ]);
+
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.PUBREL,
+            identifier
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(publisher.send).toHaveBeenNthCalledWith(
+          3,
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.PUBCOMP,
+            identifier
+          )
+        );
+        finishPubrecSends();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: payload,
+          })
+        );
+        vi.mocked(publisher.send).mockClear();
+        vi.mocked(subscriber.send).mockClear();
+
+        const nextPayload = new Uint8Array([2]);
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            nextPayload,
+            MqttPacketV4Factory.createPublishFlagsV4(2),
+            identifier
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(publisher.send).toHaveBeenCalledExactlyOnceWith(pubrec);
+
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.PUBREL,
+            identifier
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: nextPayload,
+          })
+        );
+      }
+    );
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

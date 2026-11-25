@@ -106,7 +106,9 @@ export type ClientSession = {
   activeConnection?: ConnectionState; // the currently active connection for the client session (optional)
 
   packetIdManager: IPacketIdentifierManager; // manages packet identifiers for the connection
-  readonly pendingPublishPackets: Map<
+
+  readonly incomingQos2PacketIds: Set<number>; // set of packet identifiers for incoming QoS 2 PUBLISH packets awaiting PUBREL
+  readonly outgoingPublishPackets: Map<
     number,
     { packet: PublishPacketV4; status: DeliveryStatus }
   >; // map of packet identifiers to pending PUBLISH packets

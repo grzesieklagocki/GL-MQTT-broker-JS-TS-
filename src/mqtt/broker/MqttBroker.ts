@@ -14,6 +14,7 @@ import {
   ConnectPacketV4,
   PubackPacketV4,
   PublishPacketV4,
+  PubrelPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
   UnsubscribePacketV4,
@@ -308,11 +309,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         break;
 
       case PacketType.PUBREL:
-        const pubcomp = MqttPacketV4Factory.createPacketWithIdentifierV4(
-          PacketType.PUBCOMP,
-          packet.identifier
-        );
-        await this.trySend(connection, pubcomp);
+        await this.handlePubrelPacket(packet, connection);
         break;
 
       case PacketType.SUBSCRIBE:
@@ -407,8 +404,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       this.resetKeepAliveTimeout(connection);
 
       // resend pending PUBLISH packets (from previous sessions or not yet confirmed)
-      if (sessionPresent && session?.pendingPublishPackets) {
-        for (const pending of session.pendingPublishPackets.values()) {
+      if (sessionPresent && session?.outgoingPublishPackets) {
+        for (const pending of session.outgoingPublishPackets.values()) {
           // DUP flag should be set to true for retransmitted PUBLISH packets
           const setDup = (packet: PublishPacketV4) => {
             return {
@@ -446,6 +443,35 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     const message = packet.applicationMessage;
     const qos = packet.flags.qosLevel;
 
+    if (qos > 0) {
+      if (packet.identifier === undefined)
+        throw Error("Packet identifier is required for QoS > 0"); // should never happen, parser validates that QoS > 0 packets have an identifier
+
+      const session = this.getSession(connection);
+      if (!session) return;
+
+      // send PUBACK to the publisher if the QoS level is 1
+      // or PUBREC if the QoS level is 2
+      const response = MqttPacketV4Factory.createPacketWithIdentifierV4(
+        qos === 1 ? PacketType.PUBACK : PacketType.PUBREC,
+        packet.identifier
+      );
+
+      const isPubrecDuplicate =
+        qos === 2 && session.incomingQos2PacketIds.has(packet.identifier);
+
+      if (qos === 2 && !isPubrecDuplicate) {
+        // store the packet identifier to track incoming QoS 2 packets
+        session.incomingQos2PacketIds.add(packet.identifier);
+      }
+
+      // send response (PUBACK for QoS 1 or PUBREC for QoS 2) to the publisher
+      await this.trySend(connection, response);
+
+      // skip processing the message if it is a duplicate QoS 2 packet
+      if (isPubrecDuplicate) return;
+    }
+
     // get the list of subscribers for the topic
     const subscribers = this.subscriptions.getSubscribers(topic);
 
@@ -473,7 +499,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         // allocate a packet identifier and track it for PUBACK
         publishPacket.identifier =
           clientSession.packetIdManager.allocateIdentifier();
-        clientSession.pendingPublishPackets.set(publishPacket.identifier, {
+        clientSession.outgoingPublishPackets.set(publishPacket.identifier, {
           packet: publishPacket,
           status: "notSent",
         });
@@ -483,20 +509,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       }
 
       if (canSend) await this.trySend(clientConnection, publishPacket);
-    }
-
-    if (qos > 0) {
-      if (packet.identifier === undefined)
-        throw Error("Packet identifier is required for QoS > 0");
-
-      // send PUBACK to the publisher if the QoS level is 1
-      // or PUBREC if the QoS level is 2
-      const response = MqttPacketV4Factory.createPacketWithIdentifierV4(
-        qos === 1 ? PacketType.PUBACK : PacketType.PUBREC,
-        packet.identifier
-      );
-
-      this.trySend(connection, response);
     }
 
     // if the retain flag is set, store the message as a retained message
@@ -514,13 +526,30 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
     // ignore PUBACK packets that are not expected and not in the "awaitingPuback" state
     if (
-      session.pendingPublishPackets.get(packet.identifier)?.status !==
+      session.outgoingPublishPackets.get(packet.identifier)?.status !==
       "awaitingPuback"
     )
       return;
 
     session.packetIdManager.releaseIdentifier(packet.identifier);
-    session.pendingPublishPackets.delete(packet.identifier);
+    session.outgoingPublishPackets.delete(packet.identifier);
+  }
+
+  private async handlePubrelPacket(
+    packet: PubrelPacketV4,
+    connection: ConnectionState
+  ) {
+    const session = this.getSession(connection);
+    if (!session) return;
+
+    const pubcomp = MqttPacketV4Factory.createPacketWithIdentifierV4(
+      PacketType.PUBCOMP,
+      packet.identifier
+    );
+
+    session.incomingQos2PacketIds.delete(packet.identifier);
+
+    await this.trySend(connection, pubcomp);
   }
 
   /**
@@ -603,7 +632,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
           : undefined;
       const pending =
         identifier !== undefined
-          ? this.getSession(connection)?.pendingPublishPackets.get(identifier)
+          ? this.getSession(connection)?.outgoingPublishPackets.get(identifier)
           : undefined;
 
       await connection.transport.send(packet);
@@ -612,7 +641,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       if (
         pending &&
         identifier !== undefined &&
-        this.getSession(connection)?.pendingPublishPackets.get(identifier) ===
+        this.getSession(connection)?.outgoingPublishPackets.get(identifier) ===
           pending
       ) {
         // update pending status for QoS 1 PUBLISH packets
@@ -656,7 +685,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       // register the expected PUBACK ID for the session if QoS is 1
       if (message.qos === 1 && identifier !== undefined) {
-        session.pendingPublishPackets.set(identifier, {
+        session.outgoingPublishPackets.set(identifier, {
           packet: publishPacket,
           status: "notSent",
         });
@@ -716,7 +745,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         activeConnection: connection,
         isPermanent: !cleanSession,
         packetIdManager: new PacketIdentifierManager(), // initialize a new packet identifier manager for the session
-        pendingPublishPackets: new Map(),
+        outgoingPublishPackets: new Map(),
+        incomingQos2PacketIds: new Set(),
       };
 
       // set the new session for the client ID and unsubscribe from all previous subscriptions
