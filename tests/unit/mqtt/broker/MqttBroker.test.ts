@@ -2826,74 +2826,98 @@ describe("MqttBroker", () => {
       }
     );
 
-    it("releases the Last Will QoS 1 packet identifier on PUBACK", async () => {
-      const subscriber = connectionMock.transport;
-      const publisherConnection = createConnectionMock("will publisher");
-      listenerMock.connectionHandler(publisherConnection);
-      const publisher = publisherConnection.transport;
-      const topic = "devices/publisher/status";
-      const payload = new Uint8Array([1]);
+    it.each([
+      { qos: 1 as const, completion: PacketType.PUBACK as const },
+      { qos: 2 as const, completion: PacketType.PUBCOMP as const },
+    ])(
+      "releases the Last Will QoS $qos packet identifier after the delivery handshake",
+      async ({ qos, completion }) => {
+        const subscriber = connectionMock.transport;
+        const publisherConnection = createConnectionMock("will publisher");
+        listenerMock.connectionHandler(publisherConnection);
+        const publisher = publisherConnection.transport;
+        const topic = "devices/publisher/status";
+        const payload = new Uint8Array([1]);
 
-      subscriber.packetReceivedHandler(
-        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      subscriber.packetReceivedHandler(
-        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      publisher.packetReceivedHandler(
-        MqttPacketV4Factory.createConnectPacketV4(
-          true,
-          0,
-          "publisher",
-          undefined,
-          undefined,
-          { topic, message: payload, qos: 1, retain: false }
-        )
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      vi.mocked(subscriber.send).mockClear();
-      publisher.disconnectHandler();
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({
-          typeId: PacketType.PUBLISH,
-          topicName: topic,
-          applicationMessage: payload,
-          flags: { qosLevel: 1, retain: false, dup: false },
-        })
-      );
-      const delivery = vi.mocked(subscriber.send).mock.calls[0]?.[0];
-      const identifier =
-        delivery?.typeId === PacketType.PUBLISH
-          ? delivery.identifier
-          : undefined;
-      expect(Number.isInteger(identifier)).toBe(true);
-      expect(identifier).toBeGreaterThan(0);
-      expect(identifier).toBeLessThanOrEqual(0xffff);
-
-      const releaseIdentifier = vi.spyOn(
-        PacketIdentifierManager.prototype,
-        "releaseIdentifier"
-      );
-      try {
         subscriber.packetReceivedHandler(
-          MqttPacketV4Factory.createPacketWithIdentifierV4(
-            PacketType.PUBACK,
-            identifier!
-          )
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, qos]])
         );
         await new Promise<void>((resolve) => setImmediate(resolve));
 
-        expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(identifier);
-        expect(subscriber.disconnect).not.toHaveBeenCalled();
-      } finally {
-        releaseIdentifier.mockRestore();
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(
+            true,
+            0,
+            "publisher",
+            undefined,
+            undefined,
+            { topic, message: payload, qos, retain: false }
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        vi.mocked(subscriber.send).mockClear();
+        publisher.disconnectHandler();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            typeId: PacketType.PUBLISH,
+            topicName: topic,
+            applicationMessage: payload,
+            flags: { qosLevel: qos, retain: false, dup: false },
+          })
+        );
+        const delivery = vi.mocked(subscriber.send).mock.calls[0]?.[0];
+        const identifier =
+          delivery?.typeId === PacketType.PUBLISH
+            ? delivery.identifier
+            : undefined;
+        expect(Number.isInteger(identifier)).toBe(true);
+        expect(identifier).toBeGreaterThan(0);
+        expect(identifier).toBeLessThanOrEqual(0xffff);
+
+        const releaseIdentifier = vi.spyOn(
+          PacketIdentifierManager.prototype,
+          "releaseIdentifier"
+        );
+        try {
+          if (qos === 2) {
+            vi.mocked(subscriber.send).mockClear();
+            subscriber.packetReceivedHandler(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBREC,
+                identifier!
+              )
+            );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBREL,
+                identifier!
+              )
+            );
+            expect(releaseIdentifier).not.toHaveBeenCalled();
+          }
+
+          subscriber.packetReceivedHandler(
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              completion,
+              identifier!
+            )
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+
+          expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(identifier);
+          expect(subscriber.disconnect).not.toHaveBeenCalled();
+        } finally {
+          releaseIdentifier.mockRestore();
+        }
       }
-    });
+    );
 
     it("retries an unacknowledged QoS 1 Will after also delivering it at QoS 0", async () => {
       const topic = "devices/publisher/status";

@@ -289,10 +289,14 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
           // send the publish packet to the subscriber's active connection
           this.trySend(subscriberSession?.activeConnection!, publishPacket);
 
-          if (grantedQos == 1)
+          // set the outgoing publish packet for QoS 1 or 2 (for tracking)
+          if (grantedQos > 0)
             subscriberSession?.outgoingPublishPackets.set(packetId!, {
               packet: publishPacket,
-              status: "awaitingPuback",
+              status:
+                grantedQos === 1
+                  ? "awaitingPuback" // for QoS 1
+                  : "awaitingPubrec", // for QoS 2
             });
         }
       }
