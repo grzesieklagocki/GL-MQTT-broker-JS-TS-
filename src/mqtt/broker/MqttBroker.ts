@@ -757,7 +757,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }
   }
 
-  private publishRetainedMessages(
+  private async publishRetainedMessages(
     messages: RetainedMessage[],
     connection: ConnectionState
   ) {
@@ -781,15 +781,26 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         identifier
       );
 
-      // register the expected PUBACK ID for the session if QoS is 1
-      if (message.qos === 1 && identifier !== undefined) {
+      let pending; // for tracking the pending outgoing publish packet
+
+      if (message.qos > 0 && identifier !== undefined) {
+        // register the expected PUBACK ID for the session if QoS is 1 or 2
         session.outgoingPublishPackets.set(identifier, {
           packet: publishPacket,
           status: "notSent",
         });
+        pending = session.outgoingPublishPackets.get(identifier);
       }
 
-      this.trySend(connection, publishPacket);
+      // send the PUBLISH packet to the client
+      const isMessageSent = await this.trySend(connection, publishPacket);
+
+      // update pending status for QoS 2 PUBLISH packets
+      if (message.qos === 2 && isMessageSent) {
+        if (pending?.status === "notSent") {
+          pending.status = "awaitingPubrec";
+        }
+      }
     }
   }
 
