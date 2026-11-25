@@ -712,10 +712,20 @@ describe("MqttBroker", () => {
         const oldSend = new Promise<void>((resolve) => {
           completeOldSend = resolve;
         });
-        vi.mocked(transport.send).mockReturnValueOnce(oldSend);
+        // The order of PUBACK and the forwarded PUBLISH is not specified, so delay the PUBLISH itself.
+        let oldSendDelayed = false;
+        vi.mocked(transport.send).mockImplementation(async (packet) => {
+          if (packet.typeId === PacketType.PUBLISH && !oldSendDelayed) {
+            oldSendDelayed = true;
+            await oldSend;
+          }
+        });
         transport.packetReceivedHandler(publish(new Uint8Array([1])));
         await new Promise<void>((resolve) => setImmediate(resolve));
-        const oldPacket = vi.mocked(transport.send).mock.calls[2]?.[0];
+        const oldPacket = vi
+          .mocked(transport.send)
+          .mock.calls.map(([packet]) => packet)
+          .find((packet) => packet.typeId === PacketType.PUBLISH);
         expect(oldPacket).toMatchObject({
           typeId: PacketType.PUBLISH,
           identifier: expect.any(Number),
