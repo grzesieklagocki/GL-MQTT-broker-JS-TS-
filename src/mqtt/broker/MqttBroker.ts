@@ -13,6 +13,7 @@ import {
   ConnackReturnCodeV4,
   ConnectPacketV4,
   PubackPacketV4,
+  PubcompPacketV4,
   PublishPacketV4,
   PubrecPacketV4,
   PubrelPacketV4,
@@ -315,6 +316,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
       case PacketType.PUBREL:
         await this.handlePubrelPacket(packet, connection);
+        break;
+
+      case PacketType.PUBCOMP:
+        await this.handlePubcompPacket(packet, connection);
         break;
 
       case PacketType.SUBSCRIBE:
@@ -626,6 +631,22 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     session.incomingQos2PacketIds.delete(packet.identifier);
 
     await this.trySend(connection, pubcomp);
+  }
+
+  private async handlePubcompPacket(
+    packet: PubcompPacketV4,
+    connection: ConnectionState
+  ) {
+    const session = this.getSession(connection);
+    const status = session?.outgoingPublishPackets.get(
+      packet.identifier
+    )?.status;
+
+    if (status !== "awaitingPubcomp") return;
+
+    // remove the outgoing PUBLISH packet and release its identifier from the packet ID manager
+    session?.outgoingPublishPackets.delete(packet.identifier);
+    session?.packetIdManager.releaseIdentifier(packet.identifier);
   }
 
   /**

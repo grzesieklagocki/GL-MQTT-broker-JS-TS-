@@ -2186,6 +2186,20 @@ describe("MqttBroker", () => {
         replaceEntry: false,
       },
       {
+        phase: "after PUBCOMP",
+        receivesPubrec: true,
+        delayPublish: false,
+        replaceEntry: false,
+        receivesPubcomp: true,
+      },
+      {
+        phase: "after a premature PUBCOMP before PUBREC",
+        receivesPubrec: false,
+        delayPublish: false,
+        replaceEntry: false,
+        receivesPubcomp: true,
+      },
+      {
         phase: "after PUBREL and an incoming PUBLISH with the same ID",
         receivesPubrec: true,
         delayPublish: false,
@@ -2211,6 +2225,7 @@ describe("MqttBroker", () => {
         delayPublish,
         replaceEntry,
         publishesWithSameId,
+        receivesPubcomp,
       }) => {
         const { transport } = connectionMock;
         const topic = "home/light";
@@ -2310,6 +2325,31 @@ describe("MqttBroker", () => {
         }
         expect(transport.disconnect).not.toHaveBeenCalled();
 
+        if (receivesPubcomp) {
+          const releaseIdentifier = vi.spyOn(
+            PacketIdentifierManager.prototype,
+            "releaseIdentifier"
+          );
+          try {
+            transport.packetReceivedHandler(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBCOMP,
+                identifier
+              )
+            );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            if (receivesPubrec) {
+              expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(
+                identifier
+              );
+            } else {
+              expect(releaseIdentifier).not.toHaveBeenCalled();
+            }
+          } finally {
+            releaseIdentifier.mockRestore();
+          }
+        }
+
         transport.disconnectHandler();
         const resumedConnection = createConnectionMock("resumed connection");
         listenerMock.connectionHandler(resumedConnection);
@@ -2318,6 +2358,13 @@ describe("MqttBroker", () => {
           MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
         );
         await new Promise<void>((resolve) => setImmediate(resolve));
+
+        if (receivesPubcomp && receivesPubrec) {
+          expect(resumed.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createConnackPacketV4(true)
+          );
+          return;
+        }
 
         expect(vi.mocked(resumed.send).mock.calls).toEqual([
           [MqttPacketV4Factory.createConnackPacketV4(true)],
