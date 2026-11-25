@@ -2827,11 +2827,35 @@ describe("MqttBroker", () => {
     );
 
     it.each([
-      { qos: 1 as const, completion: PacketType.PUBACK as const },
-      { qos: 2 as const, completion: PacketType.PUBCOMP as const },
+      {
+        qos: 1 as const,
+        completion: PacketType.PUBACK as const,
+        timing: "after send",
+      },
+      {
+        qos: 2 as const,
+        completion: PacketType.PUBCOMP as const,
+        timing: "after send",
+      },
+      {
+        qos: 2 as const,
+        completion: PacketType.PUBCOMP as const,
+        timing: "while send is pending",
+      },
+      {
+        qos: 2 as const,
+        completion: undefined,
+        timing: "with PUBREC during send and no PUBCOMP before reconnect",
+      },
+      {
+        qos: 2 as const,
+        completion: PacketType.PUBCOMP as const,
+        timing: "while send is pending and the ID is reused",
+        reuseIdentifier: true,
+      },
     ])(
-      "releases the Last Will QoS $qos packet identifier after the delivery handshake",
-      async ({ qos, completion }) => {
+      "tracks the Last Will QoS $qos handshake $timing",
+      async ({ qos, completion, timing, reuseIdentifier }) => {
         const subscriber = connectionMock.transport;
         const publisherConnection = createConnectionMock("will publisher");
         listenerMock.connectionHandler(publisherConnection);
@@ -2839,9 +2863,13 @@ describe("MqttBroker", () => {
         const topic = "devices/publisher/status";
         const payload = new Uint8Array([1]);
 
-        subscriber.packetReceivedHandler(
-          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        const delaySend = timing !== "after send";
+        const connectSubscriber = MqttPacketV4Factory.createConnectPacketV4(
+          !delaySend,
+          0,
+          "subscriber"
         );
+        subscriber.packetReceivedHandler(connectSubscriber);
         await new Promise<void>((resolve) => setImmediate(resolve));
         subscriber.packetReceivedHandler(
           MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, qos]])
@@ -2860,6 +2888,13 @@ describe("MqttBroker", () => {
         );
         await new Promise<void>((resolve) => setImmediate(resolve));
         vi.mocked(subscriber.send).mockClear();
+        let finishSend: (() => void) | undefined;
+        if (delaySend) {
+          const pendingSend = new Promise<void>((resolve) => {
+            finishSend = resolve;
+          });
+          vi.mocked(subscriber.send).mockReturnValueOnce(pendingSend);
+        }
         publisher.disconnectHandler();
         await new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -2884,6 +2919,7 @@ describe("MqttBroker", () => {
           PacketIdentifierManager.prototype,
           "releaseIdentifier"
         );
+        const nextPayload = new Uint8Array([2]);
         try {
           if (qos === 2) {
             vi.mocked(subscriber.send).mockClear();
@@ -2903,94 +2939,283 @@ describe("MqttBroker", () => {
             expect(releaseIdentifier).not.toHaveBeenCalled();
           }
 
-          subscriber.packetReceivedHandler(
-            MqttPacketV4Factory.createPacketWithIdentifierV4(
-              completion,
-              identifier!
-            )
-          );
+          if (completion !== undefined) {
+            subscriber.packetReceivedHandler(
+              MqttPacketV4Factory.createPacketWithIdentifierV4(
+                completion,
+                identifier!
+              )
+            );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+
+            expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(
+              identifier
+            );
+          }
+          expect(subscriber.disconnect).not.toHaveBeenCalled();
+
+          if (reuseIdentifier) {
+            subscriber.disconnectHandler();
+            const nextPublisher = createConnectionMock("second will publisher");
+            listenerMock.connectionHandler(nextPublisher);
+            nextPublisher.transport.packetReceivedHandler(
+              MqttPacketV4Factory.createConnectPacketV4(
+                true,
+                0,
+                "nextPublisher",
+                undefined,
+                undefined,
+                { topic, message: nextPayload, qos, retain: false }
+              )
+            );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(
+              nextPublisher.transport.send
+            ).toHaveBeenCalledExactlyOnceWith(
+              MqttPacketV4Factory.createConnackPacketV4(false)
+            );
+            nextPublisher.transport.disconnectHandler();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+        } finally {
+          finishSend?.();
+          releaseIdentifier.mockRestore();
+        }
+
+        if (delaySend) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          if (!reuseIdentifier) subscriber.disconnectHandler();
+          const resumed = createConnectionMock("resumed subscriber");
+          listenerMock.connectionHandler(resumed);
+          resumed.transport.packetReceivedHandler(connectSubscriber);
           await new Promise<void>((resolve) => setImmediate(resolve));
 
-          expect(releaseIdentifier).toHaveBeenCalledExactlyOnceWith(identifier);
-          expect(subscriber.disconnect).not.toHaveBeenCalled();
-        } finally {
-          releaseIdentifier.mockRestore();
+          const connack = MqttPacketV4Factory.createConnackPacketV4(true);
+          if (completion === undefined) {
+            expect(vi.mocked(resumed.transport.send).mock.calls).toEqual([
+              [connack],
+              [
+                MqttPacketV4Factory.createPacketWithIdentifierV4(
+                  PacketType.PUBREL,
+                  identifier!
+                ),
+              ],
+            ]);
+          } else if (reuseIdentifier) {
+            expect(vi.mocked(resumed.transport.send).mock.calls).toEqual([
+              [connack],
+              [
+                MqttPacketV4Factory.createPublishPacketV4(
+                  topic,
+                  nextPayload,
+                  MqttPacketV4Factory.createPublishFlagsV4(qos),
+                  identifier
+                ),
+              ],
+            ]);
+          } else {
+            expect(resumed.transport.send).toHaveBeenCalledExactlyOnceWith(
+              connack
+            );
+          }
         }
       }
     );
 
-    it("retries an unacknowledged QoS 1 Will after also delivering it at QoS 0", async () => {
-      const topic = "devices/publisher/status";
-      const payload = new Uint8Array([1]);
-      const subscriber = connectionMock.transport;
-      const connectSubscriber = MqttPacketV4Factory.createConnectPacketV4(
-        false,
-        0,
-        "subscriber"
-      );
-      subscriber.packetReceivedHandler(connectSubscriber);
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      subscriber.packetReceivedHandler(
-        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      const other = createConnectionMock("QoS 0 subscriber");
-      listenerMock.connectionHandler(other);
-      other.transport.packetReceivedHandler(
-        MqttPacketV4Factory.createConnectPacketV4(true, 0, "other")
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      other.transport.packetReceivedHandler(
-        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 0]])
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      const publisher = createConnectionMock("will publisher");
-      listenerMock.connectionHandler(publisher);
-      publisher.transport.packetReceivedHandler(
-        MqttPacketV4Factory.createConnectPacketV4(
-          true,
+    it.each([1, 2] as const)(
+      "retries an unacknowledged QoS %i Will after also delivering it at QoS 0",
+      async (qos) => {
+        const topic = "devices/publisher/status";
+        const payload = new Uint8Array([1]);
+        const subscriber = connectionMock.transport;
+        const connectSubscriber = MqttPacketV4Factory.createConnectPacketV4(
+          false,
           0,
-          "publisher",
-          undefined,
-          undefined,
-          { topic, message: payload, qos: 1, retain: false }
-        )
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
+          "subscriber"
+        );
+        subscriber.packetReceivedHandler(connectSubscriber);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, qos]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
 
-      let identifier: number | undefined;
-      vi.mocked(subscriber.send).mockImplementationOnce(async (packet) => {
-        if (packet.typeId === PacketType.PUBLISH)
-          identifier = packet.identifier;
-      });
-      vi.mocked(other.transport.send).mockClear();
-      publisher.transport.disconnectHandler();
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(identifier).toBeGreaterThan(0);
-      expect(other.transport.send).toHaveBeenCalledExactlyOnceWith(
-        MqttPacketV4Factory.createPublishPacketV4(topic, payload)
-      );
+        const other = createConnectionMock("QoS 0 subscriber");
+        listenerMock.connectionHandler(other);
+        other.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "other")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        other.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 0]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
 
-      subscriber.disconnectHandler();
-      const resumed = createConnectionMock("resumed subscriber");
-      listenerMock.connectionHandler(resumed);
-      resumed.transport.packetReceivedHandler(connectSubscriber);
-      await new Promise<void>((resolve) => setImmediate(resolve));
+        const publisher = createConnectionMock("will publisher");
+        listenerMock.connectionHandler(publisher);
+        publisher.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(
+            true,
+            0,
+            "publisher",
+            undefined,
+            undefined,
+            { topic, message: payload, qos, retain: false }
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
 
-      expect(vi.mocked(resumed.transport.send).mock.calls).toEqual([
-        [MqttPacketV4Factory.createConnackPacketV4(true)],
-        [
-          MqttPacketV4Factory.createPublishPacketV4(
-            topic,
-            payload,
-            MqttPacketV4Factory.createPublishFlagsV4(1, false, true),
-            identifier
-          ),
-        ],
-      ]);
-    });
+        let identifier: number | undefined;
+        vi.mocked(subscriber.send).mockImplementationOnce(async (packet) => {
+          if (packet.typeId === PacketType.PUBLISH) {
+            identifier = packet.identifier;
+          }
+        });
+        vi.mocked(other.transport.send).mockClear();
+        publisher.transport.disconnectHandler();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(identifier).toBeGreaterThan(0);
+        expect(other.transport.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createPublishPacketV4(topic, payload)
+        );
+
+        subscriber.disconnectHandler();
+        const resumed = createConnectionMock("resumed subscriber");
+        listenerMock.connectionHandler(resumed);
+        resumed.transport.packetReceivedHandler(connectSubscriber);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(vi.mocked(resumed.transport.send).mock.calls).toEqual([
+          [MqttPacketV4Factory.createConnackPacketV4(true)],
+          [
+            MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              payload,
+              MqttPacketV4Factory.createPublishFlagsV4(qos, false, true),
+              identifier
+            ),
+          ],
+        ]);
+      }
+    );
+
+    it.each([
+      { qos: 1 as const, scenario: "while offline", offline: true },
+      { qos: 2 as const, scenario: "while offline", offline: true },
+      {
+        qos: 1 as const,
+        scenario: "after a send failure before writing the packet",
+        offline: false,
+      },
+      {
+        qos: 2 as const,
+        scenario: "after a send failure before writing the packet",
+        offline: false,
+      },
+    ])(
+      "delivers a queued QoS $qos Last Will on session resumption $scenario",
+      async ({ qos, offline }) => {
+        const subscriber = connectionMock.transport;
+        const topic = "devices/publisher/status";
+        const payload = new Uint8Array([1]);
+        const connectSubscriber = MqttPacketV4Factory.createConnectPacketV4(
+          false,
+          0,
+          "subscriber"
+        );
+        subscriber.packetReceivedHandler(connectSubscriber);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, qos]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const sendError = new Error(
+          "Transport rejected PUBLISH before writing"
+        );
+        if (offline) {
+          subscriber.disconnectHandler();
+        } else {
+          vi.mocked(subscriber.send).mockRejectedValueOnce(sendError);
+        }
+        vi.mocked(subscriber.send).mockClear();
+
+        const publisherConnection = createConnectionMock("will publisher");
+        listenerMock.connectionHandler(publisherConnection);
+        const publisher = publisherConnection.transport;
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(
+            true,
+            0,
+            "publisher",
+            undefined,
+            undefined,
+            { topic, message: payload, qos, retain: false }
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        publisher.disconnectHandler();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        if (offline) {
+          expect(subscriber.send).not.toHaveBeenCalled();
+        } else {
+          expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ typeId: PacketType.PUBLISH })
+          );
+          expect(subscriber.disconnect).toHaveBeenCalledExactlyOnceWith(
+            sendError
+          );
+          subscriber.disconnectHandler();
+        }
+
+        const resumedConnection = createConnectionMock("resumed subscriber");
+        listenerMock.connectionHandler(resumedConnection);
+        const resumed = resumedConnection.transport;
+        resumed.packetReceivedHandler(connectSubscriber);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const connack = MqttPacketV4Factory.createConnackPacketV4(true);
+        expect(vi.mocked(resumed.send).mock.calls).toEqual([
+          [connack],
+          [
+            expect.objectContaining({
+              typeId: PacketType.PUBLISH,
+              topicName: topic,
+              applicationMessage: payload,
+              flags: { qosLevel: qos, retain: false, dup: false },
+              identifier: expect.any(Number),
+            }),
+          ],
+        ]);
+
+        const delivery = vi.mocked(resumed.send).mock.calls[1]?.[0];
+        if (
+          delivery?.typeId !== PacketType.PUBLISH ||
+          delivery.identifier === undefined
+        ) {
+          throw new Error("Expected a PUBLISH with a packet identifier");
+        }
+        const identifier = delivery.identifier;
+
+        resumed.disconnectHandler();
+        const retryConnection = createConnectionMock("subscriber retry");
+        listenerMock.connectionHandler(retryConnection);
+        const retry = retryConnection.transport;
+        retry.packetReceivedHandler(connectSubscriber);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(vi.mocked(retry.send).mock.calls).toEqual([
+          [connack],
+          [
+            MqttPacketV4Factory.createPublishPacketV4(
+              topic,
+              payload,
+              MqttPacketV4Factory.createPublishFlagsV4(qos, false, true),
+              identifier
+            ),
+          ],
+        ]);
+      }
+    );
 
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());

@@ -221,7 +221,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       });
     };
 
-    transport.disconnectHandler = (error) => {
+    transport.disconnectHandler = async (error) => {
       // ignore repeated disconnects
       if (!this.connections.delete(connectionId)) return;
 
@@ -286,18 +286,36 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
             packetId
           );
 
-          // send the publish packet to the subscriber's active connection
-          this.trySend(subscriberSession?.activeConnection!, publishPacket);
-
-          // set the outgoing publish packet for QoS 1 or 2 (for tracking)
-          if (grantedQos > 0)
+          // store the outgoing publish packet in the session if QoS > 0
+          if (grantedQos > 0) {
             subscriberSession?.outgoingPublishPackets.set(packetId!, {
               packet: publishPacket,
-              status:
-                grantedQos === 1
-                  ? "awaitingPuback" // for QoS 1
-                  : "awaitingPubrec", // for QoS 2
+              status: "notSent",
             });
+          }
+
+          const subscriberConnection = subscriberSession?.activeConnection;
+
+          if (subscriberConnection?.phase === "connected") {
+            const pending = subscriberSession?.outgoingPublishPackets.get(
+              packetId!
+            );
+
+            // send the publish packet to the subscriber's active connection
+            const isMessageSent = await this.trySend(
+              subscriberConnection,
+              publishPacket
+            );
+
+            if (
+              grantedQos === 2 &&
+              isMessageSent &&
+              pending ===
+                subscriberSession?.outgoingPublishPackets.get(packetId!)
+            )
+              if (pending?.status === "notSent")
+                pending.status = "awaitingPubrec";
+          }
         }
       }
 
@@ -957,7 +975,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     connection: ConnectionState,
     error?: Error
   ): Promise<void> {
-    if (!this.connections.has(connection.connectionId)) return;
+    if (!this.connections.has(connection?.connectionId)) return;
 
     connection.phase = "closing";
 
