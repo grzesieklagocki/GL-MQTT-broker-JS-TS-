@@ -99,7 +99,8 @@ export type ConnectionState = {
 /**
  * Represents the delivery status of a PUBLISH packet.
  */
-export type DeliveryStatus = "notSent" | "awaitingPuback";
+export type DeliveryStatus =
+  "notSent" | "awaitingPuback" | "awaitingPubrec" | "awaitingPubcomp";
 
 export type ClientSession = {
   isPermanent: boolean; // indicates if the client session has to be stored after disconnection (true) or can be discarded (false)

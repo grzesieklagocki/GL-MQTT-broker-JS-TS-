@@ -14,6 +14,7 @@ import {
   ConnectPacketV4,
   PubackPacketV4,
   PublishPacketV4,
+  PubrecPacketV4,
   PubrelPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
@@ -308,6 +309,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         await this.handlePubackPacket(packet, connection);
         break;
 
+      case PacketType.PUBREC:
+        this.handlePubrecPacket(packet, connection);
+        break;
+
       case PacketType.PUBREL:
         await this.handlePubrelPacket(packet, connection);
         break;
@@ -403,23 +408,47 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       // initialize the Keep Alive timeout for the connection
       this.resetKeepAliveTimeout(connection);
 
+      //
+      // RESEND PENDING PACKETS
+      //
+
       // resend pending PUBLISH packets (from previous sessions or not yet confirmed)
       if (sessionPresent && session?.outgoingPublishPackets) {
         for (const pending of session.outgoingPublishPackets.values()) {
-          // DUP flag should be set to true for retransmitted PUBLISH packets
-          const setDup = (packet: PublishPacketV4) => {
-            return {
-              ...packet,
-              flags: { ...packet.flags, dup: true },
-            };
-          };
+          let packet;
 
-          this.trySend(
-            connection,
-            pending.status === "notSent"
-              ? pending.packet // keep DUP flag (packet has not been sent before)
-              : setDup(pending.packet) // set DUP flag (it is retransmitted)
-          );
+          switch (pending.status) {
+            case "notSent":
+              // use the original packet for notSent status
+              packet = pending.packet;
+              break;
+
+            case "awaitingPubrec":
+            case "awaitingPuback":
+              // set DUP flag for retransmitted PUBLISH packets with awaitingPuback status
+              const setDup = (packet: PublishPacketV4) => {
+                return {
+                  ...packet,
+                  flags: { ...packet.flags, dup: true },
+                };
+              };
+              packet = setDup(pending.packet);
+              break;
+
+            case "awaitingPubcomp":
+              // create PUBREL packet for retransmission of QoS 2 PUBLISH packets awaiting PUBCOMP
+              packet = MqttPacketV4Factory.createPacketWithIdentifierV4(
+                PacketType.PUBREL,
+                pending.packet.identifier!
+              );
+              break;
+          }
+
+          const isMessageSent = await this.trySend(connection, packet);
+
+          // update the status of the pending packet if it was successfully sent and was notSent before
+          if (isMessageSent && pending.status === "notSent")
+            pending.status = "awaitingPubrec";
         }
       }
 
@@ -442,6 +471,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     const topic = packet.topicName;
     const message = packet.applicationMessage;
     const qos = packet.flags.qosLevel;
+
+    //
+    // MANAGE QoS FOR INCOMING PUBLISH PACKETS
+    //
 
     if (qos > 0) {
       if (packet.identifier === undefined)
@@ -472,6 +505,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       if (isPubrecDuplicate) return;
     }
 
+    //
+    // SEND TO SUBSCRIBERS
+    //
+
     // get the list of subscribers for the topic
     const subscribers = this.subscriptions.getSubscribers(topic);
 
@@ -484,8 +521,6 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       const clientConnection = clientSession.activeConnection;
       const canSend = clientConnection?.phase === "connected";
       const grantedQos = Math.min(qos, subscriber.qos) as QoS; // calculate the granted QoS for this subscriber (according to MQTT specification)
-      if (!canSend && !(clientSession.isPermanent && grantedQos === 1))
-        continue;
 
       // create the PUBLISH packet for this subscriber
       const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
@@ -494,22 +529,43 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         MqttPacketV4Factory.createPublishFlagsV4(grantedQos) // flags
       );
 
-      if (grantedQos === 1) {
-        // if the granted QoS for this subscriber is 1
-        // allocate a packet identifier and track it for PUBACK
+      if (grantedQos > 0) {
+        // if the granted QoS for this subscriber is 1 or 2
+        // allocate a packet identifier and track it for PUBACK or PUBREC
         publishPacket.identifier =
           clientSession.packetIdManager.allocateIdentifier();
         clientSession.outgoingPublishPackets.set(publishPacket.identifier, {
           packet: publishPacket,
           status: "notSent",
         });
-      } else if (grantedQos === 2) {
-        // TODO: Implement handling for QoS 2 PUBLISH packets (PUBREC/PUBREL/PUBCOMP flow)
-        continue;
       }
 
-      if (canSend) await this.trySend(clientConnection, publishPacket);
+      if (canSend) {
+        let pending;
+
+        // store pending packet for QoS 2 to track its status
+        if (qos === 2)
+          pending = clientSession.outgoingPublishPackets.get(
+            publishPacket.identifier! // non-null assertion because identifier is allocated for QoS 1 or 2
+          );
+
+        // send the PUBLISH packet to the subscriber
+        const isMessageSent = await this.trySend(
+          clientConnection,
+          publishPacket
+        );
+
+        // set the status to "awaitingPubrec" if the message was sent and the granted QoS is 2
+        if (grantedQos === 2 && isMessageSent) {
+          // if status is still "notSent", update it to "awaitingPubrec"
+          if (pending?.status === "notSent") pending!.status = "awaitingPubrec";
+        }
+      }
     }
+
+    //
+    // STORE RETAINED MESSAGE
+    //
 
     // if the retain flag is set, store the message as a retained message
     if (packet.flags.retain) {
@@ -533,6 +589,26 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
     session.packetIdManager.releaseIdentifier(packet.identifier);
     session.outgoingPublishPackets.delete(packet.identifier);
+  }
+
+  private async handlePubrecPacket(
+    packet: PubrecPacketV4,
+    connection: ConnectionState
+  ) {
+    const session = this.getSession(connection);
+    if (!session) return;
+
+    const pending = session.outgoingPublishPackets.get(packet.identifier);
+    if (!pending || pending.status === "awaitingPuback") return;
+
+    pending.status = "awaitingPubcomp";
+
+    const pubrel = MqttPacketV4Factory.createPacketWithIdentifierV4(
+      PacketType.PUBREL,
+      packet.identifier
+    );
+
+    await this.trySend(connection, pubrel);
   }
 
   private async handlePubrelPacket(
@@ -635,6 +711,7 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
           ? this.getSession(connection)?.outgoingPublishPackets.get(identifier)
           : undefined;
 
+      // send the packet to the client
       await connection.transport.send(packet);
 
       // new session or delivery can reuse the identifier while send is pending
@@ -644,8 +721,8 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         this.getSession(connection)?.outgoingPublishPackets.get(identifier) ===
           pending
       ) {
-        // update pending status for QoS 1 PUBLISH packets
-        pending.status = "awaitingPuback";
+        // update pending status
+        pending.status = "awaitingPuback"; // for QoS 1 PUBLISH packets
       }
 
       return true;
