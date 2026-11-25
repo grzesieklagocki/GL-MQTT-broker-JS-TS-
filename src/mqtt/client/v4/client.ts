@@ -253,23 +253,25 @@ export class MqttClientV4 {
 
     const qos = flags ? flags.qosLevel : 0;
 
-    switch (qos) {
-      case 0:
-        return await this.sendPacket(packet);
+    if (qos === 0) {
+      // send PUBLISH for QoS 0 without waiting for any acknowledgment
+      return await this.sendPacket(packet);
+    } else if (packet.identifier) {
+      // send PUBLISH and wait for PUBACK or PUBREC (depending on QoS)
+      await this.sendAndWaitForResponse(packet);
 
-      case 1:
-        await this.sendAndWaitForResponse(packet);
-        break;
-
-      case 2:
-        await this.sendAndWaitForResponse(packet);
+      if (qos === 2) {
         const pubrel = MqttPacketV4Factory.createPacketWithIdentifierV4(
           PacketType.PUBREL,
-          packet.identifier!
+          packet.identifier
         ) as PubrelPacketV4;
+
+        // send PUBREL and wait for PUBCOMP
         await this.sendAndWaitForResponse(pubrel);
+
+        // release the packet identifier after completing the QoS 2 flow
         this.packetIdManager.releaseIdentifier(packet.identifier!);
-        break;
+      }
     }
   }
 
@@ -457,30 +459,19 @@ export class MqttClientV4 {
    * @param packet - The received MQTT packet.
    */
   private handleReceivedPacket = (packet: AnyPacketV4): void => {
-    // TODO: packet type validation in fixed header parser
-    // if (
-    //   packetType === PacketType.CONNECT ||
-    //   packetType === PacketType.SUBSCRIBE ||
-    //   packetType === PacketType.UNSUBSCRIBE ||
-    //   packetType === PacketType.PINGREQ ||
-    //   packetType === PacketType.DISCONNECT
-    // ) {
-    //   this.handleDisconnect(
-    //     new AppError(
-    //       `Client received disallowed packet type: ${PacketType[packetType]}`
-    //     )
-    //   );
-
-    //   return new Error(
-    //     `Client received disallowed packet type: ${PacketType[packetType]}`
-    //   );
-    // }
-
     let response: AnyPacketV4 | undefined;
 
     switch (packet.typeId) {
+      case PacketType.CONNACK:
+        this.handleConnackPacketReceived(packet);
+        break;
+
       case PacketType.PUBLISH:
         response = this.handlePublishPacketReceived(packet);
+        break;
+
+      case PacketType.PUBREC:
+        this.tryCompleteRequest(packet);
         break;
 
       case PacketType.PUBREL:
@@ -491,50 +482,30 @@ export class MqttClientV4 {
         );
         break;
 
-      case PacketType.PUBREC:
-        try {
-          this.requestManager.complete(packet);
-        } catch (error) {}
-        break;
-
       case PacketType.PUBCOMP:
-        try {
-          this.requestManager.complete(packet);
-        } catch (error) {}
-        break;
-
-      case PacketType.CONNACK:
-        // CONNACK packet is only allowed while client is in CONNECTING state
-        if (this.getConnectionStatus() !== "CONNECTING")
-          this.handleDisconnect(
-            new AppError(
-              "Client received unexpected CONNACK packet. Current status: " +
-                this.mqttConnectionStatus
-            )
-          );
-
-        this.waitForConnack.resolve!(packet); // if status is CONNECTING, then waitForConnack.resolve is defined
-        break;
-
-      case PacketType.PINGRESP:
-        if (this.waitForPingresp?.resolve === undefined)
-          throw new AppError("Client received unexpected PINGRESP packet.");
-
-        this.waitForPingresp.resolve();
+        this.tryCompleteRequest(packet);
         break;
 
       case PacketType.PUBACK:
       case PacketType.SUBACK:
       case PacketType.UNSUBACK:
-        try {
-          this.requestManager.complete(packet);
-        } catch (error) {
-          // TODO: handle error of receiving unexpected packets
-        }
+        this.tryCompleteRequest(packet);
+        break;
+
+      case PacketType.PINGRESP:
+        if (this.waitForPingresp?.resolve === undefined)
+          throw new AppError("Client received unexpected PINGRESP packet.");
+        this.waitForPingresp.resolve();
         break;
     }
 
     if (response) this.sendPacket(response);
+  };
+
+  private tryCompleteRequest = (packet: AnyPacketV4) => {
+    try {
+      this.requestManager.complete(packet);
+    } catch {}
   };
 
   /**
@@ -570,6 +541,19 @@ export class MqttClientV4 {
       default:
         throw new AppError(`Invalid ping timeout action: ${action}`);
     }
+  }
+
+  private handleConnackPacketReceived(packet: ConnackPacketV4) {
+    // CONNACK packet is only allowed while client is in CONNECTING state
+    if (this.getConnectionStatus() !== "CONNECTING")
+      this.handleDisconnect(
+        new AppError(
+          "Client received unexpected CONNACK packet. Current status: " +
+            this.mqttConnectionStatus
+        )
+      );
+
+    this.waitForConnack.resolve!(packet); // if status is CONNECTING, then waitForConnack.resolve is defined
   }
 
   /**
