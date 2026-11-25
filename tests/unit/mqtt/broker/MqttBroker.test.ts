@@ -2767,6 +2767,65 @@ describe("MqttBroker", () => {
       );
     });
 
+    it.each([
+      { subscription: "new", subscribeAfterLoss: true },
+      { subscription: "existing", subscribeAfterLoss: false },
+    ])(
+      "delivers a retained Last Will to a $subscription subscription",
+      async ({ subscribeAfterLoss }) => {
+        const publisher = connectionMock.transport;
+        const topic = "devices/publisher/status";
+        const payload = new Uint8Array([1]);
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(
+            true,
+            0,
+            "publisher",
+            undefined,
+            undefined,
+            { topic, message: payload, qos: 1, retain: true }
+          )
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(publisher.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(false)
+        );
+        if (subscribeAfterLoss) {
+          publisher.disconnectHandler();
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        const subscriberConnection = createConnectionMock("will subscriber");
+        listenerMock.connectionHandler(subscriberConnection);
+        const subscriber = subscriberConnection.transport;
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        subscriber.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 0]])
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        if (!subscribeAfterLoss) {
+          publisher.disconnectHandler();
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        const publications = vi
+          .mocked(subscriber.send)
+          .mock.calls.map(([packet]) => packet)
+          .filter((packet) => packet.typeId === PacketType.PUBLISH);
+        expect(publications).toEqual([
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(0, subscribeAfterLoss)
+          ),
+        ]);
+      }
+    );
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());

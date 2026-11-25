@@ -255,20 +255,28 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       //
 
       if (connection?.will) {
-        const subscribers = this.subscriptions.getSubscribers(
-          connection.will.topic
-        );
+        const will = connection.will;
+
+        // add the will message to the retained messages if it should be retained
+        if (will.retain && will.topic) {
+          this.retainedMessages.set(
+            will.topic,
+            will.message ?? new Uint8Array(), // if message is undefined, use an empty Uint8Array
+            will.qos
+          );
+        }
+
+        const subscribers = this.subscriptions.getSubscribers(will.topic);
 
         const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
-          connection.will.topic,
-          connection.will.message,
-          MqttPacketV4Factory.createPublishFlagsV4(0, connection.will.retain)
+          will.topic,
+          will.message
         );
 
         for (const subscriber of subscribers) {
           // set the QoS level for the publish packet based on the minimum of the will's QoS and the subscriber's QoS
           publishPacket.flags.qosLevel = Math.min(
-            connection.will.qos,
+            will.qos,
             subscriber.qos
           ) as QoS;
 
