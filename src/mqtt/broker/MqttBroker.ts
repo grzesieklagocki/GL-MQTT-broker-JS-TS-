@@ -268,21 +268,32 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
 
         const subscribers = this.subscriptions.getSubscribers(will.topic);
 
-        const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
-          will.topic,
-          will.message
-        );
-
         for (const subscriber of subscribers) {
           // set the QoS level for the publish packet based on the minimum of the will's QoS and the subscriber's QoS
-          publishPacket.flags.qosLevel = Math.min(
-            will.qos,
-            subscriber.qos
-          ) as QoS;
-
           const subscriberSession = this.sessions.get(subscriber.clientId);
 
+          // set packet identifier based on the granted QoS level
+          const grantedQos = Math.min(will.qos, subscriber.qos) as QoS;
+          const packetId =
+            grantedQos !== 0
+              ? subscriberSession?.packetIdManager.allocateIdentifier()
+              : undefined;
+
+          const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
+            will.topic,
+            will.message,
+            MqttPacketV4Factory.createPublishFlagsV4(grantedQos),
+            packetId
+          );
+
+          // send the publish packet to the subscriber's active connection
           this.trySend(subscriberSession?.activeConnection!, publishPacket);
+
+          if (grantedQos == 1)
+            subscriberSession?.outgoingPublishPackets.set(packetId!, {
+              packet: publishPacket,
+              status: "awaitingPuback",
+            });
         }
       }
 
