@@ -23,7 +23,7 @@ import {
 } from "../protocol/v4/types";
 import { PacketType, QoS } from "../protocol/shared/types";
 import { MqttAuth } from "../shared/types";
-import { MqttPacketV4Factory } from "../protocol/v4/MqttPacketV4Factory";
+import { MqttPacketV4Factory, Will } from "../protocol/v4/MqttPacketV4Factory";
 import { isBasicClientId } from "../protocol/v4/validation/connect";
 import {
   IRetainedMessagesManager,
@@ -250,6 +250,34 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         }
       }
 
+      //
+      // SEND WILL MESSAGE (IF PRESENT)
+      //
+
+      if (connection?.will) {
+        const subscribers = this.subscriptions.getSubscribers(
+          connection.will.topic
+        );
+
+        const publishPacket = MqttPacketV4Factory.createPublishPacketV4(
+          connection.will.topic,
+          connection.will.message,
+          MqttPacketV4Factory.createPublishFlagsV4(0, connection.will.retain)
+        );
+
+        for (const subscriber of subscribers) {
+          // set the QoS level for the publish packet based on the minimum of the will's QoS and the subscriber's QoS
+          publishPacket.flags.qosLevel = Math.min(
+            connection.will.qos,
+            subscriber.qos
+          ) as QoS;
+
+          const subscriberSession = this.sessions.get(subscriber.clientId);
+
+          this.trySend(subscriberSession?.activeConnection!, publishPacket);
+        }
+      }
+
       // emit the connectionClosed event with the reason and optional error
       this.emit(
         "connectionClosed",
@@ -386,12 +414,10 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
         session = this.sessions.get(clientId);
       }
 
-      sessionPresent = this.updateSession(
-        clientId,
-        connection,
-        packet.flags.cleanSession,
-        packet.keepAlive
-      );
+      // store the will message from the CONNECT packet in the connection state
+      connection.will = this.getWill(packet);
+
+      sessionPresent = this.updateSession(clientId, connection, packet);
     }
 
     // create the CONNACK response packet and send it to the client
@@ -841,18 +867,18 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
   private updateSession(
     clientId: string,
     connection: ConnectionState,
-    cleanSession: boolean,
-    keepAliveSeconds: number
+    packet: ConnectPacketV4
   ): boolean {
     const session = this.sessions.get(clientId);
+    const cleanSessionFlag = packet.flags.cleanSession;
 
-    if (!cleanSession && session) {
+    if (!cleanSessionFlag && session) {
       session.activeConnection = connection;
     } else {
       // if session does not exist, create a new one
       const session: ClientSession = {
         activeConnection: connection,
-        isPermanent: !cleanSession,
+        isPermanent: !cleanSessionFlag,
         packetIdManager: new PacketIdentifierManager(), // initialize a new packet identifier manager for the session
         outgoingPublishPackets: new Map(),
         incomingQos2PacketIds: new Set(),
@@ -863,9 +889,9 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
       this.subscriptions.unsubscribe(clientId);
     }
     connection.clientId = clientId;
-    connection.keepAliveSeconds = keepAliveSeconds;
+    connection.keepAliveSeconds = packet.keepAlive;
 
-    const sessionPresent = !cleanSession && session !== undefined;
+    const sessionPresent = !cleanSessionFlag && session !== undefined;
 
     return sessionPresent;
   }
@@ -890,6 +916,20 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     }, keepAlive * 1_500); // from the MQTT 3.1.1 specification
   }
 
+  private getWill(packet: ConnectPacketV4): Will | undefined {
+    const topic = packet.payload.willTopic;
+    const message = packet.payload.willMessage;
+
+    if (topic === undefined) return undefined;
+
+    return {
+      topic: topic,
+      message: message,
+      qos: packet.flags.willQoS,
+      retain: packet.flags.willRetain,
+    };
+  }
+
   private async disconnectConnection(
     connection: ConnectionState,
     error?: Error
@@ -897,6 +937,9 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     if (!this.connections.has(connection.connectionId)) return;
 
     connection.phase = "closing";
+
+    // clear the will message if there is no error (normal disconnect)
+    if (!error) connection.will = undefined;
 
     try {
       if (error) await connection.transport.disconnect(error);

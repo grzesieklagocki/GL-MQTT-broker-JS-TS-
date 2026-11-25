@@ -1,4 +1,5 @@
 import { QoS } from "../protocol/shared/types";
+import { Will } from "../protocol/v4/MqttPacketV4Factory";
 import { AnyPacketV4, PublishPacketV4 } from "../protocol/v4/types";
 import {
   IMqttSocketTransportAdapter,
@@ -92,6 +93,7 @@ export type ConnectionState = {
   phase: ConnectionPhase; // current phase of the connection (beforeConnect, connected, or closing)
 
   clientId?: string; // the client identifier associated with the connection (optional, set after CONNECT)
+  will?: Will; // the last will message for the client connection (optional, set if the client provided a last will)
   keepAliveSeconds?: number; // the keep-alive interval for the client session (optional)
   keepAliveTimeout?: NodeJS.Timeout; // the timeout for the keep-alive mechanism (optional)
 };

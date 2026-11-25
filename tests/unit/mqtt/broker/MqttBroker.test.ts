@@ -2567,6 +2567,206 @@ describe("MqttBroker", () => {
       }
     );
 
+    it.each([
+      { reason: "transport loss", graceful: false },
+      { reason: "DISCONNECT", graceful: true },
+    ])("handles the Last Will after $reason", async ({ graceful }) => {
+      const subscriber = connectionMock.transport;
+      const publisherConnection = createConnectionMock("will publisher");
+      listenerMock.connectionHandler(publisherConnection);
+      const publisher = publisherConnection.transport;
+      const topic = "devices/publisher/status";
+      const payload = new Uint8Array([1]);
+
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 0]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(subscriber.send).mockClear();
+
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(
+          true,
+          0,
+          "publisher",
+          undefined,
+          undefined,
+          { topic, message: payload, qos: 0, retain: false }
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(publisher.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+      expect(subscriber.send).not.toHaveBeenCalled();
+
+      if (graceful) {
+        publisher.packetReceivedHandler(
+          MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(publisher.disconnect).toHaveBeenCalledOnce();
+      }
+      publisher.disconnectHandler();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      if (graceful) {
+        expect(subscriber.send).not.toHaveBeenCalled();
+      } else {
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createPublishPacketV4(
+            topic,
+            payload,
+            MqttPacketV4Factory.createPublishFlagsV4(0)
+          )
+        );
+      }
+    });
+
+    describe("Last Will on session resume", () => {
+      const keepAlive = 10;
+      const oldTopic = "devices/publisher/old";
+      const newTopic = "devices/publisher/new";
+      const oldPayload = new Uint8Array([1]);
+      const newPayload = new Uint8Array([2]);
+
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      async function connectPublisher(
+        will?: {
+          topic: string;
+          message: Uint8Array;
+        },
+        beforeConnect?: (transport: AcceptedConnection["transport"]) => void
+      ) {
+        const connection = createConnectionMock("will publisher");
+        listenerMock.connectionHandler(connection);
+        beforeConnect?.(connection.transport);
+        connection.transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(
+            false,
+            keepAlive,
+            "publisher",
+            undefined,
+            undefined,
+            will && { ...will, qos: 0, retain: false }
+          )
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        return connection.transport;
+      }
+
+      async function subscribeToBothTopics() {
+        const { transport } = connectionMock;
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        transport.packetReceivedHandler(
+          MqttPacketV4Factory.createSubscribePacketV4(42, [
+            [oldTopic, 0],
+            [newTopic, 0],
+          ])
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        vi.mocked(transport.send).mockClear();
+        return transport;
+      }
+
+      async function expireKeepAlive(
+        transport: AcceptedConnection["transport"]
+      ) {
+        await vi.advanceTimersByTimeAsync(keepAlive * 1_500);
+        transport.disconnectHandler();
+        await vi.advanceTimersByTimeAsync(0);
+      }
+
+      it("does not publish a Will if transport closes while sending a CONNECT refusal", async () => {
+        const subscriber = await subscribeToBothTopics();
+        vi.mocked(authManagerMock.canLogin).mockReturnValueOnce(false);
+
+        let finishRefusal!: () => void;
+        const refusal = new Promise<void>((resolve) => {
+          finishRefusal = resolve;
+        });
+        const rejected = await connectPublisher(
+          { topic: oldTopic, message: oldPayload },
+          (transport) => vi.mocked(transport.send).mockReturnValueOnce(refusal)
+        );
+        expect(rejected.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createConnackPacketV4(
+            false,
+            ConnackReturnCodeV4.CONNECTION_REFUSED_NOT_AUTHORIZED
+          )
+        );
+        rejected.disconnectHandler();
+        finishRefusal();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(subscriber.send).not.toHaveBeenCalled();
+      });
+
+      // The Will is replaced by the one from the resuming CONNECT [MQTT-3.1.2-8].
+      it("publishes the Last Will from the CONNECT that resumed the session", async () => {
+        const subscriber = await subscribeToBothTopics();
+        const first = await connectPublisher({
+          topic: oldTopic,
+          message: oldPayload,
+        });
+        first.disconnectHandler();
+        await vi.advanceTimersByTimeAsync(0);
+        vi.mocked(subscriber.send).mockClear();
+
+        const resumed = await connectPublisher({
+          topic: newTopic,
+          message: newPayload,
+        });
+        await expireKeepAlive(resumed);
+
+        expect(subscriber.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createPublishPacketV4(
+            newTopic,
+            newPayload,
+            MqttPacketV4Factory.createPublishFlagsV4(0)
+          )
+        );
+      });
+
+      // No Will in CONNECT means no Will publication [MQTT-3.1.2-12].
+      it.each([
+        { reason: "transport loss", graceful: false },
+        { reason: "DISCONNECT", graceful: true },
+      ])(
+        "does not publish the old Last Will after $reason when the resuming CONNECT has no Will",
+        async ({ graceful }) => {
+          const subscriber = await subscribeToBothTopics();
+          const first = await connectPublisher({
+            topic: oldTopic,
+            message: oldPayload,
+          });
+          if (graceful) {
+            first.packetReceivedHandler(
+              MqttPacketV4Factory.createSimplePacketV4(PacketType.DISCONNECT)
+            );
+            await vi.advanceTimersByTimeAsync(0);
+          }
+          first.disconnectHandler();
+          await vi.advanceTimersByTimeAsync(0);
+          vi.mocked(subscriber.send).mockClear();
+
+          const resumed = await connectPublisher();
+          await expireKeepAlive(resumed);
+
+          expect(subscriber.send).not.toHaveBeenCalled();
+        }
+      );
+    });
+
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());
       afterEach(() => vi.useRealTimers());
