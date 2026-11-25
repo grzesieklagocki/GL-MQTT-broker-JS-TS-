@@ -67,7 +67,10 @@ export class MqttClientV4 {
   private waitForConnack: PromiseExecutor<ConnackPacketV4> = {};
   private waitForPingresp: PromiseExecutor<void> = {};
 
-  private requestManager: RequestManager;
+  private readonly requestManager: RequestManager;
+
+  // set of packet identifiers for incoming QoS 2 PUBLISH packets awaiting PUBREL
+  private readonly incomingQos2PacketIds: Set<number> = new Set();
 
   private readonly events = new EventEmitter();
 
@@ -169,7 +172,7 @@ export class MqttClientV4 {
     if (clientIdentifier === undefined)
       clientIdentifier = generateRandomClientId();
 
-    const packet = MqttPacketV4Factory.createConnectPacketV4(
+    const connect = MqttPacketV4Factory.createConnectPacketV4(
       cleanSession,
       keepAlive,
       clientIdentifier,
@@ -181,11 +184,16 @@ export class MqttClientV4 {
     const action = async () => {
       const waitForConnack = new Promise<ConnectResponse>((resolve) => {
         this.waitForConnack.resolve = (connack) => {
-          this.setConectionStatus(
+          const connectionAccepted =
             connack.connectReturnCode ===
-              ConnackReturnCodeV4.CONNECTION_ACCEPTED
-              ? "CONNECTED"
-              : "DISCONNECTED"
+            ConnackReturnCodeV4.CONNECTION_ACCEPTED;
+
+          // clear incoming QoS 2 packet IDs if the connection is accepted and there is no existing session
+          if (connectionAccepted && !connack.sessionPresentFlag)
+            this.incomingQos2PacketIds.clear();
+
+          this.setConectionStatus(
+            connectionAccepted ? "CONNECTED" : "DISCONNECTED"
           );
 
           resolve({
@@ -196,7 +204,7 @@ export class MqttClientV4 {
         };
       });
 
-      await this.sendPacket(packet);
+      await this.sendPacket(connect);
       return waitForConnack;
     };
 
@@ -460,8 +468,15 @@ export class MqttClientV4 {
         response = this.handlePublishPacketReceived(packet);
         break;
 
-      case PacketType.PUBREC:
       case PacketType.PUBREL:
+        this.incomingQos2PacketIds.delete(packet.identifier);
+        response = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBCOMP,
+          packet.identifier
+        );
+        break;
+
+      case PacketType.PUBREC:
       case PacketType.PUBCOMP:
         // TODO: QoS 2
         break;
@@ -477,8 +492,8 @@ export class MqttClientV4 {
           );
 
         this.waitForConnack.resolve!(packet); // if status is CONNECTING, then waitForConnack.resolve is defined
-
         break;
+
       case PacketType.PINGRESP:
         if (this.waitForPingresp?.resolve === undefined)
           throw new AppError("Client received unexpected PINGRESP packet.");
@@ -545,20 +560,34 @@ export class MqttClientV4 {
   private handlePublishPacketReceived(
     packet: PublishPacketV4
   ): AnyPacketV4 | undefined {
-    if (packet.flags.qosLevel == 2) {
-      const error = new AppError("QOS 2 is currently not supported.");
+    const qos = packet.flags.qosLevel;
 
-      this.handleDisconnect(error);
+    if (
+      qos !== 2 ||
+      packet.identifier === undefined ||
+      !this.incomingQos2PacketIds.has(packet.identifier)
+    )
+      // skip emitting for QoS 2 packets that have already been received and processed
+      this.emit("publish", packet.topicName, packet.applicationMessage);
+
+    if (qos > 0 && packet.identifier) {
+      const id = packet.identifier;
+
+      if (qos === 2) {
+        // store the packet identifier for QoS 2 to track incoming packets
+        this.incomingQos2PacketIds.add(id);
+      }
+
+      // response packet for QoS 1 (PUBACK) or QoS 2 (PUBREC)
+      return MqttPacketV4Factory.createPacketWithIdentifierV4(
+        packet.flags.qosLevel === 1
+          ? PacketType.PUBACK // for QoS 1
+          : PacketType.PUBREC, // for QoS 2
+        id
+      );
     }
 
-    this.emit("publish", packet.topicName, packet.applicationMessage);
-
-    if (packet.flags.qosLevel === 1)
-      return MqttPacketV4Factory.createPacketWithIdentifierV4(
-        PacketType.PUBACK,
-        packet.identifier!
-      );
-
+    // no response for QoS 0 packets
     return undefined;
   }
 

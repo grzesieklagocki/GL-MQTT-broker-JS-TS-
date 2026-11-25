@@ -170,8 +170,6 @@ describe("MqttClientV4", () => {
       });
     });
 
-    it.todo("TODO: when received PUBLISH packet with QOS 2");
-
     [
       // qos: 0
       MqttPacketV4Factory.createPublishPacketV4(topic, message),
@@ -185,12 +183,12 @@ describe("MqttClientV4", () => {
       ),
 
       // qos: 2
-      // MqttPacketV4Factory.createPublishPacketV4(
-      //   topic,
-      //   message,
-      //   MqttPacketV4Factory.createPublishFlagsV4(2),
-      //   0xffff
-      // ),
+      MqttPacketV4Factory.createPublishPacketV4(
+        topic,
+        message,
+        MqttPacketV4Factory.createPublishFlagsV4(2),
+        0xffff
+      ),
     ].forEach((packet) => {
       it(`emits publish event with provided topic and message when received PUBLISH packet with QOS ${packet.flags.qosLevel}`, () => {
         expect(packet.typeId).toBe(PacketType.PUBLISH);
@@ -205,8 +203,149 @@ describe("MqttClientV4", () => {
       });
     });
 
-    it.todo(
-      "TODO: call publish event with provided topic and message when received PUBLISH packet with QOS 2"
-    );
+    describe("received PUBLISH with QoS 2", () => {
+      const publishQos2 = (identifier: number, dup = false) =>
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          message,
+          MqttPacketV4Factory.createPublishFlagsV4(2, false, dup),
+          identifier
+        );
+
+      const pubrec = (identifier: number) =>
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREC,
+          identifier
+        );
+
+      const pubrel = (identifier: number) =>
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREL,
+          identifier
+        );
+
+      const pubcomp = (identifier: number) =>
+        MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBCOMP,
+          identifier
+        );
+
+      [1, 0xa1, 0xffff].forEach((packetId) => {
+        it(`sends PUBREC with the same packet identifier (${packetId}) and emits publish event when received PUBLISH`, () => {
+          const onPublish = vi.fn();
+          const onDisconnect = vi.fn();
+          testContext.client.on("publish", onPublish);
+          testContext.client.on("disconnect", onDisconnect);
+
+          testContext.sendBack(publishQos2(packetId));
+
+          expect(
+            testContext.transportMock.send
+          ).toHaveBeenCalledExactlyOnceWith(pubrec(packetId));
+          expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+          expect(onDisconnect).not.toHaveBeenCalled();
+        });
+      });
+
+      // MQTT 3.1.1 section 4.3.3 [MQTT-4.3.3-2].
+      it("sends PUBREC again without emitting publish event again when received a duplicate PUBLISH before PUBREL", () => {
+        const onPublish = vi.fn();
+        testContext.client.on("publish", onPublish);
+
+        testContext.sendBack(publishQos2(7));
+        testContext.sendBack(publishQos2(7, true));
+
+        expect(testContext.transportMock.send.mock.calls).toEqual([
+          [pubrec(7)],
+          [pubrec(7)],
+        ]);
+        expect(onPublish).toHaveBeenCalledOnce();
+      });
+
+      it("sends PUBCOMP with the same packet identifier when received PUBREL", () => {
+        testContext.sendBack(publishQos2(7));
+        testContext.transportMock.send.mockClear();
+
+        testContext.sendBack(pubrel(7));
+
+        expect(testContext.transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          pubcomp(7)
+        );
+      });
+
+      // The original PUBCOMP might have been lost, so PUBREL can be repeated.
+      it("sends PUBCOMP when received PUBREL for an identifier that is no longer stored", () => {
+        testContext.sendBack(pubrel(7));
+
+        expect(testContext.transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          pubcomp(7)
+        );
+      });
+
+      // MQTT 3.1.1 section 4.3.3 [MQTT-4.3.3-2].
+      it("treats PUBLISH with the same packet identifier after PUBCOMP as a new publication", () => {
+        const onPublish = vi.fn();
+        testContext.client.on("publish", onPublish);
+
+        testContext.sendBack(publishQos2(7));
+        testContext.sendBack(pubrel(7));
+        testContext.sendBack(publishQos2(7));
+
+        expect(onPublish).toHaveBeenCalledTimes(2);
+        expect(testContext.transportMock.send.mock.calls).toEqual([
+          [pubrec(7)],
+          [pubcomp(7)],
+          [pubrec(7)],
+        ]);
+      });
+
+      // MQTT 3.1.1 section 3.1.2.4 [MQTT-3.1.2-6].
+      it("delivers a PUBLISH with an identifier pending in the previous clean session", async () => {
+        const onPublish = vi.fn();
+        testContext.client.on("publish", onPublish);
+
+        testContext.sendBack(publishQos2(7));
+        expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+        onPublish.mockClear();
+
+        await testContext.client.disconnect();
+        testContext.transportMock.send.mockClear();
+        await testContext.connectClientAndClearSendMock();
+
+        testContext.sendBack(publishQos2(7));
+
+        expect(testContext.transportMock.send).toHaveBeenCalledExactlyOnceWith(
+          pubrec(7)
+        );
+        expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+      });
+
+      // MQTT 3.1.1 [MQTT-3.1.2-4] and [MQTT-4.3.3-2].
+      it("does not deliver a duplicate PUBLISH again after resuming the session", async () => {
+        const { client, transportMock, sendBack } =
+          createMqttClientV4TestContext();
+        const connect = async (sessionPresent: boolean) => {
+          transportMock.send.mockImplementationOnce(async () => {
+            sendBack(MqttPacketV4Factory.createConnackPacketV4(sessionPresent));
+          });
+          await client.connect("qos2client", undefined, undefined, 0, false);
+          transportMock.send.mockClear();
+        };
+
+        const onPublish = vi.fn();
+        client.on("publish", onPublish);
+        await connect(false);
+        sendBack(publishQos2(7));
+        expect(onPublish).toHaveBeenCalledExactlyOnceWith(topic, message);
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(pubrec(7));
+
+        await client.disconnect();
+        await connect(true);
+        sendBack(publishQos2(7, true));
+
+        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(pubrec(7));
+        expect(onPublish).toHaveBeenCalledOnce();
+      });
+    });
   });
 });
