@@ -22,6 +22,7 @@ import {
   ConnackReturnCodeV4,
   PublishFlagsV4,
   PublishPacketV4,
+  PubrelPacketV4,
   SubackPacketV4,
   SubackReturnCodeV4,
   SubscribePacketV4,
@@ -261,7 +262,14 @@ export class MqttClientV4 {
         break;
 
       case 2:
-        throw new AppError("QOS 2 is currently not supported.");
+        await this.sendAndWaitForResponse(packet);
+        const pubrel = MqttPacketV4Factory.createPacketWithIdentifierV4(
+          PacketType.PUBREL,
+          packet.identifier!
+        ) as PubrelPacketV4;
+        await this.sendAndWaitForResponse(pubrel);
+        this.packetIdManager.releaseIdentifier(packet.identifier!);
+        break;
     }
   }
 
@@ -358,13 +366,20 @@ export class MqttClientV4 {
    * @returns A promise that resolves with the response packet received from the broker or rejects with an error if the timeout is reached.
    */
   private sendAndWaitForResponse = async (
-    packet: PublishPacketV4 | SubscribePacketV4 | UnsubscribePacketV4
+    packet:
+      PublishPacketV4 | PubrelPacketV4 | SubscribePacketV4 | UnsubscribePacketV4
   ) => {
     let expectedResponseType: PacketType;
 
     switch (packet.typeId) {
       case PacketType.PUBLISH:
-        expectedResponseType = PacketType.PUBACK;
+        expectedResponseType =
+          packet.flags.qosLevel === 1
+            ? PacketType.PUBACK //for QoS 1
+            : PacketType.PUBREC; // for QoS 2
+        break;
+      case PacketType.PUBREL:
+        expectedResponseType = PacketType.PUBCOMP;
         break;
       case PacketType.SUBSCRIBE:
         expectedResponseType = PacketType.SUBACK;
@@ -477,8 +492,15 @@ export class MqttClientV4 {
         break;
 
       case PacketType.PUBREC:
+        try {
+          this.requestManager.complete(packet);
+        } catch (error) {}
+        break;
+
       case PacketType.PUBCOMP:
-        // TODO: QoS 2
+        try {
+          this.requestManager.complete(packet);
+        } catch (error) {}
         break;
 
       case PacketType.CONNACK:

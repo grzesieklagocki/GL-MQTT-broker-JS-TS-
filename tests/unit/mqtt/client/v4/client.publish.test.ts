@@ -126,7 +126,48 @@ describe("MqttClientV4", () => {
     });
 
     describe("QoS 2", () => {
-      it.todo("TODO QoS 2");
+      // MQTT 3.1.1 section 4.3.3 [MQTT-4.3.3-1].
+      it("sends PUBREL after PUBREC and completes the publish only after matching PUBCOMP", async () => {
+        const { client, managerMock, sendBack, transportMock } = testContext;
+        const onResolved = vi.fn();
+        const onRejected = vi.fn();
+        const ack = MqttPacketV4Factory.createPacketWithIdentifierV4;
+
+        const completion = client
+          .publish(topic, message, publishFlags(/* qos */ 2))
+          .then(onResolved, onRejected);
+        await vi.advanceTimersByTimeAsync(0);
+
+        expectPublishSent(/* id */ 1, /* qos */ 2);
+        expect(onResolved).not.toHaveBeenCalled();
+        expect(onRejected).not.toHaveBeenCalled();
+        expect(managerMock.releaseIdentifier).not.toHaveBeenCalled();
+
+        sendBack(ack(PacketType.PUBREC, /* id */ 1));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(transportMock.send.mock.calls).toEqual([
+          [publishPacket(/* id */ 1, /* qos */ 2)],
+          [ack(PacketType.PUBREL, /* id */ 1)],
+        ]);
+
+        sendBack(ack(PacketType.PUBCOMP, /* id */ 2));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(onResolved).not.toHaveBeenCalled();
+        expect(onRejected).not.toHaveBeenCalled();
+        expect(managerMock.releaseIdentifier).not.toHaveBeenCalled();
+
+        sendBack(ack(PacketType.PUBCOMP, /* id */ 1));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(onResolved).toHaveBeenCalledExactlyOnceWith(undefined);
+        expect(onRejected).not.toHaveBeenCalled();
+        expect(managerMock.releaseIdentifier).toHaveBeenCalledExactlyOnceWith(
+          /* id */ 1
+        );
+        await completion;
+      });
     });
 
     it("sends nothing when received PUBLISH packet with QOS 0", () => {
