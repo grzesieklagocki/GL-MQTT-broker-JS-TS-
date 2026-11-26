@@ -65,7 +65,7 @@ export class MqttTcpListener implements IConnectionListener {
       const address = host.includes(":") ? `[${host}]` : host;
       this.connectionHandler({
         transport: new MqttSocketTransportAdapter(
-          new MqttPacketCodecV4(),
+          new MqttPacketCodecV4("clientToBroker"),
           socket
         ),
         info:

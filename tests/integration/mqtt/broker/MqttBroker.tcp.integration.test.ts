@@ -88,6 +88,42 @@ describe("MqttBroker over TCP", () => {
     );
   });
 
+  // MQTT 3.1.1 Table 2.1 and [MQTT-4.8.0-1].
+  it("closes the TCP connection at decoding when the client sends PINGRESP", async () => {
+    const client = await openClient();
+    sendConnect(client, "directiontest");
+
+    const chunks: Buffer[] = [];
+    let received = 0;
+    for await (const chunk of client.iterator({ destroyOnReturn: false })) {
+      chunks.push(chunk);
+      received += chunk.length;
+      if (received >= 4) break;
+    }
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0x20, 2, 0, 0]));
+
+    const connectionClosed = vi.fn();
+    const socketClosed = vi.fn();
+    broker.once("connectionClosed", connectionClosed);
+    client.once("close", socketClosed);
+    client.resume();
+    client.write(Uint8Array.of(0xd0, 0)); // PINGRESP is server to client only.
+
+    await vi.waitFor(() => {
+      expect(socketClosed).toHaveBeenCalledOnce();
+      expect(connectionClosed).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          reason: "transport-error",
+          error: expect.objectContaining({
+            message: expect.stringMatching(
+              /Unsupported Fixed Header Packet Type: 13/
+            ),
+          }),
+        })
+      );
+    });
+  });
+
   it("stops listening and closes both accepted sockets when the broker stops", async () => {
     const first = await openClient();
     const second = await openClient();
