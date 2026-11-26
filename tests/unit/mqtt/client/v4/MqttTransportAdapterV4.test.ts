@@ -264,6 +264,24 @@ describe("MqttTransportAdapterV4", () => {
         );
       });
 
+      it("rejects sending before the TCP connection is established", async () => {
+        socketMock.connecting = true;
+        const connection = expect(adapter.connect()).rejects.toThrow(
+          /Socket closed/
+        );
+
+        try {
+          await expect(adapter.send(packet)).rejects.toThrow(
+            /Transport adapter is not connected/
+          );
+          expect(codecMock.encode).not.toHaveBeenCalled();
+          expect(socketMock.write).not.toHaveBeenCalled();
+        } finally {
+          socketMock.emit("close", false);
+          await connection;
+        }
+      });
+
       it("calls codec.encode() with the correct packet", async () => {
         const connectPromise = adapter.connect();
         socketMock.emit("connect");

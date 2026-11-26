@@ -57,7 +57,12 @@ export class MqttSocketTransportAdapter<
    * @param packet - The MQTT packet to be sent.
    */
   public async send(packet: TPacket): Promise<void> {
-    if (!this.isActive || this.disconnectPromise || this.closeError)
+    if (
+      !this.isActive ||
+      this.socket?.connecting ||
+      this.disconnectPromise ||
+      this.closeError
+    )
       throw new AppError("Transport adapter is not connected.");
 
     let bytes; // for encoding the packet to bytes
