@@ -41,11 +41,13 @@ export class MqttTransportAdapterV4
    */
   public connect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      if (this.isActive)
+      if (this.isActive) {
         reject(new AppError("Transport adapter is already connected."));
+        return;
+      }
 
       const socket = this.createSocket();
-      this.socket = socket;
+      this.registerSocket(socket);
 
       const removeConnectionListeners = () => {
         socket.off("connect", onConnect);
@@ -62,6 +64,7 @@ export class MqttTransportAdapterV4
       };
 
       const onConnect = () => {
+        if (this.resolveDisconnect) return;
         removeConnectionListeners();
 
         this.addSocketListeners(socket);
@@ -71,9 +74,15 @@ export class MqttTransportAdapterV4
 
       const onClose = () => {
         rejectConnection(new AppError("Socket closed."));
+        this.resolveDisconnect?.();
       };
 
       const onError = (error: Error) => {
+        // A pending disconnect still needs the close listener to complete.
+        if (this.resolveDisconnect) {
+          reject(error);
+          return;
+        }
         rejectConnection(error);
       };
 

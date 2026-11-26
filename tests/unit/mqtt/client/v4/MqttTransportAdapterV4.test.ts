@@ -14,6 +14,7 @@ describe("MqttTransportAdapterV4", () => {
   let codecMock: IMqttPacketCodec<AnyPacketV4>;
 
   let socketMock: EventEmitter & {
+    connecting: boolean;
     connect: ReturnType<typeof vi.fn>;
     end: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
@@ -33,6 +34,7 @@ describe("MqttTransportAdapterV4", () => {
     };
 
     socketMock = Object.assign(new EventEmitter(), {
+      connecting: false,
       connect: vi.fn(),
       end: vi.fn(),
       destroy: vi.fn(),
@@ -135,6 +137,62 @@ describe("MqttTransportAdapterV4", () => {
         socketMock.emit("close");
 
         await expect(promise).rejects.toThrow(/Socket closed/);
+      });
+
+      it("completes disconnect when a pending connection is closed", async () => {
+        const connected = expect(adapter.connect()).rejects.toThrow(
+          /Socket closed/
+        );
+        const onDisconnected = vi.fn();
+        void adapter.disconnect().then(onDisconnected);
+
+        expect(onDisconnected).not.toHaveBeenCalled();
+        socketMock.emit("close", false);
+        await connected;
+
+        expect(onDisconnected).toHaveBeenCalledOnce();
+        expect(adapter.isActive).toBe(false);
+      });
+
+      it("closes the socket on each of two consecutive pending connection cancellations", async () => {
+        socketMock.connecting = true;
+        const firstConnect = expect(adapter.connect()).rejects.toThrow(
+          /Socket closed/
+        );
+        const firstDisconnect = adapter.disconnect();
+        socketMock.emit("close", false);
+        await firstConnect;
+        await firstDisconnect;
+
+        const secondConnect = expect(adapter.connect()).rejects.toThrow(
+          /Socket closed/
+        );
+        const secondDisconnect = adapter.disconnect();
+        socketMock.emit("close", false);
+        await secondConnect;
+
+        expect(socketMock.destroy).toHaveBeenCalledTimes(2);
+        expect(socketMock.end).not.toHaveBeenCalled();
+        await expect(secondDisconnect).resolves.toBeUndefined();
+      });
+
+      it("completes an errored cancellation only after the pending socket closes", async () => {
+        const error = new Error("Connection timeout");
+        const connected = expect(adapter.connect()).rejects.toBe(error);
+        const onDisconnected = vi.fn();
+        const disconnected = adapter.disconnect(error).then(onDisconnected);
+
+        expect(socketMock.destroy).toHaveBeenCalledExactlyOnceWith(error);
+        socketMock.emit("error", error);
+        await connected;
+        expect(onDisconnected).not.toHaveBeenCalled();
+        expect(adapter.isActive).toBe(true);
+
+        socketMock.emit("close", true);
+        await Promise.resolve();
+        expect(onDisconnected).toHaveBeenCalledOnce();
+        await disconnected;
+        expect(adapter.isActive).toBe(false);
       });
 
       it("has no temporary socket listeners after connecting", async () => {
@@ -410,9 +468,9 @@ describe("MqttTransportAdapterV4", () => {
 
     describe("close", () => {
       it("throws an error if disconnectHandler callback is not set when socket emits close", () => {
-        const closeListener = socketMock.listeners(
-          "close"
-        )[0] as (hadError: boolean) => void;
+        const closeListener = socketMock.listeners("close")[0] as (
+          hadError: boolean
+        ) => void;
 
         expect(() => closeListener(false)).toThrow(
           /disconnectHandler callback is not set/

@@ -14,7 +14,7 @@ export class MqttSocketTransportAdapter<
   TPacket extends AnyPacket,
 > implements IMqttSocketTransportAdapter<TPacket> {
   private disconnectPromise?: Promise<void>; // Promise that resolves when the transport is fully disconnected and cleaned up.
-  private resolveDisconnect?: () => void; // Function to resolve the disconnectPromise when cleanup is complete.
+  protected resolveDisconnect?: () => void; // Function to resolve the disconnectPromise when cleanup is complete.
   private closeError?: Error; // Error that caused the transport to close, if any.
 
   /**
@@ -82,7 +82,9 @@ export class MqttSocketTransportAdapter<
   public disconnect = (error?: Error): Promise<void> => {
     if (this.disconnectPromise) return this.disconnectPromise;
     if (!this.socket)
-      return Promise.reject(new AppError("Transport adapter is not connected."));
+      return Promise.reject(
+        new AppError("Transport adapter is not connected.")
+      );
 
     const socket = this.socket;
     this.closeError ??= error;
@@ -90,7 +92,7 @@ export class MqttSocketTransportAdapter<
       this.resolveDisconnect = resolve;
     });
 
-    if (error) socket.destroy(error);
+    if (error || socket.connecting) socket.destroy(error);
     else socket.end(() => socket.destroy());
 
     return this.disconnectPromise;
@@ -125,15 +127,18 @@ export class MqttSocketTransportAdapter<
    * @param socket - The already-established socket to attach.
    */
   protected attachSocket(socket: Socket) {
-    this.socket = socket;
+    this.registerSocket(socket);
     this.addSocketListeners(socket);
   }
 
-  protected addSocketListeners(socket: Socket) {
+  protected registerSocket(socket: Socket) {
     this.disconnectPromise = undefined;
     this.resolveDisconnect = undefined;
     this.closeError = undefined;
+    this.socket = socket;
+  }
 
+  protected addSocketListeners(socket: Socket) {
     socket.on("data", this.receiveBytes);
     socket.on("close", this.handleSocketClose);
     socket.on("error", this.handleSocketError);
@@ -152,9 +157,11 @@ export class MqttSocketTransportAdapter<
   private handleSocketClose = (hadError: boolean) => {
     if (!this.socket) return;
 
-    const error = this.closeError ?? (hadError
-      ? new AppError("Socket closed after a transmission error.")
-      : undefined);
+    const error =
+      this.closeError ??
+      (hadError
+        ? new AppError("Socket closed after a transmission error.")
+        : undefined);
     const resolveDisconnect = this.resolveDisconnect;
 
     this.removeSocketListeners(this.socket);
