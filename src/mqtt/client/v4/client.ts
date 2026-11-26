@@ -601,7 +601,7 @@ export class MqttClientV4 {
    * Handles the disconnection of the MQTT client and emits a disconnect event.
    * @param error - Optional error that caused the disconnection.
    */
-  private handleDisconnect(error?: Error) {
+  private handleDisconnect = (error?: Error) => {
     if (!this.isConnected) return;
 
     this.pingTimeout("CLEAR");
@@ -614,7 +614,7 @@ export class MqttClientV4 {
     } catch (error) {
       error = new AppError("Transport disconnection failed: ", error as Error);
     }
-  }
+  };
 
   //
   // assertions
