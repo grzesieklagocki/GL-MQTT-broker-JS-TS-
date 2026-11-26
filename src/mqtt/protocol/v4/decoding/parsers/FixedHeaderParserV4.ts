@@ -2,7 +2,7 @@ import { FixedHeaderParserBase } from "@src/mqtt/protocol/shared/FixedHeaderPars
 import { FixedHeaderValidatorV4 } from "./FixedHeaderValidatorV4";
 
 export class FixedHeaderParserV4 extends FixedHeaderParserBase {
-  constructor() {
-    super(new FixedHeaderValidatorV4());
+  constructor(flow?: "both" | "clientToBroker" | "brokerToClient") {
+    super(new FixedHeaderValidatorV4(flow));
   }
 }

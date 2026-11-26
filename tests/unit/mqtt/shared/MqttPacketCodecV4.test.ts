@@ -39,6 +39,30 @@ describe("MqttPacketCodecV4", () => {
   });
 
   describe("feed()", () => {
+    // MQTT 3.1.1 Table 2.1.
+    it.each([
+      ["brokerToClient", 0xd0, PacketType.PINGRESP, 0xc0],
+      ["clientToBroker", 0xc0, PacketType.PINGREQ, 0xd0],
+    ] as const)(
+      "enforces %s before and after reset",
+      (flow, allowed, typeId, denied) => {
+        const directionalCodec = new MqttPacketCodecV4(flow);
+        const onPacketReady = vi.fn();
+        directionalCodec.packetDecodedHandler = onPacketReady;
+
+        for (const reset of [false, true]) {
+          if (reset) directionalCodec.resetState();
+          onPacketReady.mockClear();
+
+          directionalCodec.feed(Uint8Array.of(allowed, 0));
+          expect(() => directionalCodec.feed(Uint8Array.of(denied, 0))).toThrow(
+            /Unsupported Fixed Header Packet Type/
+          );
+          expect(onPacketReady).toHaveBeenCalledExactlyOnceWith({ typeId });
+        }
+      }
+    );
+
     it("calls packetDecodedHandler() when complete packet is received", () => {
       const onPacketReady = vi.fn(() => true);
 

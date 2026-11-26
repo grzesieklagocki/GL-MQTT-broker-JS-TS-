@@ -17,6 +17,10 @@ import { encodeMqttPacketV4 } from "@mqtt/protocol/v4/encoding/encodeMqttPacketV
 export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
   private decoder: MqttPacketDecoder = this.createDecoder();
 
+  public constructor(
+    private readonly flow?: "both" | "clientToBroker" | "brokerToClient"
+  ) {}
+
   /**
    * Resets the internal state of the codec, including the decoder, to prepare for new packet processing.
    */
@@ -50,7 +54,7 @@ export class MqttPacketCodecV4 implements IMqttPacketCodec<AnyPacketV4> {
 
   private createDecoder() {
     const framer = new MqttPacketFramer(
-      new FixedHeaderParserV4(),
+      new FixedHeaderParserV4(this.flow),
       new BinaryBuffer()
     );
 
