@@ -165,9 +165,10 @@ export class MqttClientV4 {
     try {
       await this.waitForTransport(() => this.transport.connect(), 5);
     } catch (error) {
-      this.setConectionStatus("DISCONNECTED");
+      const cause = error instanceof Error ? error : new Error(String(error));
 
-      throw new AppError("Connection failed -> " + (error as Error).message);
+      this.handleDisconnect(cause);
+      throw new AppError(`Connection failed -> ${cause.message}`, cause);
     }
 
     if (clientIdentifier === undefined)

@@ -246,7 +246,7 @@ describe("connect()", () => {
         vi.useFakeTimers();
       });
 
-      it("rejects when transport connect does not resolve before timeout", async () => {
+      it("rejects and closes the transport when opening the connection times out", async () => {
         transportMock.connect.mockImplementationOnce(
           () => new Promise<void>(() => {})
         );
@@ -259,6 +259,8 @@ describe("connect()", () => {
         await vi.advanceTimersByTimeAsync(5_000);
         await assertion;
 
+        expect(transportMock.disconnect).toHaveBeenCalledOnce();
+        expect(transportMock.send).not.toHaveBeenCalled();
         expect(client.getConnectionStatus()).toBe("DISCONNECTED");
         expect(client.isConnected).toBe(false);
       });
