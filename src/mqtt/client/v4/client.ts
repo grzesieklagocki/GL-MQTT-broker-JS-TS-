@@ -183,7 +183,7 @@ export class MqttClientV4 {
     );
 
     const action = async () => {
-      const waitForConnack = new Promise<ConnectResponse>((resolve) => {
+      const waitForConnack = new Promise<ConnectResponse>((resolve, reject) => {
         this.waitForConnack.resolve = (connack) => {
           const connectionAccepted =
             connack.connectReturnCode ===
@@ -203,10 +203,17 @@ export class MqttClientV4 {
             sessionPresent: connack.sessionPresentFlag,
           });
         };
+
+        this.waitForConnack.reject = (error) => {
+          reject(error);
+        };
       });
 
-      await this.sendPacket(connect);
-      return waitForConnack;
+      const [, response] = await Promise.all([
+        this.sendPacket(connect),
+        waitForConnack,
+      ]);
+      return response;
     };
 
     const timeoutSeconds = 10;
@@ -217,11 +224,15 @@ export class MqttClientV4 {
       new Error(
         `timeout: MQTT client did not receive CONNACK packet within ${timeoutSeconds} seconds.`
       )
-    ).catch((error) => {
-      // if the connection fails set the status back to disconnected
-      this.setConectionStatus("DISCONNECTED");
-      throw error;
-    });
+    )
+      .catch((error) => {
+        // if the connection fails handle the disconnect
+        this.handleDisconnect(error);
+        throw error;
+      })
+      .finally(() => {
+        this.waitForConnack = {};
+      });
   }
 
   /**
@@ -461,6 +472,16 @@ export class MqttClientV4 {
   private handleReceivedPacket = (packet: AnyPacketV4): void => {
     let response: AnyPacketV4 | undefined;
 
+    const status = this.getConnectionStatus();
+
+    if (
+      (status === "DISCONNECTED" && packet.typeId !== PacketType.CONNECT) ||
+      (status === "CONNECTING" && packet.typeId !== PacketType.CONNACK)
+    ) {
+      this.handleDisconnect(new Error());
+      return;
+    }
+
     switch (packet.typeId) {
       case PacketType.CONNACK:
         this.handleConnackPacketReceived(packet);
@@ -545,13 +566,14 @@ export class MqttClientV4 {
 
   private handleConnackPacketReceived(packet: ConnackPacketV4) {
     // CONNACK packet is only allowed while client is in CONNECTING state
-    if (this.getConnectionStatus() !== "CONNECTING")
-      this.handleDisconnect(
+    if (this.getConnectionStatus() !== "CONNECTING") {
+      return this.handleDisconnect(
         new AppError(
           "Client received unexpected CONNACK packet. Current status: " +
             this.mqttConnectionStatus
         )
       );
+    }
 
     this.waitForConnack.resolve!(packet); // if status is CONNECTING, then waitForConnack.resolve is defined
   }
@@ -602,7 +624,13 @@ export class MqttClientV4 {
    * @param error - Optional error that caused the disconnection.
    */
   private handleDisconnect = (error?: Error) => {
-    if (!this.isConnected) return;
+    const status = this.getConnectionStatus();
+    if (status === "CONNECTING")
+      this.waitForConnack.reject?.(
+        error ?? new AppError("Connection closed before CONNACK")
+      );
+
+    if (status === "DISCONNECTED") return;
 
     this.pingTimeout("CLEAR");
     this.setConectionStatus("DISCONNECTED");

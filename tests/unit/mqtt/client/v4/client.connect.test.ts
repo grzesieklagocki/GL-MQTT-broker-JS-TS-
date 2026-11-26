@@ -149,6 +149,36 @@ describe("connect()", () => {
   });
 
   describe("CONNACK handling", () => {
+    // MQTT 3.1.1 [MQTT-3.2.0-1] and [MQTT-4.8.0-1].
+    it("closes the transport without delivering a PUBLISH received before CONNACK", async () => {
+      vi.useFakeTimers();
+      const onPublish = vi.fn();
+      const onDisconnect = vi.fn();
+      client.on("publish", onPublish);
+      client.on("disconnect", onDisconnect);
+      transportMock.send.mockImplementationOnce(async () => {
+        testContext.sendBack(
+          MqttPacketV4Factory.createPublishPacketV4("home/light")
+        );
+      });
+
+      const completion = client.connect("").catch(() => undefined);
+      try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(onPublish).not.toHaveBeenCalled();
+        expect(transportMock.disconnect).toHaveBeenCalledOnce();
+
+        // The TCP adapter reports closure back to the client.
+        transportMock.disconnectHandler();
+
+        expect(onDisconnect).toHaveBeenCalledOnce();
+        expect(transportMock.disconnect).toHaveBeenCalledOnce();
+      } finally {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await completion;
+      }
+    });
+
     it("returns connection information from CONNACK", async () => {
       const connack = MqttPacketV4Factory.createConnackPacketV4(
         true,
@@ -233,34 +263,37 @@ describe("connect()", () => {
         expect(client.isConnected).toBe(false);
       });
 
-      it("rejects when CONNACK is not received before timeout", async () => {
+      // MQTT 3.1.1 section 3.2 recommends closing the connection on CONNACK timeout.
+      it("rejects and closes the transport when CONNACK is not received before timeout", async () => {
         const promise = client.connect("");
         const assertion = expect(promise).rejects.toThrow(/timeout/i);
 
         await vi.advanceTimersByTimeAsync(10_000);
         await assertion;
 
+        expect(transportMock.disconnect).toHaveBeenCalledOnce();
         expect(client.getConnectionStatus()).toBe("DISCONNECTED");
         expect(client.isConnected).toBe(false);
       });
 
-      it("ignores another packet type and rejects after CONNACK timeout", async () => {
+      it("rejects the connection attempt immediately when UNSUBACK arrives before CONNACK", async () => {
         const unsuback = MqttPacketV4Factory.createPacketWithIdentifierV4(
           PacketType.UNSUBACK,
           1
         );
 
-        const promise = connectWithResponse(unsuback);
-        const assertion = expect(promise).rejects.toThrow(/timeout/i);
+        const onRejected = vi.fn();
+        const completion = connectWithResponse(unsuback).catch(onRejected);
 
-        await vi.advanceTimersByTimeAsync(10_000);
-        await assertion;
-
-        expect(transportMock.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createConnectPacketV4(true, 60, "")
-        );
-        expect(client.getConnectionStatus()).toBe("DISCONNECTED");
-        expect(client.isConnected).toBe(false);
+        try {
+          await vi.advanceTimersByTimeAsync(0);
+          expect(transportMock.disconnect).toHaveBeenCalledOnce();
+          expect(client.getConnectionStatus()).toBe("DISCONNECTED");
+          expect(onRejected).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+        } finally {
+          await vi.advanceTimersByTimeAsync(10_000);
+          await completion;
+        }
       });
     });
   });
