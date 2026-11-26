@@ -74,7 +74,7 @@ export interface IAuthManager {
 
   canSubscribe(topicFilter: string): QoS | false;
 
-  //TODO: canPublish
+  canPublish(topic: string): boolean;
 }
 
 /**

@@ -7,6 +7,7 @@ const port = 1883;
 const broker = new MqttBroker({
   canLogin: () => true,
   canSubscribe: () => 2,
+  canPublish: () => true,
 });
 const listener = new MqttTcpListener(host, port);
 

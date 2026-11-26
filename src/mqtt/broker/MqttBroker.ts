@@ -581,6 +581,9 @@ export class MqttBroker extends EventEmitter<MqttBrokerEvents> {
     // SEND TO SUBSCRIBERS
     //
 
+    // check if the client is authorized to publish to this topic
+    if (!this.auth.canPublish(topic)) return;
+
     // get the list of subscribers for the topic
     const subscribers = this.subscriptions.getSubscribers(topic);
 

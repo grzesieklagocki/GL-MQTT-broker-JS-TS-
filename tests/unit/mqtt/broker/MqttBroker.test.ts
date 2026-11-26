@@ -45,13 +45,18 @@ describe("MqttBroker", () => {
   const createAuthManagerMock = (): IAuthManager => ({
     canLogin: vi.fn(() => true),
     canSubscribe: vi.fn(() => 2 as QoS),
+    canPublish: vi.fn(() => true),
   });
 
   beforeEach(() => {
     authManagerMock = createAuthManagerMock();
     subscriptionManager = new SubscriptionManager();
     retainedMessages = new RetainedMessagesManager();
-    broker = new MqttBroker(authManagerMock, subscriptionManager, retainedMessages);
+    broker = new MqttBroker(
+      authManagerMock,
+      subscriptionManager,
+      retainedMessages
+    );
     listenerMock = createListenerMock();
     secondListenerMock = createListenerMock();
     connectionMock = createConnectionMock("test connection");
@@ -1215,7 +1220,9 @@ describe("MqttBroker", () => {
         ]);
       });
 
-      async function subscribeToLight(transport: AcceptedConnection["transport"]) {
+      async function subscribeToLight(
+        transport: AcceptedConnection["transport"]
+      ) {
         transport.packetReceivedHandler(
           MqttPacketV4Factory.createSubscribePacketV4(42, [["home/light", 0]])
         );
@@ -1423,7 +1430,10 @@ describe("MqttBroker", () => {
       expect(subscriber.disconnect).toHaveBeenCalledExactlyOnceWith();
       // The transport has not reported closure yet.
       publisher.packetReceivedHandler(
-        MqttPacketV4Factory.createPublishPacketV4("home/light", new Uint8Array([1]))
+        MqttPacketV4Factory.createPublishPacketV4(
+          "home/light",
+          new Uint8Array([1])
+        )
       );
       await new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -1445,47 +1455,50 @@ describe("MqttBroker", () => {
           remainingHomeSubscribers: [{ clientId: "client", qos: 0 }],
           remainingGardenSubscribers: [{ clientId: "client", qos: 0 }],
         },
-      ])("$name and sends one UNSUBACK", async ({
-        filters,
-        remainingHomeSubscribers,
-        remainingGardenSubscribers,
-      }) => {
-        const { transport } = connectionMock;
-        transport.packetReceivedHandler(
-          MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
-        );
-        await new Promise<void>((resolve) => setImmediate(resolve));
-        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createConnackPacketV4(false)
-        );
-        vi.mocked(transport.send).mockClear();
-        subscriptionManager.subscribe("client", "home/+", 0);
-        subscriptionManager.subscribe("client", "garden/light", 0);
-        subscriptionManager.subscribe("client", "office/light", 0);
+      ])(
+        "$name and sends one UNSUBACK",
+        async ({
+          filters,
+          remainingHomeSubscribers,
+          remainingGardenSubscribers,
+        }) => {
+          const { transport } = connectionMock;
+          transport.packetReceivedHandler(
+            MqttPacketV4Factory.createConnectPacketV4(false, 0, "client")
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createConnackPacketV4(false)
+          );
+          vi.mocked(transport.send).mockClear();
+          subscriptionManager.subscribe("client", "home/+", 0);
+          subscriptionManager.subscribe("client", "garden/light", 0);
+          subscriptionManager.subscribe("client", "office/light", 0);
 
-        const identifier = 43;
-        transport.packetReceivedHandler(
-          MqttPacketV4Factory.createUnsubscribePacketV4(identifier, filters)
-        );
-        await new Promise<void>((resolve) => setImmediate(resolve));
+          const identifier = 43;
+          transport.packetReceivedHandler(
+            MqttPacketV4Factory.createUnsubscribePacketV4(identifier, filters)
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
 
-        expect(transport.send).toHaveBeenCalledExactlyOnceWith(
-          MqttPacketV4Factory.createPacketWithIdentifierV4(
-            PacketType.UNSUBACK,
-            identifier
-          )
-        );
-        expect(subscriptionManager.getSubscribers("home/light")).toEqual(
-          remainingHomeSubscribers
-        );
-        expect(subscriptionManager.getSubscribers("garden/light")).toEqual(
-          remainingGardenSubscribers
-        );
-        expect(subscriptionManager.getSubscribers("office/light")).toEqual([
-          { clientId: "client", qos: 0 },
-        ]);
-        expect(transport.disconnect).not.toHaveBeenCalled();
-      });
+          expect(transport.send).toHaveBeenCalledExactlyOnceWith(
+            MqttPacketV4Factory.createPacketWithIdentifierV4(
+              PacketType.UNSUBACK,
+              identifier
+            )
+          );
+          expect(subscriptionManager.getSubscribers("home/light")).toEqual(
+            remainingHomeSubscribers
+          );
+          expect(subscriptionManager.getSubscribers("garden/light")).toEqual(
+            remainingGardenSubscribers
+          );
+          expect(subscriptionManager.getSubscribers("office/light")).toEqual([
+            { clientId: "client", qos: 0 },
+          ]);
+          expect(transport.disconnect).not.toHaveBeenCalled();
+        }
+      );
     });
 
     it("closes the transport with the original error if sending UNSUBACK fails", async () => {
@@ -1504,7 +1517,9 @@ describe("MqttBroker", () => {
 
       const identifier = 43;
       transport.packetReceivedHandler(
-        MqttPacketV4Factory.createUnsubscribePacketV4(identifier, ["home/light"])
+        MqttPacketV4Factory.createUnsubscribePacketV4(identifier, [
+          "home/light",
+        ])
       );
       await new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -1538,7 +1553,9 @@ describe("MqttBroker", () => {
       expect(publisher.send).not.toHaveBeenCalled();
       expect(publisher.disconnect).not.toHaveBeenCalled();
 
-      const subscriberConnection = createConnectionMock("subscriber connection");
+      const subscriberConnection = createConnectionMock(
+        "subscriber connection"
+      );
       listenerMock.connectionHandler(subscriberConnection);
       const subscriber = subscriberConnection.transport;
       subscriber.packetReceivedHandler(
@@ -1682,8 +1699,9 @@ describe("MqttBroker", () => {
           SubackReturnCodeV4.SUCCESS_MAXIMUM_QOS_1,
         ])
       );
-      const publication = vi.mocked(transport.send).mock.calls
-        .map(([packet]) => packet)
+      const publication = vi
+        .mocked(transport.send)
+        .mock.calls.map(([packet]) => packet)
         .find((packet) => packet.typeId === PacketType.PUBLISH);
       expect(publication).toMatchObject({
         topicName: topic,
@@ -3216,6 +3234,95 @@ describe("MqttBroker", () => {
         ]);
       }
     );
+
+    it("does not forward or store an unauthorized retained PUBLISH", async () => {
+      const topic = "home/light";
+      const retainedPayload = new Uint8Array([1]);
+      const subscriber = connectionMock.transport;
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "subscriber")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      subscriber.packetReceivedHandler(
+        MqttPacketV4Factory.createSubscribePacketV4(42, [[topic, 1]])
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      vi.mocked(subscriber.send).mockClear();
+      retainedMessages.set(topic, retainedPayload, 1);
+
+      const publisherConnection = createConnectionMock("publisher");
+      listenerMock.connectionHandler(publisherConnection);
+      const publisher = publisherConnection.transport;
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "publisher")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(publisher.send).toHaveBeenCalledExactlyOnceWith(
+        MqttPacketV4Factory.createConnackPacketV4(false)
+      );
+
+      Object.assign(authManagerMock, { canPublish: vi.fn(() => false) });
+      vi.mocked(publisher.send).mockClear();
+      publisher.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          new Uint8Array([2]),
+          MqttPacketV4Factory.createPublishFlagsV4(1, true),
+          43
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(subscriber.send).not.toHaveBeenCalled();
+      expect(retainedMessages.get(topic)).toEqual([
+        { topic, payload: retainedPayload, qos: 1 },
+      ]);
+
+      // MQTT 3.1.1 [MQTT-3.3.5-2]: acknowledge the denied PUBLISH or close.
+      if (vi.mocked(publisher.disconnect).mock.calls.length === 0) {
+        expect(publisher.send).toHaveBeenCalledExactlyOnceWith(
+          MqttPacketV4Factory.createPacketWithIdentifierV4(
+            PacketType.PUBACK,
+            43
+          )
+        );
+      }
+    });
+
+    it("forwards and stores a retained PUBLISH on an authorized topic", async () => {
+      const topic = "home/temperature";
+      const payload = new Uint8Array([2]);
+      const { transport } = connectionMock;
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createConnectPacketV4(true, 0, "client")
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      subscriptionManager.subscribe("client", topic, 1);
+      vi.mocked(transport.send).mockClear();
+      vi.mocked(authManagerMock.canPublish).mockImplementation(
+        (name) => name === topic
+      );
+
+      transport.packetReceivedHandler(
+        MqttPacketV4Factory.createPublishPacketV4(
+          topic,
+          payload,
+          MqttPacketV4Factory.createPublishFlagsV4(1, true),
+          43
+        )
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(authManagerMock.canPublish).toHaveBeenCalledExactlyOnceWith(topic);
+      expect(transport.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          typeId: PacketType.PUBLISH,
+          topicName: topic,
+          applicationMessage: payload,
+        })
+      );
+      expect(retainedMessages.get(topic)).toEqual([{ topic, payload, qos: 1 }]);
+    });
 
     describe("Keep Alive", () => {
       beforeEach(() => vi.useFakeTimers());

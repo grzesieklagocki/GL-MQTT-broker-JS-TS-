@@ -16,7 +16,11 @@ describe("MqttBroker over TCP", () => {
 
   beforeEach(async () => {
     canLogin = vi.fn(() => true);
-    broker = new MqttBroker({ canLogin, canSubscribe: () => 2 });
+    broker = new MqttBroker({
+      canLogin,
+      canSubscribe: () => 2,
+      canPublish: () => true,
+    });
 
     listener = new MqttTcpListener(host, 0);
     await new Promise<void>((resolve, reject) => {
@@ -64,7 +68,9 @@ describe("MqttBroker over TCP", () => {
       if (received >= 4) break;
     }
 
-    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0x20, 0x02, 0x00, 0x00]));
+    expect(Buffer.concat(chunks)).toEqual(
+      Buffer.from([0x20, 0x02, 0x00, 0x00])
+    );
   });
 
   it("sends a refusal before closing the TCP connection [MQTT-3.2.2-5]", async () => {
@@ -77,7 +83,9 @@ describe("MqttBroker over TCP", () => {
     sendConnect(client, "client");
 
     await expect(closed).resolves.toEqual([false]);
-    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0x20, 0x02, 0x00, 0x05]));
+    expect(Buffer.concat(chunks)).toEqual(
+      Buffer.from([0x20, 0x02, 0x00, 0x05])
+    );
   });
 
   it("stops listening and closes both accepted sockets when the broker stops", async () => {
