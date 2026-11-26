@@ -90,7 +90,13 @@ export class MqttTransportAdapterV4
       socket.once("close", onClose);
       socket.once("error", onError);
 
-      socket.connect(this.port, this.host);
+      try {
+        socket.connect(this.port, this.host);
+      } catch (error) {
+        rejectConnection(
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
     });
   }
 }

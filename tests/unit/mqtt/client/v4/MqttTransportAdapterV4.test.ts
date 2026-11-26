@@ -131,6 +131,20 @@ describe("MqttTransportAdapterV4", () => {
         await expect(promise).rejects.toBe(error);
       });
 
+      it("releases the socket when socket.connect throws synchronously", async () => {
+        const error = new Error("Invalid port");
+        socketMock.connect.mockImplementationOnce(() => {
+          throw error;
+        });
+
+        await expect(adapter.connect()).rejects.toBe(error);
+
+        expect(adapter.isActive).toBe(false);
+        expect(socketMock.listenerCount("connect")).toBe(0);
+        expect(socketMock.listenerCount("close")).toBe(0);
+        expect(socketMock.listenerCount("error")).toBe(0);
+      });
+
       it("rejects when the socket closes before connecting", async () => {
         const promise = adapter.connect();
 
