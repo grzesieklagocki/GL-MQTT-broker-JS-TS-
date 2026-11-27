@@ -11,6 +11,7 @@ describe("MqttSocketTransportAdapter", () => {
   let codecMock: IMqttPacketCodec<AnyPacketV4>;
 
   let socketMock: EventEmitter & {
+    destroyed: boolean;
     end: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
     write: ReturnType<typeof vi.fn>;
@@ -27,6 +28,7 @@ describe("MqttSocketTransportAdapter", () => {
     };
 
     socketMock = Object.assign(new EventEmitter(), {
+      destroyed: false,
       end: vi.fn(),
       destroy: vi.fn(),
       write: vi.fn(),
@@ -72,6 +74,16 @@ describe("MqttSocketTransportAdapter", () => {
         await expect(promise).rejects.toThrow(
           /Transport adapter is not connected/
         );
+      });
+
+      it("rejects sending on a destroyed socket before its close event", async () => {
+        socketMock.destroyed = true;
+
+        await expect(adapter.send(packet)).rejects.toThrow(
+          /Transport adapter is not connected/
+        );
+        expect(codecMock.encode).not.toHaveBeenCalled();
+        expect(socketMock.write).not.toHaveBeenCalled();
       });
 
       it("calls codec.encode() with the correct packet", async () => {
@@ -273,7 +285,9 @@ describe("MqttSocketTransportAdapter", () => {
       });
 
       it("rejects sending packets while the socket is closing", async () => {
-        const packet = MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ);
+        const packet = MqttPacketV4Factory.createSimplePacketV4(
+          PacketType.PINGREQ
+        );
         const promise = adapter.disconnect();
 
         await expect(adapter.send(packet)).rejects.toThrow(
@@ -286,7 +300,9 @@ describe("MqttSocketTransportAdapter", () => {
       });
 
       it("does not forward bytes or decoded packets while closing", async () => {
-        const packet = MqttPacketV4Factory.createSimplePacketV4(PacketType.PINGREQ);
+        const packet = MqttPacketV4Factory.createSimplePacketV4(
+          PacketType.PINGREQ
+        );
         const packetListener = vi.fn();
         adapter.packetReceivedHandler = packetListener;
         const promise = adapter.disconnect();
@@ -373,7 +389,9 @@ describe("MqttSocketTransportAdapter", () => {
       it("invokes disconnectHandler() without an error when hadError is false", async () => {
         const disconnectListener = vi.fn();
         adapter.disconnectHandler = disconnectListener;
-        socketMock.end.mockImplementation((callback?: () => void) => callback?.());
+        socketMock.end.mockImplementation((callback?: () => void) =>
+          callback?.()
+        );
         const closeListener = socketMock.listeners("close")[0] as (
           hadError: boolean
         ) => void | Promise<void>;
@@ -385,7 +403,9 @@ describe("MqttSocketTransportAdapter", () => {
 
       it("does not call socket.end() or socket.destroy() after the socket closes", async () => {
         adapter.disconnectHandler = vi.fn();
-        socketMock.end.mockImplementation((callback?: () => void) => callback?.());
+        socketMock.end.mockImplementation((callback?: () => void) =>
+          callback?.()
+        );
         const closeListener = socketMock.listeners("close")[0] as (
           hadError: boolean
         ) => void | Promise<void>;
@@ -397,9 +417,9 @@ describe("MqttSocketTransportAdapter", () => {
       });
 
       it("throws an error if disconnectHandler callback is not set when socket emits close", () => {
-        const closeListener = socketMock.listeners(
-          "close"
-        )[0] as (hadError: boolean) => void;
+        const closeListener = socketMock.listeners("close")[0] as (
+          hadError: boolean
+        ) => void;
 
         expect(() => closeListener(false)).toThrow(
           /disconnectHandler callback is not set/

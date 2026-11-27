@@ -59,9 +59,12 @@ export class MqttSocketTransportAdapter<
   public async send(packet: TPacket): Promise<void> {
     if (
       !this.isActive ||
-      this.socket?.connecting ||
-      this.disconnectPromise ||
-      this.closeError
+      this.disconnectPromise || // transport is in the process of disconnecting
+      this.closeError || // transport has encountered a close error
+      // socket is not usable
+      !this.socket ||
+      this.socket.connecting ||
+      this.socket.destroyed
     )
       throw new AppError("Transport adapter is not connected.");
 
@@ -74,7 +77,7 @@ export class MqttSocketTransportAdapter<
     }
 
     try {
-      this.socket!.write(bytes); // asserted because isActive check ensure that socket is defined
+      this.socket.write(bytes); // asserted because isActive check ensure that socket is defined
     } catch (error) {
       throw new AppError("Transport error", error as Error);
     }
