@@ -1,6 +1,7 @@
 import { AppError } from "@src/AppError";
 import { PublishFlagsV4 } from "../types";
 import { _assertValidTopicName } from "./topic";
+import { _assertValidIdentifier } from "./identifier";
 
 /**
  * Asserts that the given PUBLISH packet has valid variable header according to MQTT v4 specs.
@@ -14,7 +15,17 @@ export function _assertValidPublishVariableHeaderV4(
   topicName: string,
   identifier?: number
 ) {
-  if (flags.qosLevel === 0) {
+  const qos = flags.qosLevel;
+
+  // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
+  // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
+  // [MQTT-3.3.1-4]
+  if (qos !== 0x00 && qos !== 0x01 && qos !== 0x02)
+    throw new AppError(
+      `A PUBLISH Packet MUST NOT have both QoS bits set to 1 [MQTT-3.3.1-4]`
+    );
+
+  if (qos === 0) {
     // A PUBLISH Packet MUST NOT contain a Packet Identifier if its QoS value is set to 0.
     // [MQTT-2.3.1-5]
     if (identifier !== undefined)
@@ -29,17 +40,15 @@ export function _assertValidPublishVariableHeaderV4(
         "The DUP flag MUST be set to 0 for all QoS 0 messages [MQTT-3.3.1-2]"
       );
     }
+  } else {
+    // SUBSCRIBE, UNSUBSCRIBE, and PUBLISH (in cases where QoS > 0) Control Packets MUST contain a non-zero 16-bit Packet Identifier
+    // [MQTT-2.3.1-1]
+    if (identifier === undefined)
+      throw new AppError(
+        "For QoS > 0, PUBLISH packets MUST contain a non-zero 16-bit Packet Identifier [MQTT-2.3.1-1]"
+      );
+    _assertValidIdentifier(identifier);
   }
-
-  const qos = flags.qosLevel;
-
-  // A PUBLISH Packet MUST NOT have both QoS bits set to 1.
-  // If a Server or Client receives a PUBLISH Packet which has both QoS bits set to 1 it MUST close the Network Connection.
-  // [MQTT-3.3.1-4]
-  if (qos !== 0x00 && qos !== 0x01 && qos !== 0x02)
-    throw new AppError(
-      `A PUBLISH Packet MUST NOT have both QoS bits set to 1 [MQTT-3.3.1-4]`
-    );
 
   // The Topic Name MUST be present as the first field in the PUBLISH Packet Variable header. It MUST be a UTF-8 encoded string.
   // [MQTT-3.3.2-1]

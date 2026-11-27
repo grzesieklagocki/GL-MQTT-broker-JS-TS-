@@ -103,7 +103,7 @@ describe("encodeVariableHeaderV4", () => {
         -1
       );
 
-      expect(() => encodeVariableHeaderV4(packet)).toThrow(/unsigned/);
+      expect(() => encodeVariableHeaderV4(packet)).toThrow(/MQTT-2\.3\.1-1/);
     });
 
     it("should throw if packet identifier is greater than 0xffff (2-bytes)", () => {
@@ -508,6 +508,33 @@ describe("encodeVariableHeaderV4", () => {
           0x00, 0x04, 0xc4, 0x85, 0xc4, 0x87,
         ]
       );
+    });
+
+    // A PUBLISH Packet with QoS > 0 MUST contain a non-zero 16-bit Packet Identifier.
+    // [MQTT-2.3.1-1]
+    describe("[MQTT-2.3.1-1]", () => {
+      (
+        [
+          [1, undefined],
+          [1, 0],
+          [1, 0.5],
+          [2, undefined],
+          [2, 0],
+        ] as const
+      ).forEach(([qos, identifier]) => {
+        it(`should throw if PUBLISH packet has QoS ${qos} and identifier ${identifier}`, () => {
+          const packet = MqttPacketV4Factory.createPublishPacketV4(
+            "topic",
+            undefined, // message
+            MqttPacketV4Factory.createPublishFlagsV4(qos),
+            identifier
+          );
+
+          expect(() => encodeVariableHeaderV4(packet)).toThrow(
+            /MQTT-2\.3\.1-1/
+          );
+        });
+      });
     });
 
     // A PUBLISH Packet MUST NOT contain a Packet Identifier if its QoS value is set to 0.
