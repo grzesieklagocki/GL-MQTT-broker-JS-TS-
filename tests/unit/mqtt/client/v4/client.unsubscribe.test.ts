@@ -43,7 +43,8 @@ describe("MqttClientV4", () => {
       expectUnsubscribeSent();
     });
 
-    it("resolves when UNSUBACK is received before timeout", async () => {
+    // MQTT 3.1.1 [MQTT-2.3.1-3].
+    it("resolves and releases the packet identifier when matching UNSUBACK is received", async () => {
       await testContext.connectClientAndClearSendMock();
 
       testContext.transportMock.send.mockImplementationOnce(() => {
@@ -53,6 +54,9 @@ describe("MqttClientV4", () => {
       await expect(testContext.client.unsubscribe([])).resolves.toBeUndefined();
 
       expectUnsubscribeSent();
+      expect(
+        testContext.managerMock.releaseIdentifier
+      ).toHaveBeenCalledExactlyOnceWith(1);
     });
 
     it("rejects when UNSUBACK is received with a different packet identifier", async () => {

@@ -56,7 +56,8 @@ describe("MqttClientV4", () => {
     });
 
     describe("QoS 1", () => {
-      it("sends PUBLISH with packet identifier and resolves when matching PUBACK is received", async () => {
+      // MQTT 3.1.1 [MQTT-2.3.1-3] and [MQTT-4.3.2-1].
+      it("resolves and releases the packet identifier when matching PUBACK is received", async () => {
         testContext.transportMock.send.mockImplementationOnce(() => {
           testContext.sendBack(pubackPacket(1));
         });
@@ -66,6 +67,9 @@ describe("MqttClientV4", () => {
         ).resolves.toBeUndefined();
 
         expectPublishSent(1, 1);
+        expect(
+          testContext.managerMock.releaseIdentifier
+        ).toHaveBeenCalledExactlyOnceWith(1);
       });
 
       it("rejects when PUBACK is not received before timeout", async () => {

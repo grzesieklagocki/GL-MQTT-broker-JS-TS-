@@ -280,10 +280,9 @@ export class MqttClientV4 {
 
         // send PUBREL and wait for PUBCOMP
         await this.sendAndWaitForResponse(pubrel);
-
-        // release the packet identifier after completing the QoS 2 flow
-        this.packetIdManager.releaseIdentifier(packet.identifier!);
       }
+
+      this.packetIdManager.releaseIdentifier(packet.identifier!);
     }
   }
 
@@ -329,6 +328,8 @@ export class MqttClientV4 {
     );
 
     await this.sendAndWaitForResponse(packet);
+
+    this.packetIdManager.releaseIdentifier(packet.identifier);
   }
 
   public async disconnect(): Promise<void> {
